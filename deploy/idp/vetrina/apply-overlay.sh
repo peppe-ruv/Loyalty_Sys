@@ -1,23 +1,33 @@
 #!/usr/bin/env bash
-# VETRINA ENTERPRISE (F2-IAM-01, F2-IAM-03, ADR-049; Q-618, Q-619 e Q-626, decise il 2026-09-30).
-# Applica realm-vetrina-overlay.json al realm `loyaltyhub` gia' avviato (e chiude la registrazione libera in `loyaltyhub-members`, ADR-051), con lo stesso meccanismo di
-# test-idp/apply-overlay.sh ma senza segnaposto ne' credenziali:
-#   - impostazioni del realm (oggi solo `registrationAllowed: false`): lettura del realm, unione con il frammento
-#     dell'overlay e PUT /admin/realms/loyaltyhub della rappresentazione completa (come fa `kcadm update`: il
-#     partialImport non tocca le impostazioni del realm e un PUT parziale potrebbe far ricalcolare alcune policy);
-#   - client (oggi `lh-cli`, Device Authorization Grant per la CLI dell'operatore): POST
-#     /admin/realms/loyaltyhub/partialImport con ifResourceExists=OVERWRITE;
-#   - scope mapping dei ruoli del client (`scopeMappings` dell'overlay, con fullScopeAllowed=false): il
-#     partialImport non li porta, quindi POST /clients/{id}/scope-mappings/realm.
-# `--import-realm` salta un realm gia' esistente, quindi l'overlay non si applicherebbe da solo. Lo script e'
-# idempotente, non crea utenti, non tocca flussi di autenticazione, azioni richieste (UPDATE_PASSWORD) e MFA,
-# e non stampa mai credenziali. Alla fine rilegge il realm e il client e FALLISCE se il risultato non e' quello
-# atteso, e verifica che ogni account operatore abbia MFA_REQUIRED_ROLE (Q-618, decisa il 2026-09-30): e' il
-# solo ruolo che fa scattare l'OTP nel flusso browser-mfa, quindi un operatore senza sarebbe un ADMIN senza MFA.
+# VETRINA ENTERPRISE (F2-IAM-01, F2-IAM-03, ADR-049, ADR-051; Q-618, Q-619, Q-626, Q-671, Q-672, Q-676, Q-677).
+# Applica gli overlay di vetrina ai realm gia' avviati da Keycloak, con lo stesso meccanismo di
+# test-idp/apply-overlay.sh ma senza segnaposto ne' segreti veri:
+#   - realm `master` (master.json, Q-672): sole impostazioni (blocco dei tentativi, eventi di amministrazione con
+#     dettagli, sslRequired, politica delle password), lettura + unione + PUT dell'intera rappresentazione e verifica;
+#   - realm `loyaltyhub` (realm-vetrina-overlay.json): impostazioni (registrazione chiusa, eventi di amministrazione con
+#     dettagli, Q-677): lettura del realm, unione con il frammento dell'overlay e PUT della rappresentazione completa
+#     (come `kcadm update`: il partialImport non tocca le impostazioni del realm); client `lh-cli` (Device Authorization
+#     Grant per la CLI dell'operatore) con partialImport OVERWRITE; scope mapping dei ruoli del client (il
+#     partialImport non li porta: POST /clients/{id}/scope-mappings/realm); il ruolo LH_TEST_USER e gli UTENTI DI TEST
+#     FISSI (ADR-051 decisione 1: cinque operatori con password e seme TOTP documentati, vetrina.admin) con
+#     partialImport OVERWRITE, id fissi (il `sub` non cambia a ogni ripristino, Q-672);
+#   - realm `loyaltyhub-members` (realm-members-vetrina-overlay.json): stesso metodo per le impostazioni (registrazione
+#     libera chiusa, ADR-051; eventi di amministrazione con dettagli, Q-677) e per ruolo e utenti di test (Anna, Marco,
+#     Giulia, Laura e membri.admin);
+#   - ruoli del client `realm-management` degli amministratori di test (Q-671): il partialImport non li porta in modo
+#     affidabile, quindi si assegnano con l'API e si rileggono.
+# `--import-realm` salta un realm gia' esistente, quindi gli overlay non si applicherebbero da soli: vetrina.sh ricrea il
+# database di Keycloak a ogni avvio (Q-672) e poi esegue questo script. Lo script e' idempotente, non tocca flussi di
+# autenticazione e azioni richieste del realm, e non stampa mai una credenziale: le password e il seme TOTP di prova
+# sono PUBBLICI e documentati (runbook e pagina Mintlify), ma restano comunque solo nei file 0600 del processo.
+# Alla fine rilegge tutto e FALLISCE se il risultato non e' quello atteso, e verifica che ogni account operatore abbia
+# MFA_REQUIRED_ROLE (Q-618): e' il solo ruolo che fa scattare l'OTP nel flusso browser-mfa.
 #
 # Uso:
 #   KC_BOOTSTRAP_ADMIN_PASSWORD=... ./apply-overlay.sh     applica (o LH_IDP_ADMIN_PASSWORD)
-#   ./apply-overlay.sh --check                              solo validazione dell'overlay, nessuna rete
+#   ./apply-overlay.sh --check                              solo validazione degli overlay, nessuna rete
+#   ./apply-overlay.sh --no-test-users                      applica senza ruolo e utenti di test: per una vetrina
+#                                                           che non e' in un codespace (ADR-051, Q-676)
 #   KC_BOOTSTRAP_ADMIN_PASSWORD=... ./apply-overlay.sh --check-operators
 #                                                           solo lettura: fallisce se un account operatore non ha
 #                                                           MFA_REQUIRED_ROLE; da rieseguire dopo ogni account creato
@@ -26,26 +36,58 @@ set -euo pipefail
 
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
 REALM="loyaltyhub"
+MEMBERS_REALM="loyaltyhub-members"
 ADMIN_USER="${KC_BOOTSTRAP_ADMIN_USERNAME:-${LH_IDP_ADMIN_USERNAME:-admin}}"
 ADMIN_PASSWORD="${KC_BOOTSTRAP_ADMIN_PASSWORD:-${LH_IDP_ADMIN_PASSWORD:-}}"
-OVERLAY="${OVERLAY:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/realm-vetrina-overlay.json}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OVERLAY="${OVERLAY:-$HERE/realm-vetrina-overlay.json}"
+MEMBERS_OVERLAY="${MEMBERS_OVERLAY:-$HERE/realm-members-vetrina-overlay.json}"
+MASTER_OVERLAY="${MASTER_OVERLAY:-$HERE/master.json}"
 
-# Impostazioni del realm che l'overlay puo' contenere (allowlist: una chiave fuori elenco e' un errore).
-# check-realm.mjs verifica che coincida con le chiavi dell'overlay.
+# Impostazioni dei realm che gli overlay possono contenere (allowlist: una chiave fuori elenco e' un errore).
+# check-realm.mjs verifica che gli elenchi coincidano con le chiavi dei file.
 REALM_SETTINGS=(
   registrationAllowed
+  adminEventsEnabled
+  adminEventsDetailsEnabled
+)
+MEMBERS_SETTINGS=(
+  registrationAllowed
+  adminEventsEnabled
+  adminEventsDetailsEnabled
+)
+MASTER_SETTINGS=(
+  bruteForceProtected
+  permanentLockout
+  failureFactor
+  maxFailureWaitSeconds
+  minimumQuickLoginWaitSeconds
+  waitIncrementSeconds
+  maxDeltaTimeSeconds
+  adminEventsEnabled
+  adminEventsDetailsEnabled
+  sslRequired
+  passwordPolicy
 )
 # Ruoli degli account operatore (docs/08): chi ne ha uno deve avere anche MFA_REQUIRED_ROLE.
 OPERATOR_ROLES=(ADMIN MARKETING LEGAL CARE ANALYST)
 MFA_ROLE="MFA_REQUIRED_ROLE"
+# Ruolo degli utenti di test (ADR-051 decisione 1, Q-676): hub e BFF li rifiutano salvo LH_TEST_USERS_ALLOWED=true.
+TEST_ROLE="LH_TEST_USER"
+# Ruoli del client realm-management degli amministratori di test (Q-671): niente manage-realm, manage-clients,
+# manage-identity-providers, manage-events, realm-admin ne' impersonation.
+MGMT_ROLES=(view-users query-users query-groups manage-users view-events)
 
 MODE="apply"
-case "${1:-}" in
-  "") ;;
-  --check) MODE="check" ;;
-  --check-operators) MODE="operators" ;;
-  *) echo "Uso: $0 [--check | --check-operators]" >&2; exit 2 ;;
-esac
+TEST_USERS=1
+for arg in "$@"; do
+  case "$arg" in
+    --check) MODE="check" ;;
+    --check-operators) MODE="operators" ;;
+    --no-test-users) TEST_USERS=0 ;;
+    *) echo "Uso: $0 [--check | --check-operators] [--no-test-users]" >&2; exit 2 ;;
+  esac
+done
 
 command -v python3 >/dev/null || { echo "Errore: serve python3." >&2; exit 1; }
 if [ "$MODE" != "check" ]; then
@@ -63,29 +105,113 @@ trap 'rm -rf "$WORK"' EXIT
 # Codifica per application/x-www-form-urlencoded: legge da stdin, scrive su stdout (nome utente e password).
 urlenc() { python3 -c 'import sys,urllib.parse;sys.stdout.write(urllib.parse.quote(sys.stdin.read(),safe=""))'; }
 
-# 1. Validazione e scomposizione dell'overlay. Nessun segnaposto ammesso (l'overlay non ha segreti da sostituire),
-#    nessun utente, flusso o azione richiesta, e il client lh-cli deve essere pubblico, solo device grant, con
-#    consenso obbligatorio e ruoli limitati a quelli operatore.
-REALM_SETTINGS_CSV="$(IFS=,; echo "${REALM_SETTINGS[*]}")" OPERATOR_ROLES_CSV="$(IFS=,; echo "${OPERATOR_ROLES[*]}")" \
-python3 - "$OVERLAY" "$WORK" <<'PY'
-import json, os, sys
-src, work = sys.argv[1], sys.argv[2]
-settings = set(os.environ["REALM_SETTINGS_CSV"].split(","))
-operators = set(os.environ["OPERATOR_ROLES_CSV"].split(","))
-raw = open(src).read()
-if "${" in raw:
-    sys.exit("Errore: l'overlay di vetrina non ammette segnaposto ${...} (nessun segreto da sostituire)")
-doc = json.loads(raw)
-doc.pop("_comment", None)
-if doc.pop("realm", None) != "loyaltyhub":
-    sys.exit("Errore: l'overlay deve riguardare il realm loyaltyhub")
+csv() { local IFS=,; echo "$*"; }
+
+# 1. Validazione e scomposizione degli overlay. Nessun segnaposto ammesso (nessun segreto da sostituire). Operatori: il
+#    client lh-cli deve essere pubblico, solo device grant, con consenso obbligatorio e ruoli limitati a quelli
+#    operatore; gli utenti di test devono avere id fisso, LH_TEST_USER, password non temporanea, nessuna azione richiesta
+#    (altrimenti il login dei test si fermerebbe su UPDATE_PASSWORD o CONFIGURE_TOTP), un solo seme TOTP condiviso per gli
+#    operatori e, per gli amministratori di test, i soli ruoli di Q-671 e nessun ruolo applicativo.
+REALM_SETTINGS_CSV="$(csv "${REALM_SETTINGS[@]}")" MEMBERS_SETTINGS_CSV="$(csv "${MEMBERS_SETTINGS[@]}")" \
+MASTER_SETTINGS_CSV="$(csv "${MASTER_SETTINGS[@]}")" OPERATOR_ROLES_CSV="$(csv "${OPERATOR_ROLES[@]}")" \
+MGMT_ROLES_CSV="$(csv "${MGMT_ROLES[@]}")" MFA_ROLE="$MFA_ROLE" TEST_ROLE="$TEST_ROLE" \
+python3 - "$OVERLAY" "$MEMBERS_OVERLAY" "$MASTER_OVERLAY" "$WORK" <<'PY'
+import json, os, re, sys
+ops_file, mem_file, master_file, work = sys.argv[1:5]
+csvset = lambda k: set(os.environ[k].split(","))
+op_settings, mem_settings, master_settings = csvset("REALM_SETTINGS_CSV"), csvset("MEMBERS_SETTINGS_CSV"), csvset("MASTER_SETTINGS_CSV")
+operators, mgmt = csvset("OPERATOR_ROLES_CSV"), csvset("MGMT_ROLES_CSV")
+mfa, test_role = os.environ["MFA_ROLE"], os.environ["TEST_ROLE"]
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+write = lambda name, obj: json.dump(obj, open(os.path.join(work, name), "w"))
+
+def load(path, realm):
+    raw = open(path).read()
+    if "${" in raw:
+        sys.exit(f"Errore: l'overlay {os.path.basename(path)} non ammette segnaposto ${{...}} (nessun segreto da sostituire)")
+    doc = json.loads(raw)
+    doc.pop("_comment", None)
+    if doc.pop("realm", None) != realm:
+        sys.exit(f"Errore: {os.path.basename(path)} deve riguardare il realm {realm}")
+    return doc
+
+def check_roles(doc, name):
+    roles = doc.pop("roles", {})
+    if set(roles) != {"realm"} or [r.get("name") for r in roles["realm"]] != [test_role]:
+        sys.exit(f"Errore: {name}: l'unico ruolo ammesso e' {test_role} (ruolo di realm, nessun ruolo di client)")
+    return roles
+
+def check_users(users, name, allowed_roles, with_otp):
+    """Utenti di test: id fissi, ruolo LH_TEST_USER, password non temporanee, nessuna azione richiesta."""
+    seen_ids, seen_names, seeds, expected, imported = set(), set(), set(), [], []
+    allowed_keys = {"id", "username", "enabled", "email", "emailVerified", "firstName", "lastName", "realmRoles", "clientRoles", "credentials"}
+    for u in users:
+        who = u.get("username", "?")
+        if set(u) - allowed_keys:
+            sys.exit(f"Errore: {name}: campi non ammessi per {who}: " + ", ".join(sorted(set(u) - allowed_keys)))
+        if not UUID.match(u.get("id", "")) or u["id"] in seen_ids:
+            sys.exit(f"Errore: {name}: {who} deve avere un id UUID fisso e unico (il sub non cambia a ogni ripristino, Q-672)")
+        if not re.match(r"^[a-z0-9.]+$", who) or who in seen_names:
+            sys.exit(f"Errore: {name}: nome utente non valido o duplicato: {who}")
+        seen_ids.add(u["id"]); seen_names.add(who)
+        if u.get("enabled") is not True or not all(u.get(k) for k in ("email", "firstName", "lastName")):
+            sys.exit(f"Errore: {name}: {who} deve essere abilitato e avere e-mail, nome e cognome (senza, Keycloak chiede di completare il profilo al login)")
+        roles = u.get("realmRoles", [])
+        if test_role not in roles or not set(roles) <= allowed_roles:
+            sys.exit(f"Errore: {name}: {who}: i ruoli devono includere {test_role} e stare in " + ", ".join(sorted(allowed_roles)))
+        creds = u.get("credentials", [])
+        types = [c.get("type") for c in creds]
+        if types.count("password") != 1 or set(types) - {"password", "otp"} or types.count("otp") > 1:
+            sys.exit(f"Errore: {name}: {who}: credenziali ammesse: una password e al piu' un otp")
+        for c in creds:
+            if c["type"] == "password":
+                if set(c) != {"type", "value", "temporary"} or c["temporary"] is not False or len(c["value"]) < 12:
+                    sys.exit(f"Errore: {name}: {who}: la password deve essere fissa (non temporanea) e di almeno 12 caratteri")
+            else:
+                sd, cd = json.loads(c.get("secretData", "{}")), json.loads(c.get("credentialData", "{}"))
+                if set(sd) != {"value"} or len(sd["value"]) != 20 or not sd["value"].isascii():
+                    sys.exit(f"Errore: {name}: {who}: secretData dell'OTP deve essere un seme ASCII di 20 caratteri")
+                if (cd.get("subType"), cd.get("digits"), cd.get("period"), cd.get("algorithm")) != ("totp", 6, 30, "HmacSHA1"):
+                    sys.exit(f"Errore: {name}: {who}: l'OTP deve essere TOTP a 6 cifre, 30 secondi, HmacSHA1 (politica del realm)")
+                seeds.add(sd["value"])
+        has_otp = "otp" in types
+        is_operator = bool(set(roles) & operators)
+        if with_otp and is_operator and not (mfa in roles and has_otp):
+            sys.exit(f"Errore: {name}: l'operatore {who} deve avere {mfa} e la credenziale OTP del seme documentato (nessuna azione richiesta CONFIGURE_TOTP)")
+        if not with_otp and (has_otp or mfa in roles or set(roles) & operators):
+            sys.exit(f"Errore: {name}: {who}: nel realm dei membri niente OTP ne' ruoli operatore")
+        if has_otp and mfa not in roles:
+            sys.exit(f"Errore: {name}: {who}: l'OTP senza {mfa} non scatta mai")
+        client_roles = u.get("clientRoles", {})
+        mg = []
+        if client_roles:
+            if set(client_roles) != {"realm-management"} or set(client_roles["realm-management"]) != mgmt \
+               or len(client_roles["realm-management"]) != len(mgmt):
+                sys.exit(f"Errore: {name}: {who}: ruoli di realm-management ammessi solo " + ", ".join(sorted(mgmt)) + " (Q-671)")
+            if roles != [test_role] or has_otp:
+                sys.exit(f"Errore: {name}: {who}: un amministratore di test non ha ruoli applicativi ne' MFA (non entra nel backoffice, Q-671)")
+            mg = sorted(mgmt)
+        expected.append({"id": u["id"], "username": who, "realmRoles": roles, "mgmt": mg, "otp": has_otp})
+        imported.append({k: v for k, v in u.items() if k != "clientRoles"})
+    if with_otp and len(seeds) != 1:
+        sys.exit(f"Errore: {name}: gli operatori condividono UN solo seme TOTP documentato (trovati {len(seeds)})")
+    if not any(e["mgmt"] for e in expected):
+        sys.exit(f"Errore: {name}: manca l'amministratore di test (Q-671)")
+    return expected, imported
+
+# --- operatori ---
+doc = load(ops_file, "loyaltyhub")
 clients = doc.pop("clients", [])
 scope_mappings = doc.pop("scopeMappings", [])
-unknown = sorted(set(doc) - settings)
+roles = check_roles(doc, "operatori")
+users = doc.pop("users", [])
+unknown = sorted(set(doc) - op_settings)
 if unknown:
     sys.exit("Errore: chiavi non ammesse nell'overlay di vetrina: " + ", ".join(unknown))
 if doc.get("registrationAllowed") is not False:
     sys.exit("Errore: registrationAllowed deve essere false nell'overlay di vetrina (Q-619)")
+if doc.get("adminEventsEnabled") is not True or doc.get("adminEventsDetailsEnabled") is not True:
+    sys.exit("Errore: gli eventi di amministrazione con i dettagli devono essere attivi (Q-677)")
 for c in clients:
     cid = c.get("clientId")
     if cid != "lh-cli":
@@ -104,14 +230,46 @@ for c in clients:
 if clients and not (len(scope_mappings) == 1 and scope_mappings[0].get("client") == "lh-cli"
                     and set(scope_mappings[0].get("roles", [])) == operators and "clientRoles" not in scope_mappings[0]):
     sys.exit("Errore: scopeMappings deve limitare lh-cli ai soli ruoli operatore: " + ", ".join(sorted(operators)))
-json.dump(doc, open(os.path.join(work, "realm-settings.json"), "w"))
-json.dump({"ifResourceExists": "OVERWRITE", "clients": clients}, open(os.path.join(work, "partial.json"), "w"))
-json.dump({"clients": clients, "scopeMappings": scope_mappings}, open(os.path.join(work, "expected.json"), "w"))
-print("  overlay valido: impostazioni=%s client=%s" % (",".join(sorted(doc)) or "-", ",".join(c["clientId"] for c in clients) or "-"))
+op_expected, op_users = check_users(users, "operatori", operators | {mfa, test_role}, True)
+write("realm-settings.json", doc)
+write("partial.json", {"ifResourceExists": "OVERWRITE", "clients": clients})
+write("expected.json", {"clients": clients, "scopeMappings": scope_mappings})
+write("ops-roles.json", {"ifResourceExists": "OVERWRITE", "roles": roles})
+write("ops-users.json", {"ifResourceExists": "OVERWRITE", "users": op_users})
+write("ops-expected-users.json", op_expected)
+
+# --- membri ---
+mdoc = load(mem_file, "loyaltyhub-members")
+mroles = check_roles(mdoc, "membri")
+musers = mdoc.pop("users", [])
+unknown = sorted(set(mdoc) - mem_settings)
+if unknown:
+    sys.exit("Errore: chiavi non ammesse nell'overlay dei membri: " + ", ".join(unknown))
+if mdoc.get("registrationAllowed") is not False:
+    sys.exit("Errore: registrationAllowed deve essere false nell'overlay dei membri (ADR-051, Q-673)")
+if mdoc.get("adminEventsEnabled") is not True or mdoc.get("adminEventsDetailsEnabled") is not True:
+    sys.exit("Errore: gli eventi di amministrazione con i dettagli devono essere attivi nel realm dei membri (Q-677)")
+mem_expected, mem_users = check_users(musers, "membri", {"MEMBER", test_role, "default-roles-loyaltyhub-members"}, False)
+write("members-settings.json", mdoc)
+write("mem-roles.json", {"ifResourceExists": "OVERWRITE", "roles": mroles})
+write("mem-users.json", {"ifResourceExists": "OVERWRITE", "users": mem_users})
+write("mem-expected-users.json", mem_expected)
+
+# --- master ---
+ms = load(master_file, "master")
+unknown = sorted(set(ms) - master_settings)
+if unknown:
+    sys.exit("Errore: chiavi non ammesse in master.json (niente utenti, client o frontendUrl): " + ", ".join(unknown))
+if not (ms.get("bruteForceProtected") is True and ms.get("adminEventsEnabled") is True and ms.get("adminEventsDetailsEnabled") is True
+        and ms.get("sslRequired") in ("external", "all") and ms.get("passwordPolicy")):
+    sys.exit("Errore: master.json deve attivare blocco dei tentativi, eventi di amministrazione con dettagli, sslRequired external e una politica delle password")
+write("master-settings.json", ms)
+print("  overlay validi: operatori=%d utenti, membri=%d utenti, master=%d impostazioni, client=%s"
+      % (len(op_users), len(mem_users), len(ms), ",".join(c["clientId"] for c in clients) or "-"))
 PY
 chmod 600 "$WORK"/*.json
 if [ "$MODE" = "check" ]; then
-  echo "Overlay di vetrina valido (nessuna modifica applicata)."
+  echo "Overlay di vetrina validi (nessuna modifica applicata)."
   exit 0
 fi
 
@@ -131,10 +289,137 @@ TOKEN="$(curl -sS -f -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-conn
 printf 'Authorization: Bearer %s\n' "$TOKEN" > "$WORK/auth"
 chmod 600 "$WORK/auth"
 unset TOKEN ADMIN_PASSWORD
-ADMIN="${KEYCLOAK_URL}/admin/realms/${REALM}"
+KC_ROOT="${KEYCLOAK_URL}/admin/realms"
 
-# GET dell'API di amministrazione del realm: kc_get <percorso> <file di uscita> [opzioni di curl...]
-kc_get() { local path="$1" out="$2"; shift 2; curl -sS -f -G "${ADMIN}${path:+/${path}}" -H "@$WORK/auth" "$@" > "$out"; }
+# GET dell'API di amministrazione di un realm: kc_get_r <realm> <percorso> <file di uscita> [opzioni di curl...]
+kc_get_r() { local realm="$1" path="$2" out="$3"; shift 3; curl -sS -f -G "${KC_ROOT}/${realm}${path:+/${path}}" -H "@$WORK/auth" "$@" > "$out"; }
+# Lo stesso sul realm degli operatori.
+kc_get() { local path="$1" out="$2"; shift 2; kc_get_r "$REALM" "$path" "$out" "$@"; }
+# Scrittura JSON dal file indicato: kc_send <metodo> <realm> <percorso> <file> <codici ammessi> <cosa>
+kc_send() {
+  local method="$1" realm="$2" path="$3" file="$4" ok="$5" what="$6" code
+  code="$(curl -sS -o "$WORK/send-result.json" -w '%{http_code}' -X "$method" "${KC_ROOT}/${realm}${path:+/${path}}" \
+    -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$file")"
+  case " $ok " in
+    *" $code "*) ;;
+    *) echo "Errore: ${what} ha risposto ${code}: $(head -c 300 "$WORK/send-result.json")" >&2; exit 1 ;;
+  esac
+}
+
+# partialImport con OVERWRITE: partial_import <realm> <file> <cosa>. Stampa i conteggi e i nomi delle risorse.
+partial_import() {
+  local code
+  code="$(curl -sS -o "$WORK/partial-result.json" -w '%{http_code}' -X POST "${KC_ROOT}/$1/partialImport" \
+    -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$2")"
+  if [ "$code" != "200" ]; then
+    echo "Errore: partialImport ($3, realm $1) ha risposto ${code}: $(head -c 300 "$WORK/partial-result.json")" >&2
+    exit 1
+  fi
+  python3 -c 'import sys,json;r=json.load(sys.stdin);print("  aggiunti=%s sovrascritti=%s saltati=%s"%(r.get("added"),r.get("overwritten"),r.get("skipped")));[print("  -",x["resourceType"],x["resourceName"],x["action"]) for x in r.get("results",[])]' < "$WORK/partial-result.json"
+}
+
+# Impostazioni di un realm: lettura della rappresentazione corrente, unione col frammento dell'overlay e PUT dell'intera
+# rappresentazione (come kcadm update): put_realm <realm> <file delle impostazioni> <file di uscita con lo stato prima>
+put_realm() {
+  local realm="$1" settings="$2" before="$3" code
+  kc_get_r "$realm" "" "$before" || { echo "Errore: realm ${realm} assente (importato da --import-realm?)." >&2; exit 1; }
+  python3 - "$before" "$settings" "$WORK/realm-put.json" <<'PY'
+import json, sys
+realm = json.load(open(sys.argv[1]))
+realm.update(json.load(open(sys.argv[2])))
+json.dump(realm, open(sys.argv[3], "w"))
+PY
+  chmod 600 "$WORK/realm-put.json"
+  code="$(curl -sS -o "$WORK/put-result.json" -w '%{http_code}' -X PUT "${KC_ROOT}/${realm}" \
+    -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/realm-put.json")"
+  if [ "$code" != "204" ] && [ "$code" != "200" ]; then
+    echo "Errore: l'aggiornamento del realm ${realm} ha risposto ${code}: $(head -c 300 "$WORK/put-result.json")" >&2
+    exit 1
+  fi
+}
+
+# Rilettura e verifica delle impostazioni: ogni chiave dell'overlay ha il valore voluto e le impostazioni di sicurezza
+# non previste dall'overlay sono uguali a prima del PUT: verify_realm <realm> <stato prima> <impostazioni> <etichetta>
+verify_realm() {
+  local realm="$1" before="$2" settings="$3" label="$4"
+  kc_get_r "$realm" "" "$WORK/realm-now.json"
+  python3 - "$before" "$WORK/realm-now.json" "$settings" "$label" <<'PY'
+import json, sys
+before, now, want, label = json.load(open(sys.argv[1])), json.load(open(sys.argv[2])), json.load(open(sys.argv[3])), sys.argv[4]
+errors = [f"{k} non e' {v!r}" for k, v in want.items() if now.get(k) != v]
+# Impostazioni di sicurezza che il PUT non deve aver toccato (salvo quelle volute dall'overlay).
+for k in ("bruteForceProtected", "failureFactor", "maxFailureWaitSeconds", "otpPolicyType", "otpPolicyAlgorithm", "otpPolicyDigits",
+          "otpPolicyPeriod", "otpPolicyCodeReusable", "eventsEnabled", "adminEventsEnabled", "adminEventsDetailsEnabled", "accessTokenLifespan",
+          "ssoSessionIdleTimeout", "ssoSessionMaxLifespan", "verifyEmail", "registrationAllowed", "registrationFlow", "directGrantFlow",
+          "browserFlow", "passwordPolicy", "sslRequired", "loginWithEmailAllowed", "webAuthnPolicyUserVerificationRequirement"):
+    if k not in want and before.get(k) != now.get(k):
+        errors.append(f"impostazione cambiata dal PUT: {k}")
+if errors:
+    sys.exit(f"Errore: verifica del realm {label} fallita: " + "; ".join(errors))
+print(f"  verifica: realm {label} con " + ", ".join(sorted(want)))
+PY
+}
+
+# Utenti di test di un realm (ADR-051 decisione 1, Q-671, Q-672): ruolo LH_TEST_USER e utenti con partialImport
+# OVERWRITE, ruoli di realm-management degli amministratori con l'API, poi rilettura di ogni utente per id.
+# apply_users <realm> <prefisso dei file di lavoro>
+apply_users() {
+  local realm="$1" prefix="$2" rm_uuid uid
+  partial_import "$realm" "$WORK/${prefix}-roles.json" "ruolo ${TEST_ROLE}"
+  partial_import "$realm" "$WORK/${prefix}-users.json" "utenti di test"
+  kc_get_r "$realm" clients "$WORK/rm-client.json" --data-urlencode "clientId=realm-management"
+  rm_uuid="$(python3 -c 'import sys,json;c=json.load(open(sys.argv[1]));print(c[0]["id"] if len(c)==1 else "")' "$WORK/rm-client.json")"
+  [ -n "$rm_uuid" ] || { echo "Errore: client realm-management assente nel realm ${realm}." >&2; exit 1; }
+  kc_get_r "$realm" "clients/${rm_uuid}/roles" "$WORK/rm-roles.json" --data-urlencode "max=500"
+  python3 - "$WORK/rm-roles.json" "$WORK/${prefix}-expected-users.json" "$WORK" "$(csv "${MGMT_ROLES[@]}")" <<'PY'
+import json, os, sys
+roles, expected, work, wanted = json.load(open(sys.argv[1])), json.load(open(sys.argv[2])), sys.argv[3], sys.argv[4].split(",")
+by_name = {r["name"]: r for r in roles}
+missing = [n for n in wanted if n not in by_name]
+if missing:
+    sys.exit("Errore: ruoli di realm-management assenti in Keycloak: " + ", ".join(missing))
+json.dump([by_name[n] for n in wanted], open(os.path.join(work, "mgmt-roles.json"), "w"))
+open(os.path.join(work, "mgmt-users.txt"), "w").write("".join(e["id"] + "\n" for e in expected if e["mgmt"]))
+open(os.path.join(work, "all-users.txt"), "w").write("".join(e["id"] + "\n" for e in expected))
+PY
+  chmod 600 "$WORK/mgmt-roles.json"
+  # Gli id sono fissi (Q-672): un utente non trovato per id vuol dire che Keycloak non li ha rispettati.
+  while IFS= read -r uid; do
+    kc_get_r "$realm" "users/${uid}" "$WORK/u-${uid}-user.json" || { echo "Errore: utente di test ${uid} assente in ${realm}: l'id fisso non e' stato rispettato." >&2; exit 1; }
+  done < "$WORK/all-users.txt"
+  while IFS= read -r uid; do
+    kc_send POST "$realm" "users/${uid}/role-mappings/clients/${rm_uuid}" "$WORK/mgmt-roles.json" "204 200" "l'assegnazione dei ruoli di realm-management"
+  done < "$WORK/mgmt-users.txt"
+  while IFS= read -r uid; do
+    kc_get_r "$realm" "users/${uid}/role-mappings" "$WORK/u-${uid}-roles.json"
+    kc_get_r "$realm" "users/${uid}/credentials" "$WORK/u-${uid}-creds.json"
+  done < "$WORK/all-users.txt"
+  python3 - "$WORK" "$WORK/${prefix}-expected-users.json" "$realm" <<'PY'
+import json, os, sys
+w, expected, realm = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3]
+load = lambda n: json.load(open(os.path.join(w, n)))
+errors = []
+for e in expected:
+    i, who = e["id"], e["username"]
+    u, rm, creds = load(f"u-{i}-user.json"), load(f"u-{i}-roles.json"), load(f"u-{i}-creds.json")
+    if u.get("username") != who or u.get("enabled") is not True: errors.append(f"{who}: nome o stato diversi dall'overlay")
+    if u.get("requiredActions"): errors.append(f"{who}: azioni richieste presenti (bloccherebbero il login)")
+    have = {r["name"] for r in rm.get("realmMappings") or []}
+    if set(e["realmRoles"]) - have: errors.append(f"{who}: mancano i ruoli " + ",".join(sorted(set(e["realmRoles"]) - have)))
+    extra = have - set(e["realmRoles"]) - {f"default-roles-{realm}", "offline_access", "uma_authorization"}
+    if extra: errors.append(f"{who}: ruoli non previsti " + ",".join(sorted(extra)))
+    clients = rm.get("clientMappings") or {}
+    got = {r["name"] for r in (clients.get("realm-management") or {}).get("mappings") or []}
+    if got != set(e["mgmt"]): errors.append(f"{who}: ruoli di realm-management diversi da quelli di Q-671")
+    if set(clients) - {"realm-management"}: errors.append(f"{who}: ruoli di client non previsti")
+    types = {c.get("type") for c in creds}
+    if "password" not in types: errors.append(f"{who}: manca la password")
+    if ("otp" in types) != e["otp"]: errors.append(f"{who}: credenziale OTP " + ("assente (import dell'OTP non riuscito)" if e["otp"] else "inattesa"))
+if errors:
+    sys.exit(f"Errore: verifica degli utenti di test del realm {realm} fallita: " + "; ".join(errors))
+print(f"  verifica: {len(expected)} utenti di test in {realm} con id fissi, ruoli e credenziali attesi")
+PY
+}
 
 # Nomi utente (uno per riga) con un ruolo del realm, a pagine, senza le utenze di servizio (non fanno il login
 # da browser). Si guardano le assegnazioni dirette del ruolo: il README impone di assegnarlo all'utente.
@@ -183,34 +468,19 @@ if [ "$MODE" = "operators" ]; then
   exit 0
 fi
 
-# 3. Impostazioni del realm: si legge la rappresentazione corrente, si unisce il frammento dell'overlay e si
-#    rimanda intera (come kcadm update); le impostazioni non previste dall'overlay devono restare uguali.
-echo "Impostazioni del realm (registrazione chiusa, Q-619)..."
-kc_get "" "$WORK/realm-before.json"
-python3 - "$WORK" <<'PY'
-import json, os, sys
-w = sys.argv[1]
-realm = json.load(open(os.path.join(w, "realm-before.json")))
-realm.update(json.load(open(os.path.join(w, "realm-settings.json"))))
-json.dump(realm, open(os.path.join(w, "realm-put.json"), "w"))
-PY
-chmod 600 "$WORK/realm-put.json"
-HTTP_CODE="$(curl -sS -o "$WORK/put-result.json" -w '%{http_code}' -X PUT "${ADMIN}" \
-  -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/realm-put.json")"
-if [ "$HTTP_CODE" != "204" ] && [ "$HTTP_CODE" != "200" ]; then
-  echo "Errore: l'aggiornamento del realm ha risposto ${HTTP_CODE}: $(head -c 300 "$WORK/put-result.json")" >&2
-  exit 1
-fi
+# 3. Realm master (Q-672): blocco dei tentativi, eventi di amministrazione con dettagli, sslRequired, politica delle
+#    password. Nessun utente e nessun segreto: la password dell'amministratore resta KC_BOOTSTRAP_ADMIN_PASSWORD.
+echo "Realm master: impostazioni di sicurezza (master.json, Q-672)..."
+put_realm master "$WORK/master-settings.json" "$WORK/master-before.json"
+verify_realm master "$WORK/master-before.json" "$WORK/master-settings.json" "master"
 
-# 4. Client (lh-cli): partialImport con OVERWRITE, poi gli scope mapping dei ruoli (il client viene ricreato).
+# 4. Impostazioni del realm degli operatori (registrazione chiusa, Q-619; eventi di amministrazione, Q-677).
+echo "Impostazioni del realm ${REALM} (registrazione chiusa, Q-619; eventi di amministrazione, Q-677)..."
+put_realm "$REALM" "$WORK/realm-settings.json" "$WORK/realm-before.json"
+
+# 5. Client (lh-cli): partialImport con OVERWRITE, poi gli scope mapping dei ruoli (il client viene ricreato).
 echo "partialImport (OVERWRITE) dei client..."
-HTTP_CODE="$(curl -sS -o "$WORK/partial-result.json" -w '%{http_code}' -X POST "${ADMIN}/partialImport" \
-  -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/partial.json")"
-if [ "$HTTP_CODE" != "200" ]; then
-  echo "Errore: partialImport ha risposto ${HTTP_CODE}: $(head -c 300 "$WORK/partial-result.json")" >&2
-  exit 1
-fi
-python3 -c 'import sys,json;r=json.load(sys.stdin);print("  aggiunti=%s sovrascritti=%s saltati=%s"%(r.get("added"),r.get("overwritten"),r.get("skipped")));[print("  -",x["resourceType"],x["resourceName"],x["action"]) for x in r.get("results",[])]' < "$WORK/partial-result.json"
+partial_import "$REALM" "$WORK/partial.json" "client"
 
 kc_get "clients" "$WORK/client-now.json" --data-urlencode "clientId=lh-cli"
 CLIENT_UUID="$(python3 -c 'import sys,json;c=json.load(open(sys.argv[1]));print(c[0]["id"] if len(c)==1 else "")' "$WORK/client-now.json")"
@@ -225,15 +495,10 @@ import json, os, sys
 w, roles = sys.argv[1], sys.argv[2:]
 json.dump([json.load(open(os.path.join(w, f"role-{r}.json"))) for r in roles], open(os.path.join(w, "role-reps.json"), "w"))
 PY
-HTTP_CODE="$(curl -sS -o "$WORK/scope-result.json" -w '%{http_code}' -X POST "${ADMIN}/clients/${CLIENT_UUID}/scope-mappings/realm" \
-  -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/role-reps.json")"
-if [ "$HTTP_CODE" != "204" ] && [ "$HTTP_CODE" != "200" ]; then
-  echo "Errore: gli scope mapping di lh-cli hanno risposto ${HTTP_CODE}: $(head -c 300 "$WORK/scope-result.json")" >&2
-  exit 1
-fi
+kc_send POST "$REALM" "clients/${CLIENT_UUID}/scope-mappings/realm" "$WORK/role-reps.json" "204 200" "gli scope mapping di lh-cli"
 
-# 5. Verifica: rilegge realm e client; qualunque scostamento e' un errore.
-kc_get "" "$WORK/realm-now.json"
+# 6. Verifica: rilegge realm e client; qualunque scostamento e' un errore.
+verify_realm "$REALM" "$WORK/realm-before.json" "$WORK/realm-settings.json" "$REALM"
 kc_get "clients" "$WORK/client-now.json" --data-urlencode "clientId=lh-cli"
 kc_get "clients/${CLIENT_UUID}/optional-client-scopes" "$WORK/optional-scopes.json"
 kc_get "clients/${CLIENT_UUID}/default-client-scopes" "$WORK/default-scopes.json"
@@ -242,22 +507,13 @@ python3 - "$WORK" <<'PY'
 import json, os, sys
 w = sys.argv[1]
 load = lambda n: json.load(open(os.path.join(w, n)))
-before, realm, clients = load("realm-before.json"), load("realm-now.json"), load("client-now.json")
+realm, clients = load("realm-now.json"), load("client-now.json")
 optional, default, scope_now = load("optional-scopes.json"), load("default-scopes.json"), load("scope-now.json")
 exp = load("expected.json")
 want = exp["clients"][0]
 errors = []
-if realm.get("registrationAllowed") is not False:
-    errors.append("registrationAllowed non e' false")
 if realm.get("browserFlow") != "browser-mfa":
     errors.append("browserFlow non e' browser-mfa (MFA degli operatori)")
-# Impostazioni di sicurezza del realm che il PUT non deve aver toccato.
-for k in ("bruteForceProtected", "failureFactor", "maxFailureWaitSeconds", "otpPolicyType", "otpPolicyAlgorithm", "otpPolicyDigits",
-          "otpPolicyPeriod", "otpPolicyCodeReusable", "eventsEnabled", "adminEventsEnabled", "accessTokenLifespan",
-          "ssoSessionIdleTimeout", "ssoSessionMaxLifespan", "verifyEmail", "registrationFlow", "directGrantFlow",
-          "passwordPolicy", "sslRequired", "loginWithEmailAllowed", "webAuthnPolicyUserVerificationRequirement"):
-    if before.get(k) != realm.get(k):
-        errors.append(f"impostazione del realm cambiata dal PUT: {k}")
 if len(clients) != 1:
     errors.append("client lh-cli assente")
 else:
@@ -282,43 +538,33 @@ else:
         errors.append("lh-cli: scope mapping dei ruoli diversi dai soli ruoli operatore")
 if errors:
     sys.exit("Errore: verifica dell'overlay fallita: " + "; ".join(errors))
-print("  verifica: registrationAllowed=false, browserFlow=browser-mfa, lh-cli pubblico, consenso obbligatorio, solo device grant, ruoli operatore soli, nessuno scope opzionale")
+print("  verifica: browserFlow=browser-mfa, lh-cli pubblico, consenso obbligatorio, solo device grant, ruoli operatore soli, nessuno scope opzionale")
 PY
 
-# 6. MFA degli account operatore gia' presenti (Q-618, decisa il 2026-09-30).
+# 7. Utenti di test del realm degli operatori (ADR-051 decisione 1, Q-671, Q-672): id fissi, password e seme TOTP
+#    documentati, nessuna azione richiesta.
+if [ "$TEST_USERS" = 1 ]; then
+  echo "Utenti di test del realm ${REALM} (operatori con MFA fissa e vetrina.admin)..."
+  apply_users "$REALM" ops
+else
+  echo "Utenti di test del realm ${REALM}: saltati (--no-test-users, solo il codespace li ammette)."
+fi
+
+# 8. MFA degli account operatore gia' presenti (Q-618, decisa il 2026-09-30): include gli operatori di test.
 echo "Verifica della MFA degli account operatore..."
 check_operators
 
-# 7. Realm dei membri (ADR-051, Q-673): nella vetrina la registrazione libera di account resta chiusa, perche'
+# 9. Realm dei membri (ADR-051, Q-673, Q-677): nella vetrina la registrazione libera di account resta chiusa, perche'
 #    Keycloak torna alla configurazione del repo a ogni avvio e gli account creati sparirebbero. Stesso metodo del
-#    passo 3 (lettura, unione, PUT intero), poi verifica. Il realm base lascia la registrazione aperta.
-MEMBERS_ADMIN="${KEYCLOAK_URL}/admin/realms/loyaltyhub-members"
-echo "Realm dei membri: registrazione libera chiusa (ADR-051)..."
-curl -sS -f "${MEMBERS_ADMIN}" -H "@$WORK/auth" > "$WORK/members-before.json" || {
-  echo "Errore: realm loyaltyhub-members assente (deploy/idp/realm-members.json non importato)." >&2
-  exit 1
-}
-python3 -c 'import sys,json;r=json.load(open(sys.argv[1]));r["registrationAllowed"]=False;json.dump(r,open(sys.argv[2],"w"))' \
-  "$WORK/members-before.json" "$WORK/members-put.json"
-chmod 600 "$WORK/members-put.json"
-HTTP_CODE="$(curl -sS -o "$WORK/members-result.json" -w '%{http_code}' -X PUT "${MEMBERS_ADMIN}" \
-  -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/members-put.json")"
-if [ "$HTTP_CODE" != "204" ] && [ "$HTTP_CODE" != "200" ]; then
-  echo "Errore: l'aggiornamento del realm dei membri ha risposto ${HTTP_CODE}: $(head -c 300 "$WORK/members-result.json")" >&2
-  exit 1
+#    passo 4, poi verifica; poi i membri di test e membri.admin. Il realm base lascia la registrazione aperta.
+echo "Realm dei membri: registrazione libera chiusa, eventi di amministrazione (ADR-051, Q-677)..."
+put_realm "$MEMBERS_REALM" "$WORK/members-settings.json" "$WORK/members-before.json"
+verify_realm "$MEMBERS_REALM" "$WORK/members-before.json" "$WORK/members-settings.json" "$MEMBERS_REALM"
+if [ "$TEST_USERS" = 1 ]; then
+  echo "Utenti di test del realm ${MEMBERS_REALM} (Anna, Marco, Giulia, Laura e membri.admin)..."
+  apply_users "$MEMBERS_REALM" mem
+else
+  echo "Utenti di test del realm ${MEMBERS_REALM}: saltati (--no-test-users)."
 fi
-curl -sS -f "${MEMBERS_ADMIN}" -H "@$WORK/auth" > "$WORK/members-now.json"
-python3 - "$WORK/members-before.json" "$WORK/members-now.json" <<'PY'
-import json, sys
-before, now = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
-errors = [] if now.get("registrationAllowed") is False else ["registrationAllowed non e' false"]
-for k in ("bruteForceProtected", "failureFactor", "eventsEnabled", "adminEventsEnabled", "accessTokenLifespan",
-          "ssoSessionIdleTimeout", "ssoSessionMaxLifespan", "passwordPolicy", "sslRequired", "browserFlow"):
-    if before.get(k) != now.get(k):
-        errors.append(f"impostazione cambiata dal PUT: {k}")
-if errors:
-    sys.exit("Errore: verifica del realm dei membri fallita: " + "; ".join(errors))
-print("  verifica: loyaltyhub-members con registrationAllowed=false")
-PY
 
-echo "Overlay di vetrina applicato ai realm ${REALM} e loyaltyhub-members."
+echo "Overlay di vetrina applicato ai realm master, ${REALM} e ${MEMBERS_REALM}."

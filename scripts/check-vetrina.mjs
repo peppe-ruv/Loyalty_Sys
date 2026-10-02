@@ -696,3 +696,70 @@ test('vetrina.sh codespace: configurazione dall\'ambiente, segreti generati, ele
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /CODESPACE_NAME assente o non valido/);
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// Keycloak da zero a ogni avvio e membri di test (M8.14 V8; ADR-051 decisioni 1 e 10; Q-672, Q-673, Q-676)
+
+/** Configurazione del codespace in una cartella temporanea, con un `docker` e un `node` finti che registrano gli argomenti. */
+function fakeCodespace() {
+  const d = tmp();
+  const bin = path.join(d, 'bin');
+  fs.mkdirSync(bin);
+  const log = path.join(d, 'calls.log');
+  for (const cmd of ['docker', 'node']) {
+    fs.writeFileSync(path.join(bin, cmd), `#!/bin/sh\nprintf '${cmd} %s\\n' "$*" >> "${log}"\nexit 0\n`, { mode: 0o755 });
+  }
+  const cfg = path.join(d, 'vetrina.env');
+  const lines = Object.entries({ ...CODESPACE_ENV, LH_VETRINA_MODE: 'codespace', LH_VETRINA_DIR: path.join(d, 'host') }).map(([k, v]) => `${k}=${v}`);
+  fs.writeFileSync(cfg, `${lines.join('\n')}\n`, { mode: 0o600 });
+  return { cfg, bin, log, run: (args, env = {}) => vetrina(args, cfg, { PATH: `${bin}:${process.env.PATH}`, ...env }) };
+}
+
+test('vetrina.sh idp-reset: ferma Keycloak e ricrea il solo database idp (non quello dell\'hub, nessun volume toccato) (Q-672)', () => {
+  const cs = fakeCodespace();
+  const r = cs.run(['idp-reset']);
+  assert.equal(r.status, 0, r.stderr);
+  const calls = read(cs.log);
+  assert.match(calls, /docker compose --project-name loyaltyhub-vetrina .* stop idp web hub proxy/);
+  assert.match(calls, /up -d --wait --wait-timeout 300 postgres/);
+  assert.match(calls, /exec -T postgres psql -v ON_ERROR_STOP=1 -U loyaltyhub -d loyaltyhub -c DROP DATABASE IF EXISTS idp WITH \(FORCE\) -c CREATE DATABASE idp OWNER idp -c REVOKE ALL ON DATABASE idp FROM PUBLIC/);
+  assert.doesNotMatch(calls, /DROP DATABASE IF EXISTS loyaltyhub|volume rm| down/, 'il database dell\'hub e i volumi restano');
+  assert.ok(calls.indexOf(' stop idp') < calls.indexOf('DROP DATABASE'), 'Keycloak è fermo prima di ricreare il database');
+});
+
+test('vetrina.sh codespace: a ogni avvio database di Keycloak da zero PRIMA dell\'avvio, poi overlay, operatori e membri di test, senza marcatore (Q-672, Q-673)', () => {
+  const sh = read(VETRINA_SH);
+  const fn = sh.split('\ncmd_codespace() {')[1]?.split('\n}\n')[0] ?? '';
+  const order = ['cmd_preflight', 'cmd_idp_reset', 'compose up -d --wait --wait-timeout 900', 'apply_realm_overlay', 'cmd_operators', 'cmd_membri --if-reachable'];
+  const at = order.map((s) => fn.indexOf(s));
+  assert.ok(at.every((i) => i > 0) && at.every((v, i) => i === 0 || v > at[i - 1]), `ordine dei passi in cmd_codespace: ${at}`);
+  assert.doesNotMatch(sh, /\.realm-overlay/, 'nessun marcatore del primo avvio: l\'overlay si riapplica a ogni avvio');
+  assert.match(sh, /DROP DATABASE IF EXISTS idp WITH \(FORCE\)/);
+  assert.doesNotMatch(sh, /DROP DATABASE[^\n]*loyaltyhub\b/);
+  // Anche l'azzeramento a mano ricrea i membri di test (il database dell'hub riparte vuoto).
+  assert.match(sh.split('\ncmd_reset() {')[1]?.split('\n}\n')[0] ?? '', /cmd_membri --if-reachable/);
+});
+
+test('vetrina.sh: gli utenti di test negli overlay solo nel codespace; sull\'host fisso --no-test-users (ADR-051 decisione 1, Q-676)', () => {
+  const sh = read(VETRINA_SH);
+  assert.match(sh, /^test_users_allowed\(\) \{ \[ "\$\{LH_VETRINA_MODE:-host\}" = codespace \] && \[ "\$\{CODESPACES:-\}" = true \]; \}$/m);
+  assert.match(sh, /test_users_allowed \|\| args\+=\(--no-test-users\)/);
+  // Lo stesso criterio di LH_TEST_USERS_ALLOWED in compose().
+  assert.match(sh, /test_env=\(LH_TEST_USERS_ALLOWED=true LH_ENVIRONMENT=test\)/);
+});
+
+test('vetrina.sh membri: solo nel codespace con CODESPACES=true; lancia vetrina-membri.mjs sull\'indirizzo pubblico del web, senza credenziali negli argomenti (Q-673)', () => {
+  const cs = fakeCodespace();
+  // Senza CODESPACES=true (anche con la modalità codespace nel file): saltato, node non parte.
+  const outside = cs.run(['membri']);
+  assert.equal(outside.status, 0, outside.stderr);
+  assert.match(outside.stdout, /solo nel codespace/);
+  assert.ok(!fs.existsSync(cs.log), 'nessun comando lanciato');
+  const inside = cs.run(['membri'], { CODESPACES: 'true' });
+  assert.equal(inside.status, 0, inside.stderr);
+  const calls = read(cs.log);
+  const script = path.join(ROOT, 'scripts/vetrina-membri.mjs');
+  assert.equal(calls.trim(), `node ${script} --web https://prova-vetrina-8000.app.github.dev`);
+  assert.doesNotMatch(calls, /password|secret|Aurora/i);
+  assert.match(read(AVVIO), /vetrina\.sh membri/, 'avvio.sh registra i membri dopo aver reso pubbliche le porte');
+});

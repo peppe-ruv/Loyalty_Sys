@@ -8,10 +8,15 @@
 //              una scrittura di configurazione dal proxy del BFF (con CSRF) e la sua voce in GET /v1/audit con
 //              l'attore reale; 401 senza token sull'hub e senza sessione sul BFF; 404 PERSONA_DISABLED su
 //              POST /api/persona; un membro di prova non passa sulle API del backoffice (403 FORBIDDEN_ROLE).
-//   vetrina  — nel workflow pianificato smoke-vetrina.yml, contro la vetrina online, SENZA credenziali e solo con GET:
+//   vetrina  — nel workflow pianificato smoke-vetrina.yml, contro la vetrina online, SENZA credenziali e solo con GET
+//              (con --test-users anche i login degli utenti di test pubblici, vedi sotto):
 //              health del web, HUB-02 raggiungibile con banner e tessere attive, login avviato dal BFF verso il
 //              realm `loyaltyhub`, discovery OIDC e JWKS, pagina di login senza registrazione (Q-619), console
 //              /admin e realm master non esposti, API del BFF chiuse senza sessione.
+//              --test-users (ADR-051 decisione 1, M8.14 V8): login reale con le credenziali FISSE e PUBBLICHE degli utenti di
+//              test, lette da deploy/idp/vetrina/ (scripts/vetrina-utenti.mjs): un operatore con password e seme TOTP
+//              documentati (nessun cambio password, nessuna configurazione dell'OTP), una lettura dal backoffice, e Anna
+//              Rossi nel realm dei membri che apre il suo profilo del portale (GET /v1/portal/me/profile → 200).
 //   in entrambi — realm dei membri `loyaltyhub-members` (ADR-051): login dei membri avviato dal BFF
 //              (GET /api/auth/login?realm=members → 303 verso il suo endpoint di autorizzazione, client `portal`,
 //              PKCE S256, callback /api/auth/callback/members), discovery OIDC e JWKS del realm, pagina di login
@@ -30,6 +35,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { loadTestUsers } from './vetrina-utenti.mjs';
 
 /** Errore di uso (uscita 2): nessuna richiesta è partita. */
 export class UsageError extends Error {}
@@ -42,14 +48,20 @@ export const MEMBER_REALM = 'loyaltyhub-members';
 export const SESSION_COOKIE = '__Host-lh_session';
 export const CSRF_COOKIE = '__Host-lh_csrf';
 export const AUTH_FLOW_COOKIE = '__Host-lh_auth';
+/** Cookie del BFF per realm (web/lib/auth/realm.ts): operatori e membri hanno sessioni separate. */
+export const REALM_COOKIES = {
+  operators: { session: SESSION_COOKIE, csrf: CSRF_COOKIE, callback: '/api/auth/callback', loginQuery: '?returnTo=%2Fbackoffice' },
+  members: { session: '__Host-lh_msession', csrf: '__Host-lh_mcsrf', callback: '/api/auth/callback/members', loginQuery: '?realm=members&returnTo=%2Fportal' },
+};
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 const HELP = `Uso:
-  node scripts/smoke-enterprise.mjs vetrina --web <origine https> [--registration closed|open|any] [--settle <s>]
+  node scripts/smoke-enterprise.mjs vetrina --web <origine https> [--test-users] [--registration closed|open|any] [--settle <s>]
   node scripts/smoke-enterprise.mjs compose --web <origine> --hub <url loopback> --operator <utente>
        --operator-credentials <file 0600> [--member <utente> --member-credentials <file 0600>]
        [--registration closed|open|any] [--settle <s>] [--audit-timeout <s>]
 Opzioni comuni: --allow-http (solo loopback, per i test), --help.
+--test-users (solo vetrina): login con le credenziali pubbliche degli utenti di test (ADR-051), da usare solo contro una vetrina in un codespace.
 I file delle credenziali hanno righe \`utente: password\` (formato di deploy/idp/bootstrap.sh) e permessi 0600.`;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -117,6 +129,7 @@ export function parseArgs(argv) {
       case '--settle': opts.settle = Number(value(a)); break;
       case '--audit-timeout': opts.auditTimeout = Number(value(a)); break;
       case '--allow-http': opts.allowHttp = true; break;
+      case '--test-users': opts.testUsers = true; break;
       case '--help': case '-h': opts.help = true; break;
       default: throw new UsageError(`argomento sconosciuto: ${a}`);
     }
@@ -132,6 +145,7 @@ export function parseArgs(argv) {
   for (const k of ['settle', 'auditTimeout']) {
     if (!Number.isFinite(opts[k]) || opts[k] < 0 || opts[k] > 3600) throw new UsageError(`--${k}: secondi tra 0 e 3600`);
   }
+  if (opts.testUsers && opts.mode !== 'vetrina') throw new UsageError('--test-users vale solo nel modo vetrina');
   if (opts.mode === 'vetrina') {
     for (const k of ['hub', 'operator', 'operatorCredentials', 'member', 'memberCredentials']) {
       if (opts[k] !== undefined) throw new UsageError('il modo vetrina gira senza credenziali e senza hub: togli le opzioni del modo compose');
@@ -295,26 +309,26 @@ export function isRealActor(record) {
 // ---------------------------------------------------------------------------------------------------------------
 // HTTP
 
-const isRedirect = (s) => s >= 300 && s < 400;
+export const isRedirect = (s) => s >= 300 && s < 400;
 /** URL senza query né frammento: il codice di autorizzazione, lo state e i parametri non vanno nei log. */
 export const redact = (url) => {
   const u = new URL(url);
   return `${u.origin}${u.pathname}`;
 };
-const parseJson = (text) => {
+export const parseJson = (text) => {
   try {
     return JSON.parse(text);
   } catch {
     return null;
   }
 };
-const problemCode = (res) => {
+export const problemCode = (res) => {
   const body = parseJson(res.text);
   const code = body && typeof body === 'object' ? (body.code ?? body.error ?? body.type) : null;
   return typeof code === 'string' && /^[A-Za-z0-9_.:-]{1,64}$/.test(code) ? ` ${code}` : '';
 };
 
-async function http(ctx, url, { method = 'GET', headers = {}, body, jar } = {}) {
+export async function http(ctx, url, { method = 'GET', headers = {}, body, jar } = {}) {
   const h = new Headers(headers);
   const cookie = jar?.header(url);
   if (cookie) h.set('cookie', cookie);
@@ -335,11 +349,11 @@ async function http(ctx, url, { method = 'GET', headers = {}, body, jar } = {}) 
   throw new SmokeError(`${method} ${redact(url)}: nessuna risposta (${why})`);
 }
 
-function expect(cond, message) {
+export function expect(cond, message) {
   if (!cond) throw new SmokeError(message);
 }
 
-async function eventually(ctx, seconds, fn) {
+export async function eventually(ctx, seconds, fn) {
   const deadline = ctx.now() + seconds * 1000;
   for (;;) {
     try {
@@ -527,30 +541,36 @@ async function freshTotp(ctx, seed, lastCounter) {
 
 /**
  * Login come lo fa un browser: /api/auth/login del BFF → pagine di Keycloak (credenziali, eventuali azioni richieste
- * e OTP) → /api/auth/callback del BFF. Restituisce il cookie jar con la sessione e i passi attraversati.
+ * e OTP) → /api/auth/callback del BFF. Restituisce il cookie jar con la sessione, il token CSRF e i passi attraversati.
+ * `realm` è `operators` (default, backoffice) o `members` (portale: `?realm=members`, callback `/members`).
+ * `totpSecret` è il seme OTP già noto (utente di test con la credenziale importata, ADR-051): senza, l'OTP si configura
+ * alla prima richiesta. `fixed` = credenziali fisse e pubbliche di un utente di test: nessuna azione richiesta ammessa
+ * (UPDATE_PASSWORD o CONFIGURE_TOTP vorrebbero dire che l'overlay non è stato applicato).
  */
-export async function oidcLogin(ctx, { web, username, password, allowRejected = false }) {
+export async function oidcLogin(ctx, { web, username, password, allowRejected = false, realm = 'operators', totpSecret = null, fixed = false }) {
+  const cookies = REALM_COOKIES[realm];
+  expect(cookies, `login di ${username}: realm sconosciuto ${realm}`);
   const jar = new CookieJar();
-  const start = await http(ctx, `${web}/api/auth/login?returnTo=${encodeURIComponent('/backoffice')}`, { jar });
+  const start = await http(ctx, `${web}/api/auth/login${cookies.loginQuery}`, { jar });
   expect(isRedirect(start.status), `login di ${username}: /api/auth/login HTTP ${start.status}`);
   let next = { method: 'GET', url: new URL(start.headers.get('location'), web).href };
   const steps = [];
   const seen = new Map();
-  let seed = null;
+  let seed = totpSecret ? Buffer.from(totpSecret, 'utf8') : null;
   let lastCounter = -1;
   for (let i = 0; i < 15; i++) {
     const res = await http(ctx, next.url, { method: next.method, body: next.body, headers: next.headers, jar });
     if (isRedirect(res.status)) {
       const loc = new URL(res.headers.get('location'), next.url);
       if (loc.origin === web) {
-        expect(loc.pathname === '/api/auth/callback', `login di ${username}: ritorno al web su ${loc.pathname}, atteso /api/auth/callback`);
+        expect(loc.pathname === cookies.callback, `login di ${username}: ritorno al web su ${loc.pathname}, atteso ${cookies.callback}`);
         const cb = await http(ctx, loc.href, { jar });
         expect(isRedirect(cb.status), `login di ${username}: callback del BFF HTTP ${cb.status}${problemCode(cb)}`);
         const target = new URL(cb.headers.get('location'), web);
         if (allowRejected && target.pathname === '/auth/error') return { jar, steps, rejected: target.searchParams.get('reason') ?? 'motivo non indicato' };
         expect(target.pathname !== '/auth/error', `login di ${username}: rifiutato dal BFF (${target.searchParams.get('reason') ?? 'motivo non indicato'})`);
-        expect(jar.get(web, SESSION_COOKIE) && jar.get(web, CSRF_COOKIE), `login di ${username}: il BFF non ha aperto la sessione`);
-        return { jar, steps };
+        expect(jar.get(web, cookies.session) && jar.get(web, cookies.csrf), `login di ${username}: il BFF non ha aperto la sessione`);
+        return { jar, steps, csrf: jar.get(web, cookies.csrf) };
       }
       next = { method: 'GET', url: loc.href };
       continue;
@@ -565,12 +585,14 @@ export async function oidcLogin(ctx, { web, username, password, allowRejected = 
     // nascosti (per i gestori di password), quindi il modulo di login si riconosce per ultimo.
     if (names.has('password-new')) {
       kind = 'password';
+      expect(!fixed, `login di ${username}: l'IdP chiede di cambiare la password: l'overlay di vetrina non è stato applicato (le credenziali di test sono fisse)`);
       // Nuova password casuale, solo in memoria: l'utenza di prova non serve dopo il job.
       password = `${crypto.randomBytes(18).toString('base64url')}-Aa1`;
       fields['password-new'] = password;
       fields['password-confirm'] = password;
     } else if (names.has('totpSecret') && names.has('totp')) {
       kind = 'totp-setup';
+      expect(!fixed, `login di ${username}: l'IdP chiede di configurare l'OTP: la credenziale OTP fissa non è stata importata (overlay di vetrina non applicato?)`);
       seed = fields.totpSecret;
       expect(seed, `login di ${username}: pagina di configurazione dell'OTP senza segreto`);
       const t = await freshTotp(ctx, seed, lastCounter);
@@ -592,7 +614,9 @@ export async function oidcLogin(ctx, { web, username, password, allowRejected = 
     }
     const count = (seen.get(kind) ?? 0) + 1;
     seen.set(kind, count);
-    if (count > 1) throw new SmokeError(`login di ${username}: l'IdP ripropone il passo «${STEP_LABEL[kind]}»${feedback ? `: ${feedback}` : ''}`);
+    // Con il seme fisso un codice già usato (stesso periodo di un login precedente) è rifiutato da Keycloak: un secondo
+    // tentativo con il codice della finestra successiva (freshTotp aspetta) è lecito, un terzo no.
+    if (count > (kind === 'otp' && totpSecret ? 2 : 1)) throw new SmokeError(`login di ${username}: l'IdP ripropone il passo «${STEP_LABEL[kind]}»${feedback ? `: ${feedback}` : ''}`);
     steps.push(kind);
     ctx.log(`     ${username}: ${STEP_LABEL[kind]}`);
     next = {
@@ -682,14 +706,45 @@ async function checkCompose(ctx, opts) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Controlli con gli utenti di test pubblici (modo vetrina con --test-users, ADR-051 decisione 1)
+
+/** Operatore di test usato dallo smoke: sola lettura, e diverso da marta.admin (la usa vetrina-membri.mjs: un codice OTP non si riusa). */
+export const SMOKE_OPERATOR = 'paolo.care';
+/** Membro di test registrato da vetrina-membri.mjs (Q-673): apre il suo profilo del portale. */
+export const SMOKE_MEMBER = 'anna.rossi';
+
+export async function checkTestUsers(ctx, opts, users = loadTestUsers()) {
+  const { web } = opts;
+  const op = users.operators[SMOKE_OPERATOR];
+  expect(op?.password, `utente di test ${SMOKE_OPERATOR} non trovato negli overlay di vetrina`);
+  // Operatore: password e OTP fissi, nessun cambio password né configurazione dell'OTP (credenziali importate dall'overlay).
+  const login = await oidcLogin(ctx, { web, username: op.username, password: op.password, totpSecret: users.totpSecret, fixed: true });
+  expect(login.steps.join(',').startsWith('login,otp') && !login.steps.includes('password') && !login.steps.includes('totp-setup'),
+    `login di ${op.username}: passi ${login.steps.join(', ')}, attesi nome utente e password poi OTP`);
+  ctx.ok(`login OIDC reale di ${op.username} con credenziali e seme TOTP fissi (${login.steps.join(' → ')}), senza azioni richieste`);
+  const categories = await http(ctx, `${web}/api/lh/reward/v1/reward-categories`, { jar: login.jar });
+  expect(categories.status === 200, `GET categorie premi come ${op.username}: HTTP ${categories.status}${problemCode(categories)}`);
+  ctx.ok(`backoffice: ${op.username} legge le categorie premi (200)`);
+
+  // Membro: login nel realm dei membri e profilo del portale (registrazione fatta da vetrina-membri.mjs, Q-673).
+  const mb = users.members[SMOKE_MEMBER];
+  expect(mb?.password, `utente di test ${SMOKE_MEMBER} non trovato negli overlay di vetrina`);
+  const member = await oidcLogin(ctx, { web, username: mb.username, password: mb.password, realm: 'members', fixed: true });
+  expect(member.steps.join(',') === 'login', `login di ${mb.username}: passi ${member.steps.join(', ')}, atteso solo nome utente e password`);
+  const profile = await http(ctx, `${web}/api/lh/member/v1/portal/me/profile`, { jar: member.jar });
+  expect(profile.status !== 404, `GET /v1/portal/me/profile come ${mb.username}: 404, il membro non è registrato (vetrina.sh membri non eseguito?)`);
+  expect(profile.status === 200, `GET /v1/portal/me/profile come ${mb.username}: HTTP ${profile.status}${problemCode(profile)}`);
+  expect(parseJson(profile.text)?.firstName === mb.firstName, `profilo di ${mb.username}: il nome non è quello del seed`);
+  ctx.ok(`portale: ${mb.username} (realm dei membri) apre il suo profilo, GET /v1/portal/me/profile → 200`);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Programma principale
 
-/** @returns {Promise<number>} 0 superato, 1 controllo fallito, 2 uso non valido. */
-export async function main(argv, deps = {}) {
+/** Contesto dei controlli (rete, orologio, uscita), condiviso con scripts/vetrina-membri.mjs. `onOk` conta gli esiti. */
+export function createContext(deps = {}, onOk = () => {}) {
   const out = deps.stdout ?? process.stdout;
-  const err = deps.stderr ?? process.stderr;
-  let passed = 0;
-  const ctx = {
+  return {
     fetch: deps.fetch ?? globalThis.fetch,
     sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
     now: deps.now ?? (() => Date.now()),
@@ -697,10 +752,18 @@ export async function main(argv, deps = {}) {
     timeoutMs: deps.timeoutMs ?? 20_000,
     log: (m) => out.write(`${m}\n`),
     ok: (m) => {
-      passed++;
+      onOk();
       out.write(`ok   ${m}\n`);
     },
   };
+}
+
+/** @returns {Promise<number>} 0 superato, 1 controllo fallito, 2 uso non valido. */
+export async function main(argv, deps = {}) {
+  const out = deps.stdout ?? process.stdout;
+  const err = deps.stderr ?? process.stderr;
+  let passed = 0;
+  const ctx = createContext(deps, () => { passed++; });
   let opts;
   try {
     opts = parseArgs(argv);
@@ -716,6 +779,7 @@ export async function main(argv, deps = {}) {
     ctx.log(`smoke enterprise (${opts.mode}) su ${opts.web}`);
     await checkPublic(ctx, opts);
     if (opts.mode === 'compose') await checkCompose(ctx, opts);
+    if (opts.mode === 'vetrina' && opts.testUsers) await checkTestUsers(ctx, opts);
     ctx.log(`smoke enterprise (${opts.mode}) superato: ${passed} controlli`);
     return 0;
   } catch (e) {

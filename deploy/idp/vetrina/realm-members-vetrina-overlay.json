@@ -1,0 +1,129 @@
+{
+  "_comment": "VETRINA ENTERPRISE, realm dei membri (ADR-051 decisioni 1, 2 e 10; Q-671, Q-672, Q-673, Q-676, Q-677). Non viene importato da --import-realm: lo applica deploy/idp/vetrina/apply-overlay.sh sul realm loyaltyhub-members gia' avviato (PUT del realm per le impostazioni, partialImport per ruolo e utenti, ruoli di realm-management dall'API). Registrazione libera chiusa (gli account creati a mano sparirebbero al ripristino); eventi di amministrazione con dettagli (Q-677). Utenti di test FISSI e PUBBLICI con id fissi: Anna Rossi, Marco Bianchi e Giulia Ferri (nome, e-mail e profilo di seed/members.json: li registra vetrina-membri.mjs dal portale, Q-673) e Laura Conti, lo scenario di registrazione da zero (nome assente dal seed). membri.admin gestisce gli utenti con i soli ruoli di Q-671. Esistono solo qui: mai in realm-members.json, mai nel chart.",
+  "realm": "loyaltyhub-members",
+  "registrationAllowed": false,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "LH_TEST_USER",
+        "description": "Utente di test della vetrina (ADR-051, Q-676): hub e BFF lo rifiutano salvo LH_TEST_USERS_ALLOWED=true con LH_ENVIRONMENT=test."
+      }
+    ]
+  },
+  "users": [
+    {
+      "id": "3a8722ec-a98e-58f5-9b35-9c1a72dc3cf3",
+      "username": "anna.rossi",
+      "enabled": true,
+      "email": "anna.rossi@example.org",
+      "emailVerified": true,
+      "firstName": "Anna",
+      "lastName": "Rossi",
+      "realmRoles": [
+        "MEMBER",
+        "LH_TEST_USER",
+        "default-roles-loyaltyhub-members"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Membri-26!",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "83e96b89-254f-5a1c-9138-c8b094549019",
+      "username": "marco.bianchi",
+      "enabled": true,
+      "email": "marco.bianchi@example.org",
+      "emailVerified": true,
+      "firstName": "Marco",
+      "lastName": "Bianchi",
+      "realmRoles": [
+        "MEMBER",
+        "LH_TEST_USER",
+        "default-roles-loyaltyhub-members"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Membri-26!",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "4d1e2279-60d0-58ca-b81e-dbbb31c4354c",
+      "username": "giulia.ferri",
+      "enabled": true,
+      "email": "giulia.ferri@example.org",
+      "emailVerified": true,
+      "firstName": "Giulia",
+      "lastName": "Ferri",
+      "realmRoles": [
+        "MEMBER",
+        "LH_TEST_USER",
+        "default-roles-loyaltyhub-members"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Membri-26!",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "217b6583-3d13-5eaf-b6b0-d4ab638f27cc",
+      "username": "laura.conti",
+      "enabled": true,
+      "email": "laura.conti@example.org",
+      "emailVerified": true,
+      "firstName": "Laura",
+      "lastName": "Conti",
+      "realmRoles": [
+        "MEMBER",
+        "LH_TEST_USER",
+        "default-roles-loyaltyhub-members"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Membri-26!",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "00cc91d4-d8ad-5bc4-b1ab-ce39dcd57e71",
+      "username": "membri.admin",
+      "enabled": true,
+      "email": "membri.admin@example.org",
+      "emailVerified": true,
+      "firstName": "Membri",
+      "lastName": "Admin",
+      "realmRoles": [
+        "LH_TEST_USER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Admin-26!",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-users",
+          "query-groups",
+          "manage-users",
+          "view-events"
+        ]
+      }
+    }
+  ]
+}

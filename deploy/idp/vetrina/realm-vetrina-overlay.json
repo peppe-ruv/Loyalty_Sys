@@ -1,7 +1,182 @@
 {
-  "_comment": "VETRINA ENTERPRISE (F2-IAM-01, F2-IAM-03, ADR-048, ADR-049). Non viene importato da --import-realm: lo applica deploy/idp/vetrina/apply-overlay.sh sul realm loyaltyhub gia' avviato (PUT del realm per le impostazioni, partialImport per i client). Nessun segnaposto, nessun segreto, nessuna credenziale e nessun utente: gli account operatore sono nominativi e si creano a mano (Q-618, decisa il 2026-09-30), con UPDATE_PASSWORD e MFA del realm base invariati. Il client web non si ridefinisce qui: le sue redirect URI e le web origins restano quelle di realm.json, costruite da LH_WEB_URL. registrationAllowed false: portale membri chiuso nel primo passo (Q-619, decisa il 2026-09-30). Il client lh-cli (Device Authorization Grant per la CLI dell'operatore) e' la scelta di Q-626, decisa il 2026-09-30: con consenso obbligatorio (l'operatore vede quale client chiede l'accesso, contro il phishing del codice del dispositivo, RFC 8628 par. 5.4) e ruoli del token limitati ai soli ruoli operatore (fullScopeAllowed false e scopeMappings, applicati dallo script). Gli account operatore devono avere MFA_REQUIRED_ROLE: lo script lo verifica (Q-618, decisa il 2026-09-30).",
+  "_comment": "VETRINA ENTERPRISE (F2-IAM-01, F2-IAM-03, ADR-048, ADR-049). Non viene importato da --import-realm: lo applica deploy/idp/vetrina/apply-overlay.sh sul realm loyaltyhub gia' avviato (PUT del realm per le impostazioni, partialImport per i client). Nessun segnaposto e nessun segreto vero. Utenti di test FISSI e PUBBLICI (ADR-051 decisione 1, Q-671, Q-672, Q-676): cinque operatori con password fissa e un seme TOTP condiviso e documentato (runbook e pagina Mintlify), un amministratore di test con i soli ruoli di realm-management di Q-671; id fissi, cosi' il sub non cambia a ogni ripristino; ruolo LH_TEST_USER su tutti. Esistono solo qui: mai in realm.json, mai nel chart. Gli account nominativi di operatori.py si aggiungono a parte (Q-618, decisa il 2026-09-30). Il client web non si ridefinisce qui: le sue redirect URI e le web origins restano quelle di realm.json, costruite da LH_WEB_URL. registrationAllowed false: portale membri chiuso nel primo passo (Q-619, decisa il 2026-09-30). Il client lh-cli (Device Authorization Grant per la CLI dell'operatore) e' la scelta di Q-626, decisa il 2026-09-30: con consenso obbligatorio (l'operatore vede quale client chiede l'accesso, contro il phishing del codice del dispositivo, RFC 8628 par. 5.4) e ruoli del token limitati ai soli ruoli operatore (fullScopeAllowed false e scopeMappings, applicati dallo script). Gli account operatore devono avere MFA_REQUIRED_ROLE: lo script lo verifica (Q-618, decisa il 2026-09-30).",
   "realm": "loyaltyhub",
   "registrationAllowed": false,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "LH_TEST_USER",
+        "description": "Utente di test della vetrina (ADR-051, Q-676): hub e BFF lo rifiutano salvo LH_TEST_USERS_ALLOWED=true con LH_ENVIRONMENT=test."
+      }
+    ]
+  },
+  "users": [
+    {
+      "id": "0eda5fa7-aad9-5b7a-8cd4-db5f0b3f13f5",
+      "username": "marta.admin",
+      "enabled": true,
+      "email": "marta.admin@example.org",
+      "emailVerified": true,
+      "firstName": "Marta",
+      "lastName": "Admin",
+      "realmRoles": [
+        "ADMIN",
+        "MFA_REQUIRED_ROLE",
+        "LH_TEST_USER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Operatori-26!",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Vetrina (seme documentato)",
+          "secretData": "{\"value\":\"VetrinaAurora2026Lh!\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"period\":30,\"algorithm\":\"HmacSHA1\",\"counter\":0}"
+        }
+      ]
+    },
+    {
+      "id": "f6b3384e-d102-558f-ba82-14025fc65e2c",
+      "username": "luca.marketing",
+      "enabled": true,
+      "email": "luca.marketing@example.org",
+      "emailVerified": true,
+      "firstName": "Luca",
+      "lastName": "Marketing",
+      "realmRoles": [
+        "MARKETING",
+        "MFA_REQUIRED_ROLE",
+        "LH_TEST_USER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Operatori-26!",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Vetrina (seme documentato)",
+          "secretData": "{\"value\":\"VetrinaAurora2026Lh!\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"period\":30,\"algorithm\":\"HmacSHA1\",\"counter\":0}"
+        }
+      ]
+    },
+    {
+      "id": "8c848ff7-ad90-57e2-b235-27539b8b9dcf",
+      "username": "elena.legal",
+      "enabled": true,
+      "email": "elena.legal@example.org",
+      "emailVerified": true,
+      "firstName": "Elena",
+      "lastName": "Legal",
+      "realmRoles": [
+        "LEGAL",
+        "MFA_REQUIRED_ROLE",
+        "LH_TEST_USER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Operatori-26!",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Vetrina (seme documentato)",
+          "secretData": "{\"value\":\"VetrinaAurora2026Lh!\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"period\":30,\"algorithm\":\"HmacSHA1\",\"counter\":0}"
+        }
+      ]
+    },
+    {
+      "id": "a1a36132-f02d-5f90-82a9-8548764f7a73",
+      "username": "paolo.care",
+      "enabled": true,
+      "email": "paolo.care@example.org",
+      "emailVerified": true,
+      "firstName": "Paolo",
+      "lastName": "Care",
+      "realmRoles": [
+        "CARE",
+        "MFA_REQUIRED_ROLE",
+        "LH_TEST_USER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Operatori-26!",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Vetrina (seme documentato)",
+          "secretData": "{\"value\":\"VetrinaAurora2026Lh!\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"period\":30,\"algorithm\":\"HmacSHA1\",\"counter\":0}"
+        }
+      ]
+    },
+    {
+      "id": "8a1ee17d-bc24-52db-a3b4-3b87de400213",
+      "username": "sara.analyst",
+      "enabled": true,
+      "email": "sara.analyst@example.org",
+      "emailVerified": true,
+      "firstName": "Sara",
+      "lastName": "Analyst",
+      "realmRoles": [
+        "ANALYST",
+        "MFA_REQUIRED_ROLE",
+        "LH_TEST_USER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Operatori-26!",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Vetrina (seme documentato)",
+          "secretData": "{\"value\":\"VetrinaAurora2026Lh!\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"period\":30,\"algorithm\":\"HmacSHA1\",\"counter\":0}"
+        }
+      ]
+    },
+    {
+      "id": "061f8e5e-8791-5d77-92e1-4c8f0e4813a4",
+      "username": "vetrina.admin",
+      "enabled": true,
+      "email": "vetrina.admin@example.org",
+      "emailVerified": true,
+      "firstName": "Vetrina",
+      "lastName": "Admin",
+      "realmRoles": [
+        "LH_TEST_USER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Aurora-Admin-26!",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-users",
+          "query-groups",
+          "manage-users",
+          "view-events"
+        ]
+      }
+    }
+  ],
   "scopeMappings": [
     {
       "client": "lh-cli",
