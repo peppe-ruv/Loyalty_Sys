@@ -496,7 +496,10 @@ test('Operatori invariati (Q-618): senza credenziali, con UPDATE_PASSWORD e MFA_
   assert.ok(flow?.authenticationExecutions.some(e => e.authenticator === 'conditional-user-role' && e.requirement === 'REQUIRED'), 'mfa-conditional: condizione sul ruolo');
   assert.ok(flow?.authenticationExecutions.some(e => e.authenticator === 'auth-otp-form' && e.requirement === 'REQUIRED'), 'mfa-conditional: OTP obbligatorio');
   const cfg = (realm.authenticatorConfig ?? []).find(a => a.alias === 'mfa-role-config');
-  assert.ok(cfg && JSON.stringify(cfg.config).includes('MFA_REQUIRED_ROLE'), 'mfa-role-config deve riferirsi a MFA_REQUIRED_ROLE');
+  // La chiave è quella di ConditionalRoleAuthenticator (condUserRole): con un'altra il ruolo arriva null, la condizione
+  // è sempre falsa e l'OTP non scatta per nessuno (trovato dallo smoke enterprise, M8.14 V6).
+  assert.deepEqual(Object.keys(cfg?.config ?? {}), ['condUserRole'], 'mfa-role-config: solo la chiave condUserRole');
+  assert.equal(cfg.config.condUserRole, 'MFA_REQUIRED_ROLE', 'mfa-role-config deve riferirsi a MFA_REQUIRED_ROLE');
 });
 
 // L'overlay si applica con un PUT del realm (frammento) e un partialImport dei client: simulazione della semantica
