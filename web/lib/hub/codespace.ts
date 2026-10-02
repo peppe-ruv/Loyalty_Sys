@@ -7,7 +7,7 @@ import { problem } from "@/lib/auth/bff";
 // - Esiste solo con `LH_VETRINA_CODESPACE` e `LH_VETRINA_GITHUB_TOKEN` entrambe impostate (altrimenti 404).
 // - Unica destinazione in uscita: `https://api.github.com` (Q-674). Nessun dato dal browser oltre all'azione.
 // - Il token (fine-grained, solo il repository Loyalty_Sys, «Codespaces» in lettura per leggere lo stato e «Codespaces
-//   lifecycle admin» in scrittura per avviare, nient'altro, scadenza al massimo un anno; Q-674, Q-700) non lascia mai il
+//   lifecycle admin» in scrittura per avviare, nient'altro, scadenza al massimo un anno; Q-674, Q-715) non lascia mai il
 //   processo: né nelle risposte né nei log (regola 20); neppure il corpo grezzo di GitHub, solo `{state, url}`.
 // - `POST` con controllo dell'origine e al più un avvio ogni 60 s per processo (Q-674); dentro quella finestra, se GitHub
 //   ancora dice «spento», si risponde «in accensione» (l'avvio è partito, GitHub lo registra con qualche secondo di ritardo).

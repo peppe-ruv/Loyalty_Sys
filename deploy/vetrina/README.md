@@ -52,7 +52,7 @@ Il dev container del codespace è in `.devcontainer/vetrina/` (`devcontainer.jso
    | Variabile | Contenuto |
    |---|---|
    | `LH_VETRINA_CODESPACE` | Nome del codespace della vetrina (quello nell'indirizzo `https://<nome>-8000.app.github.dev`). |
-   | `LH_VETRINA_GITHUB_TOKEN` | Token *fine-grained* del tuo account GitHub (*Settings → Developer settings → Fine-grained tokens*): solo il repository Loyalty_Sys, permessi **Codespaces** in lettura (per leggere lo stato) e **Codespaces lifecycle admin** in scrittura (per avviare) e nient'altro, scadenza al massimo un anno (Q-674, Q-700). Segnalo come *Sensitive* su Vercel. |
+   | `LH_VETRINA_GITHUB_TOKEN` | Token *fine-grained* del tuo account GitHub (*Settings → Developer settings → Fine-grained tokens*): solo il repository Loyalty_Sys, permessi **Codespaces** in lettura (per leggere lo stato) e **Codespaces lifecycle admin** in scrittura (per avviare) e nient'altro, scadenza al massimo un anno (Q-674, Q-715). Segnalo come *Sensitive* su Vercel. |
 
    Serve anche `LH_HUB_ENTERPRISE_URL` (l'indirizzo del punto 4 di «Prima di una demo»). Con una delle due variabili assente il riquadro «Modalità Enterprise» mostra «Disponibile su richiesta» e la route risponde `404`. Il token non finisce mai nel browser né nei log (regola 20): lo usa solo il server della demo, e solo verso `https://api.github.com`. Prima della scadenza genera un token nuovo e sostituiscilo su Vercel.
 
