@@ -38,6 +38,35 @@ flowchart TD
   DEC --> TAG[Tag vX.0.0]
 ```
 
+## Come il cancello cerca i bug non noti
+
+Un test a esempi controlla solo il caso che hai previsto. Per trovare anche i difetti che nessuno ha immaginato, ogni pull request passa da quattro controlli in più (ADR-053):
+
+- **Proprietà generative**: una regola di dominio, come «il saldo è la somma dei lotti attivi», si verifica su migliaia di sequenze generate. Il generatore cerca il controesempio più piccolo.
+- **Mutation testing sul codice cambiato**: lo strumento introduce piccoli difetti nel codice nuovo e controlla che almeno un test fallisca.
+- **Fuzz breve delle API**: richieste generate dalle OpenAPI dei servizi toccati, senza risposte `5xx` e conformi allo schema.
+- **Journey casuali con invarianti**: sequenze casuali di azioni di membri e operatori, con le invarianti di bilancio verificate dopo ogni ciclo.
+
+```mermaid
+flowchart LR
+  accTitle: Controlli di una pull request per i bug non noti
+  accDescr: Una pull request passa dai test a esempi, dalle proprietà generative sulle regole toccate, dal mutation testing sul codice cambiato, dal fuzz breve delle API dei servizi toccati e dalle journey casuali con invarianti. Un controesempio, un mutante sopravvissuto o un seme che fallisce diventano un test permanente, che torna nei test a esempi.
+  PR[Pull request] --> EX[Test a esempi]
+  PR --> PROP[Proprietà generative<br/>regole toccate]
+  PR --> MUT[Mutation testing<br/>codice cambiato]
+  PR --> FUZZ[Fuzz breve<br/>API toccate]
+  PR --> JRN[Journey casuali<br/>con invarianti]
+  PROP -->|controesempio| REG[Test permanente]
+  MUT -->|mutante sopravvissuto| REG
+  FUZZ -->|risposta 5xx o fuori schema| REG
+  JRN -->|seme che fallisce| REG
+  REG --> EX
+```
+
+<Tip>
+Ogni esecuzione generativa stampa il seme. Per riprodurre un fallimento, rilancia il test con lo stesso seme.
+</Tip>
+
 ## Cosa vede ogni livello
 
 | Livello | Dove gira | Cosa vede | Esito |
@@ -52,4 +81,4 @@ Il collaudo usa solo le credenziali di test pubbliche della vetrina, descritte i
 
 ## Stato
 
-Il cancello Playwright (M9.1), il copione di collaudo, il workflow dei log e il `correlationId` negli errori si aggiungono in fette successive. Le scelte di dettaglio sono le domande Q-680…Q-685, decise il 2026-10-02.
+Il cancello Playwright (M9.1), il copione di collaudo, il workflow dei log, il `correlationId` negli errori e i quattro controlli per i bug non noti si aggiungono in fette successive. Le scelte sui controlli sono le domande Q-690…Q-694. Le scelte di dettaglio sono le domande Q-680…Q-685, decise il 2026-10-02.

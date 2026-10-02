@@ -470,3 +470,25 @@ Il bus preserva le proprietà che contano: **fan-out per topic** (un gruppo cons
 - Endpoint pubblico dei log nella vetrina: un nuovo `@PublicEndpoint` che esporrebbe dati operativi a chiunque abbia il link.
 - Solo Playwright, senza collaudo esplorativo: copre solo ciò che qualcuno ha già previsto.
 - Solo Claude in Chrome, senza cancello: nessuna protezione dalle regressioni tra una release e l'altra.
+
+### ADR-053 — Test in CI per i bug non noti: proprietà generative, mutation testing sul diff, fuzz delle API nelle PR, journey casuali con invarianti
+**Stato.** ACCETTATA il 2026-10-02 (Giuseppe, opzione «Tutti e quattro»). I dettagli sono in Q-690…Q-694, con il default proposto in uso finché il proprietario non decide. **Integra** ADR-052 (livello 1, il cancello deterministico) e `docs/06 §9`; non supera nessuna decisione.
+**Contesto.** Il proprietario chiede che dalle prossime fette la CI abbia test più rigorosi, capaci di intercettare anche i bug non noti. Oggi la CI ha test unitari e d'integrazione scritti a esempi (circa 250 classi), ArchUnit, controlli di compatibilità dei contratti e il fuzz delle API con Schemathesis solo nel job notturno (`security-nightly.yml`). Un test a esempi verifica solo i casi che l'autore ha previsto; non c'è una misura di quanto i test colgano un difetto, e le journey e2e di M9 non esistono ancora.
+**Decisione.**
+1. **Proprietà generative.** Ogni fetta che tocca una regola numerata di `docs/03` o una regola di una scheda servizio aggiunge almeno una proprietà generativa che la verifica su input generati: jqwik per Java, fast-check per il web, entrambi solo con scope di test. Il seme di ogni esecuzione è stampato e un controesempio trovato diventa un test a esempi permanente (Q-690).
+2. **Mutation testing sul codice cambiato.** Un job `mutation` esegue PIT (Java) e Stryker (web) solo sulle classi e sui file cambiati dalla PR rispetto a `main` e scrive nel riepilogo i mutanti sopravvissuti. Parte consultivo; diventa obbligatorio con una soglia sul diff (Q-691).
+3. **Fuzz delle API nelle PR.** Una corsa breve di Schemathesis, con lo script del job notturno, sulle OpenAPI dei soli servizi toccati dalla PR; la corsa lunga resta notturna (Q-692).
+4. **Journey casuali con invarianti.** Il fuzz delle journey di M9.2 (sequenze casuali di azioni con seme, poi le invarianti di M9: Σ lotti = saldo, stock ≤ totale, nessun doppione) si anticipa subito dopo T1 di ADR-052; un seme che fallisce diventa una journey di regressione (Q-693).
+5. **Nessun componente nuovo.** Solo librerie di test e minuti di GitHub Actions; nessuna dipendenza nel codice di produzione (regola 8).
+
+**Conseguenze.**
+- + I test cercano attivamente il controesempio invece di confermare il caso previsto.
+- + Il mutation testing misura l'efficacia dei test sul codice nuovo, dove nascono i bug.
+- + Ogni bug trovato da un generatore resta come test a esempi: il cancello cresce.
+- − CI più lunga: il job `mutation` e il fuzz breve aggiungono minuti alle PR (budget in Q-694).
+- − Proprietà scritte male possono essere lente o instabili; il seme stampato le rende riproducibili.
+**Attuazione.** Una PR per fetta (regola 16): **T0b** questa ADR con Q-690…Q-694; **U1** jqwik e fast-check, prime proprietà del wallet; **U2** job `mutation` consultivo; **U3** fuzz breve nelle PR; **U4** journey casuali con invarianti (dopo T1). Il codice lo scrivono subagenti Sonnet e la revisione la fa Opus (indicazione del proprietario del 2026-10-02). Dettagli in `docs/18` M9.
+**Scartate.**
+- Soglia di copertura delle righe: misura il codice eseguito, non quello verificato.
+- Mutation testing su tutto il repository a ogni PR: troppo lento per i minuti gratuiti; resta possibile in un job notturno.
+- Fuzz delle API solo notturno: un difetto arriva in `main` prima di essere visto.
