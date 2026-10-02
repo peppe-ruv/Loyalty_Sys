@@ -11,7 +11,7 @@ La vetrina è una prova da guardare, non un servizio di produzione: non è ad al
 </Note>
 
 <Note>
-**Stato.** L'architettura è decisa (ADR-049) e l'overlay per installare l'istanza è pronto (`deploy/vetrina/`, fetta M8.14c). Dal 2026-10-01 la vetrina si ospita in un GitHub Codespace acceso su richiesta (ADR-050), al posto dell'host Oracle Cloud: la configurazione del codespace arriva con la fetta M8.14 V7, le altre parti con le fette di M8.14 (piano in `docs/18`). Finché la vetrina non è collegata, il pulsante nel Demo Hub resta nascosto.
+**Stato.** L'architettura è decisa (ADR-049) e l'overlay per installare l'istanza è pronto (`deploy/vetrina/`, fetta M8.14c). Dal 2026-10-01 la vetrina si ospita in un GitHub Codespace acceso su richiesta (ADR-050), al posto dell'host Oracle Cloud: il dev container `.devcontainer/vetrina` la avvia e la configura da solo (fetta M8.14 V7), le altre parti arrivano con le fette di M8.14 (piano in `docs/18`). Finché la vetrina non è collegata, il pulsante nel Demo Hub resta nascosto.
 </Note>
 
 ## Come sono collegate le due istanze
@@ -46,6 +46,41 @@ flowchart LR
 | Inoltro delle porte | GitHub, due porte pubbliche | Unico ingresso, in https su `*.app.github.dev`: termina il TLS per `web` e `idp` (Q-661). Il reverse proxy con certificati ACME dell'overlay serve solo su un host fisso (Q-620). La console di amministrazione di Keycloak non è esposta. |
 
 L'hosting è un GitHub Codespace del repository: il proprietario lo accende dal browser prima di una demo e si ferma da solo dopo un periodo di inattività. Resta a costo zero perché l'uso si blocca a fine quota gratuita (ADR-050, Q-660); un host sempre acceso è rimandato (TOBE-012). Il bus è un broker Kafka KRaft sullo stesso host, con gli stessi 5 topic della demo (Q-616).
+
+## Avvio nel codespace
+
+Il proprietario crea il codespace dal repository scegliendo la configurazione «Vetrina enterprise» (macchina da 4 core e 16 GB, Q-660) e lo riaccende prima di ogni demo. A ogni avvio lo script del dev container prepara tutto da solo (Q-663):
+
+1. sceglie l'immagine unica pubblicata, all'ultimo tag `v*` o quella indicata nei segreti del codespace;
+2. scrive la configurazione con i due indirizzi pubblici, `https://<codespace>-8000.app.github.dev` per il web e `-8001` per Keycloak;
+3. genera segreti, CA locale e certificati solo la prima volta, poi li riusa;
+4. avvia lo stack e, al primo avvio, applica l'overlay del realm;
+5. crea gli account operatore che mancano, dall'elenco tenuto nei segreti del codespace;
+6. rende pubbliche le due porte e controlla che la discovery OIDC risponda dall'indirizzo pubblico.
+
+Nel codespace il proxy resta, ma parla HTTP su due porte locali: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy continua a esporre di Keycloak solo il realm `loyaltyhub`; la console di amministrazione resta su una porta privata, visibile solo al proprietario (Q-661).
+
+```mermaid
+sequenceDiagram
+  accTitle: Avvio della vetrina nel codespace
+  accDescr: All'avvio del codespace lo script del dev container sceglie l'immagine, lancia vetrina.sh in modalità codespace, che scrive la configurazione, genera i segreti la prima volta, avvia lo stack e al primo avvio applica l'overlay del realm, poi crea gli operatori mancanti. Lo script rende pubbliche le porte 8000 e 8001 e verifica la discovery OIDC dall'indirizzo pubblico, passando dall'inoltro delle porte di GitHub.
+  participant P as Proprietario
+  participant G as GitHub Codespaces
+  participant A as avvio.sh
+  participant S as vetrina.sh codespace
+  participant D as Docker nel codespace
+  P->>G: crea o riaccende il codespace «Vetrina enterprise»
+  G->>A: postStartCommand
+  A->>A: immagine dal segreto LH_IMAGE o dall'ultimo tag v*
+  A->>S: sudo, ambiente del codespace
+  S->>S: configurazione con gli indirizzi pubblici
+  S->>S: segreti e certificati, solo la prima volta
+  S->>D: compose up con l'overlay del codespace
+  S->>D: overlay del realm al primo avvio, operatori mancanti
+  A->>G: porte 8000 e 8001 pubbliche
+  A->>G: discovery OIDC dall'indirizzo pubblico
+  Note over P,G: inattività oltre il timeout: il codespace si ferma, i dati restano
+```
 
 ## Cosa si ottiene
 

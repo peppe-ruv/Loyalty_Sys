@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# Vetrina enterprise ospitata: comandi dell'host (F2-DIST-03, F2-DIST-09, ADR-049, M8.14 V3; Q-616, Q-620, Q-621, Q-624).
+# Vetrina enterprise ospitata: comandi dell'host (F2-DIST-03, F2-DIST-09, ADR-049, ADR-050, M8.14 V3 e V7; Q-616,
+# Q-620, Q-621, Q-624, Q-660…Q-663).
 #
-# Avvia il compose di riferimento con l'overlay di vetrina (deploy/vetrina/compose.vetrina.yml) su un host Oracle Cloud
-# A1 (arm64). Runbook completo: deploy/vetrina/README.md.
+# Avvia il compose di riferimento con l'overlay di vetrina (deploy/vetrina/compose.vetrina.yml). Due modalità
+# (LH_VETRINA_MODE): `host`, un host fisso con il proxy ACME sulle porte 80 e 443 (ADR-049, arm64 per default), e
+# `codespace`, un GitHub Codespace acceso su richiesta (ADR-050) con l'overlay deploy/vetrina/compose.codespace.yml:
+# niente ACME, il TLS lo termina l'inoltro delle porte di GitHub. Runbook completo: deploy/vetrina/README.md.
+#
+#   vetrina.sh codespace            solo nel codespace (Q-663): scrive la configurazione dall'ambiente del codespace,
+#                                   provisioning, avvio e, al primo avvio, overlay del realm; poi account operatore
 #
 #   vetrina.sh provision            segreti, CA locale e certificati di Postgres e Kafka (idempotente, regola 20)
 #   vetrina.sh preflight [--offline]
@@ -29,6 +35,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REFERENCE="$REPO_ROOT/deploy/compose/reference.yml"
 OVERLAY="$SCRIPT_DIR/compose.vetrina.yml"
+CODESPACE_OVERLAY="$SCRIPT_DIR/compose.codespace.yml"
 PROJECT="loyaltyhub-vetrina"
 CONFIG="${LH_VETRINA_CONFIG:-/etc/loyaltyhub-vetrina/vetrina.env}"
 
@@ -38,13 +45,16 @@ CONTAINER_UID=1000
 POSTGRES_UID=999
 
 # Chiavi ammesse nel file di configurazione (nessun segreto).
-CONFIG_KEYS=(LH_IMAGE LH_VETRINA_DIR LH_VETRINA_WEB_HOST LH_VETRINA_IDP_HOST LH_VETRINA_PUBLIC_ADDRESS LH_HUB_DEMO_URL LH_BIND_ADDRESS)
+CONFIG_KEYS=(LH_VETRINA_MODE LH_IMAGE LH_VETRINA_DIR LH_VETRINA_WEB_HOST LH_VETRINA_IDP_HOST LH_VETRINA_PUBLIC_ADDRESS LH_HUB_DEMO_URL LH_BIND_ADDRESS)
 # Segreti generati sull'host: nome del file e forma (password = 32 caratteri url-safe; key = 32 byte in base64).
 SECRETS=(db-password:password idp-db-password:password idp-admin-password:password web-client-secret:password
          widgets-client-secret:password cms-client-secret:password web-session-key:key subject-key:key)
 # Variabili di segreto del compose di riferimento: nella vetrina non devono stare nell'ambiente (regola 20).
 SECRET_ENV=(LH_DB_PASSWORD LH_IDP_DB_PASSWORD LH_IDP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET
             LH_CMS_CLIENT_SECRET LH_WEB_SESSION_KEY LH_SUBJECT_KEY LH_GRAFANA_ADMIN_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD)
+# Porte del proxy nel codespace (Q-661): HTTP in chiaro su loopback, l'inoltro di GitHub le pubblica in https.
+CODESPACE_WEB_PORT=8000
+CODESPACE_IDP_PORT=8001
 # Volumi azzerati ogni settimana (Q-624). I volumi del proxy (certificati ACME) restano.
 RESET_VOLUMES=(lh-ref-postgres lh-ref-kafka)
 # Validità dei certificati: CA 10 anni, foglie 397 giorni, rinnovo quando ne mancano meno di 30.
@@ -86,6 +96,11 @@ load_config() {
 }
 
 validate_config() {
+  LH_VETRINA_MODE="${LH_VETRINA_MODE:-host}"
+  case "$LH_VETRINA_MODE" in
+    host|codespace) export LH_VETRINA_MODE ;;
+    *) usage_error "LH_VETRINA_MODE deve essere host o codespace" ;;
+  esac
   local host_re='^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$'
   [ -n "${LH_IMAGE:-}" ] || usage_error "LH_IMAGE obbligatoria (immagine unica pubblicata, meglio con @sha256)"
   [[ "${LH_VETRINA_DIR:-}" == /* ]] || usage_error "LH_VETRINA_DIR deve essere un percorso assoluto"
@@ -96,9 +111,16 @@ validate_config() {
   [[ "${LH_VETRINA_PUBLIC_ADDRESS:-}" =~ $ip_re ]] || usage_error "LH_VETRINA_PUBLIC_ADDRESS deve essere un indirizzo IPv4 dell'host (l'indirizzo privato dell'istanza)"
   local o
   for o in "${BASH_REMATCH[@]:1}"; do [ "$o" -le 255 ] || usage_error "LH_VETRINA_PUBLIC_ADDRESS non valido"; done
-  case "$LH_VETRINA_PUBLIC_ADDRESS" in
-    0.0.0.0|127.*) usage_error "LH_VETRINA_PUBLIC_ADDRESS non può essere 0.0.0.0 né loopback: indica l'indirizzo dell'interfaccia dell'host" ;;
-  esac
+  if [ "$LH_VETRINA_MODE" = codespace ]; then
+    # Nel codespace il proxy ascolta solo su loopback: l'inoltro delle porte di GitHub è l'unica via d'ingresso (Q-661).
+    [ "$LH_VETRINA_PUBLIC_ADDRESS" = 127.0.0.1 ] || usage_error "LH_VETRINA_PUBLIC_ADDRESS deve essere 127.0.0.1 nel codespace"
+    [[ "$LH_VETRINA_WEB_HOST" == *"-$CODESPACE_WEB_PORT."* ]] || usage_error "LH_VETRINA_WEB_HOST nel codespace è <nome>-$CODESPACE_WEB_PORT.<dominio di inoltro>"
+    [[ "$LH_VETRINA_IDP_HOST" == *"-$CODESPACE_IDP_PORT."* ]] || usage_error "LH_VETRINA_IDP_HOST nel codespace è <nome>-$CODESPACE_IDP_PORT.<dominio di inoltro>"
+  else
+    case "$LH_VETRINA_PUBLIC_ADDRESS" in
+      0.0.0.0|127.*) usage_error "LH_VETRINA_PUBLIC_ADDRESS non può essere 0.0.0.0 né loopback: indica l'indirizzo dell'interfaccia dell'host" ;;
+    esac
+  fi
   # Web e Keycloak parlano HTTP in chiaro: solo loopback, davanti c'è il proxy (ADR-049).
   if [ -n "${LH_BIND_ADDRESS:-}" ] && [ "$LH_BIND_ADDRESS" != "127.0.0.1" ]; then
     usage_error "LH_BIND_ADDRESS deve essere 127.0.0.1 nella vetrina (web e idp solo dietro il proxy)"
@@ -123,7 +145,9 @@ compose() {
   # Ambiente pulito dalle variabili di segreto anche se l'operatore le ha esportate: l'overlay le forza comunque a vuoto.
   local unset_args=() v
   for v in "${SECRET_ENV[@]}"; do unset_args+=(-u "$v"); done
-  env "${unset_args[@]}" docker compose --project-name "$PROJECT" -f "$REFERENCE" -f "$OVERLAY" "$@"
+  local files=(-f "$REFERENCE" -f "$OVERLAY")
+  [ "${LH_VETRINA_MODE:-host}" = codespace ] && files+=(-f "$CODESPACE_OVERLAY")
+  env "${unset_args[@]}" docker compose --project-name "$PROJECT" "${files[@]}" "$@"
 }
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -272,13 +296,13 @@ check_file() {
   fi
 }
 
-check_images_arm64() {
-  # Ogni immagine del compose deve avere una variante linux/arm64 (host Oracle A1). Legge il manifest dal registro.
-  local img ko=0 images
+check_images_arch() {
+  # Ogni immagine del compose deve avere una variante linux/<arch> dell'host. Legge il manifest dal registro.
+  local want="$1" img ko=0 images
   images="$(compose config --images)"
   for img in $images; do
-    if docker manifest inspect -v "$img" 2>/dev/null | python3 -c '
-import json, sys
+    if docker manifest inspect -v "$img" 2>/dev/null | LH_WANT_ARCH="$want" python3 -c '
+import json, os, sys
 data = json.load(sys.stdin)
 items = data if isinstance(data, list) else [data]
 archs = set()
@@ -287,10 +311,10 @@ for it in items:
     archs.add(plat.get("architecture"))
     for m in (it.get("Raw") or {}).get("manifests", []) or []:
         archs.add((m.get("platform") or {}).get("architecture"))
-sys.exit(0 if "arm64" in archs else 1)'; then
-      info "arm64: $img"
+sys.exit(0 if os.environ["LH_WANT_ARCH"] in archs else 1)'; then
+      info "$want: $img"
     else
-      echo "  immagine senza variante linux/arm64 (o registro non raggiungibile): $img" >&2
+      echo "  immagine senza variante linux/$want (o registro non raggiungibile): $img" >&2
       ko=1
     fi
   done
@@ -301,15 +325,23 @@ cmd_preflight() {
   local offline=0
   [ "${1:-}" = "--offline" ] && offline=1
   local ko=0
-  # 1. Architettura dell'host (Oracle A1 = arm64). LH_VETRINA_EXPECTED_ARCH solo per provare l'overlay altrove.
-  local arch expected="${LH_VETRINA_EXPECTED_ARCH:-aarch64}"
+  # 1. Architettura dell'host: un host fisso è arm64 per default (ADR-049, LH_VETRINA_EXPECTED_ARCH per un altro host);
+  #    il codespace ha l'architettura che GitHub assegna (amd64), e le immagini devono averne la variante (ADR-050).
+  local arch expected
   arch="$(uname -m)"
+  if [ "$LH_VETRINA_MODE" = codespace ]; then expected="${LH_VETRINA_EXPECTED_ARCH:-$arch}"; else expected="${LH_VETRINA_EXPECTED_ARCH:-aarch64}"; fi
   if [ "$arch" = "$expected" ] || { [ "$expected" = aarch64 ] && [ "$arch" = arm64 ]; }; then
     info "architettura dell'host: $arch"
   else
-    echo "  architettura dell'host $arch, attesa $expected (Oracle Cloud A1 è arm64)" >&2
+    echo "  architettura dell'host $arch, attesa $expected" >&2
     ko=1
   fi
+  local image_arch
+  case "$arch" in
+    aarch64|arm64) image_arch=arm64 ;;
+    x86_64|amd64) image_arch=amd64 ;;
+    *) image_arch="$arch" ;;
+  esac
   # 2. Nessun segreto nell'ambiente.
   no_secret_env
   # 3. Segreti e certificati: presenti, non collegamenti, permessi e proprietari.
@@ -348,12 +380,12 @@ cmd_preflight() {
       echo "Avviso: memoria dell'host sotto 8 GB ($((kb / 1024)) MB): i limiti dei container sommano circa 6,5 GB." >&2
     fi
   fi
-  # 6. Compose valido con l'overlay, poi immagini arm64 (serve il registro: --offline lo salta).
+  # 6. Compose valido con l'overlay, poi immagini per l'architettura dell'host (serve il registro: --offline lo salta).
   need docker
   compose config -q || die "docker compose config fallito con l'overlay di vetrina"
   if [ "$offline" = 0 ]; then
     need python3
-    check_images_arm64 || die "immagini non disponibili per linux/arm64"
+    check_images_arch "$image_arch" || die "immagini non disponibili per linux/$image_arch"
   fi
   info "controlli preliminari superati"
 }
@@ -367,6 +399,64 @@ cmd_up() {
   cmd_preflight "$@"
   compose up -d --wait --wait-timeout 900
   info "vetrina avviata: https://$LH_VETRINA_WEB_HOST (Keycloak: https://$LH_VETRINA_IDP_HOST)"
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# Codespace (ADR-050, Q-660…Q-663)
+
+# Variabili del codespace lette da `vetrina.sh codespace` (nessun segreto della vetrina: quelli li genera provision).
+#   CODESPACES, CODESPACE_NAME, GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN  impostate da GitHub
+#   LH_IMAGE                immagine unica (segreto del codespace o derivata dall'ultimo tag v* da avvio.sh)
+#   LH_HUB_DEMO_URL         facoltativa, collegamento di ritorno alla demo in HUB-02
+#   LH_VETRINA_OPERATORS    facoltativa, elenco degli account operatore (righe o `;`), segreto del codespace (Q-663)
+cmd_codespace() {
+  [ "${CODESPACES:-}" = true ] || usage_error "il comando codespace vale solo dentro un GitHub Codespace (CODESPACES=true)"
+  local name="${CODESPACE_NAME:-}" domain="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}"
+  [[ "$name" =~ ^[a-z0-9][a-z0-9-]{0,80}[a-z0-9]$ ]] || usage_error "CODESPACE_NAME assente o non valido"
+  [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]] || usage_error "GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN assente o non valido"
+  [ -n "${LH_IMAGE:-}" ] || usage_error "LH_IMAGE obbligatoria: segreto del codespace o ultimo tag v* (.devcontainer/vetrina/avvio.sh)"
+  if [ "$(id -u)" != 0 ] && [ "${LH_VETRINA_TEST_NO_CHOWN:-}" != 1 ]; then
+    die "codespace va eseguito come root (sudo): provision assegna i file agli utenti dei container"
+  fi
+  local dir="${LH_VETRINA_DIR:-$(dirname "$CONFIG")}"
+  [ -L "$dir" ] && die "$dir è un collegamento simbolico"
+  mkdir -p "$dir"
+  chmod 700 "$dir"
+  # Configurazione rigenerata a ogni avvio: il nome del codespace non cambia, l'immagine può cambiare.
+  {
+    echo "# Generato da vetrina.sh codespace (ADR-050): non modificare a mano, si riscrive a ogni avvio."
+    echo "LH_VETRINA_MODE=codespace"
+    echo "LH_IMAGE=$LH_IMAGE"
+    echo "LH_VETRINA_DIR=$dir"
+    echo "LH_VETRINA_WEB_HOST=$name-$CODESPACE_WEB_PORT.$domain"
+    echo "LH_VETRINA_IDP_HOST=$name-$CODESPACE_IDP_PORT.$domain"
+    echo "LH_VETRINA_PUBLIC_ADDRESS=127.0.0.1"
+    echo "LH_HUB_DEMO_URL=${LH_HUB_DEMO_URL:-}"
+    echo "LH_BIND_ADDRESS=127.0.0.1"
+  } | write_atomic "$CONFIG"
+  chmod 600 "$CONFIG"
+  # Elenco degli operatori dal segreto del codespace: righe o `;`, mai stampato (contiene e-mail).
+  local operators="${LH_VETRINA_OPERATORS:-}"
+  unset LH_VETRINA_OPERATORS
+  # Le variabili di ambiente del codespace non devono sovrascrivere il file appena scritto.
+  unset LH_IMAGE LH_HUB_DEMO_URL LH_VETRINA_DIR
+  load_config
+  cmd_provision
+  if [ -n "$operators" ]; then
+    printf '%s\n' "$operators" | tr ';' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' \
+      | write_atomic "$LH_VETRINA_DIR/operators.list"
+    info "elenco degli operatori aggiornato dal segreto del codespace"
+  fi
+  cmd_up
+  # Primo avvio di questo codespace (Q-663): overlay del realm sul realm appena importato. Fermare e riavviare il
+  # codespace conserva volumi e marcatore: non si ripete. `vetrina.sh reset` azzera a mano.
+  if [ ! -f "$LH_VETRINA_DIR/.realm-overlay" ]; then
+    apply_realm_overlay
+    : > "$LH_VETRINA_DIR/.realm-overlay"
+  fi
+  cmd_operators
+  info "web: https://$LH_VETRINA_WEB_HOST · Keycloak: https://$LH_VETRINA_IDP_HOST (porte $CODESPACE_WEB_PORT e $CODESPACE_IDP_PORT pubbliche, Q-661)"
+  info "passo interattivo rimasto, se il programma è vuoto: vetrina.sh programma (Q-630)"
 }
 
 apply_realm_overlay() {
@@ -422,9 +512,10 @@ cmd_programma() {
 
 main() {
   local cmd="${1:-}"
-  [ -n "$cmd" ] || usage_error "uso: $0 provision|preflight [--offline]|up|down|reset|operators|programma|compose <argomenti>"
+  [ -n "$cmd" ] || usage_error "uso: $0 codespace|provision|preflight [--offline]|up|down|reset|operators|programma|compose <argomenti>"
   shift
   case "$cmd" in
+    codespace) cmd_codespace ;;
     provision) load_config; cmd_provision ;;
     preflight) load_config; cmd_preflight "$@" ;;
     up) load_config; cmd_up "$@" ;;
