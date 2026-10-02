@@ -14,6 +14,10 @@ La vetrina è una prova da guardare, non un servizio di produzione: non è ad al
 **Stato.** L'architettura è decisa (ADR-049) e l'overlay per installare l'istanza è pronto (`deploy/vetrina/`, fetta M8.14c). Dal 2026-10-01 la vetrina si ospita in un GitHub Codespace acceso su richiesta (ADR-050), al posto dell'host Oracle Cloud: il dev container `.devcontainer/vetrina` la avvia e la configura da solo (fetta M8.14 V7), le altre parti arrivano con le fette di M8.14 (piano in `docs/18`). Finché la vetrina non è collegata, il pulsante nel Demo Hub resta nascosto.
 </Note>
 
+<Warning>
+**Ambiente di test (ADR-051, 2026-10-02).** La vetrina diventa un ambiente di test da usare tutto dal browser: gli utenti di test avranno credenziali fisse e pubbliche, documentate in questa pagina, e Keycloak tornerà alla configurazione del repository a ogni avvio. Non inserire mai dati personali veri. Le parti arrivano con le fette R1, R2 e V8–V12 di M8.14; fino ad allora valgono le sezioni qui sotto.
+</Warning>
+
 ## Come sono collegate le due istanze
 
 Il pulsante non cambia il profilo della demo. Il profilo si fissa all'avvio, lato server, e una configurazione insicura fa uscire il processo; inoltre un interruttore su un'istanza condivisa cambierebbe la modalità a tutti i visitatori. Il pulsante è quindi **un collegamento a un'altra origine**: nessuno stato, cookie, database o bus in comune.
@@ -82,6 +86,30 @@ sequenceDiagram
   Note over P,G: inattività oltre il timeout: il codespace si ferma, i dati restano
 ```
 
+## Due realm: operatori e membri separati
+
+Con ADR-051 Keycloak ospita due realm nella stessa istanza. Così operatori e membri hanno login, policy delle password, MFA e sessioni separati, e un token del realm membri non può mai portare un ruolo da operatore. I due realm non sono collegati: chi è sia dipendente sia membro ha due registrazioni distinte.
+
+```mermaid
+flowchart LR
+  accTitle: Due realm di Keycloak nella vetrina enterprise
+  accDescr: Il backoffice usa il realm loyaltyhub, dove stanno operatori, fonti e job con OTP obbligatoria; il portale e i widget usano il realm loyaltyhub-members, dove stanno i membri. Il BFF tiene due sessioni distinte. L'hub accetta i token dei due emittenti e da ciascuno solo i suoi ruoli. Le console dei due realm sono pubbliche con amministratori di test limitati, la console master resta privata. Tra i due realm non c'è alcun collegamento.
+  subgraph KC[Keycloak, una istanza]
+    RO[Realm loyaltyhub<br/>operatori, fonti, job<br/>password e OTP]
+    RM[Realm loyaltyhub-members<br/>membri e widget]
+    MA[Realm master<br/>solo il proprietario]
+  end
+  BO[Backoffice] -->|login operatore| RO
+  PT[Portale e widget] -->|login membro| RM
+  BO --- BFF[BFF: due sessioni distinte]
+  PT --- BFF
+  BFF -->|Bearer| H[hub: due emittenti]
+  H -.->|ADMIN, MARKETING, LEGAL,<br/>CARE, ANALYST, SOURCE| RO
+  H -.->|solo MEMBER| RM
+```
+
+Nella vetrina ogni realm ha un amministratore di test che gestisce utenti, ruoli e sessioni dalla console, senza poter cambiare la configurazione del realm. La console del realm `master` non è pubblica (Q-670, Q-671).
+
 ## Cosa si ottiene
 
 - **Login OIDC reale** con Keycloak: BFF confidential con PKCE, cookie `__Host-` HttpOnly, CSRF, back-channel logout e MFA con OTP per gli operatori.
@@ -119,6 +147,8 @@ flowchart TD
 ```
 
 ## Accesso degli operatori
+
+> **Nota:** questa sezione descrive la regola di Q-618, superata per la vetrina da ADR-051: con la fetta V8 gli operatori di test avranno password fisse e un seme OTP documentati qui.
 
 Nessuna password è pubblicata: il primo visitatore la cambierebbe e legherebbe l'OTP al proprio telefono. La regola è che la MFA resta sempre richiesta. La decisione (Q-618, 2026-09-30) è che gli account operatore siano **nominativi**, creati dal proprietario su richiesta, con password temporanea consegnata fuori banda. A ogni azzeramento gli account si ricreano dall'elenco tenuto sull'host, con una nuova password temporanea.
 
@@ -176,4 +206,4 @@ flowchart LR
 
 ## Decisione
 
-La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md); l'hosting su Codespaces, che sostituisce Oracle Cloud, è in ADR-050, con i dettagli decisi in Q-660…Q-663 (il 2026-10-01). Hosting, bus, dati del programma, accesso degli operatori, portale e client `lh-cli` sono decisi (Q-615…Q-619, Q-626, Q-629); dominio e TLS, TLS verso bus e database, tempo reale, `render.yaml` e azzeramento sono decisi con il default proposto (Q-620…Q-624, il 2026-10-01). Il dettaglio è in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).
+La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md); l'hosting su Codespaces, che sostituisce Oracle Cloud, è in ADR-050, con i dettagli decisi in Q-660…Q-663 (il 2026-10-01). Hosting, bus, dati del programma, accesso degli operatori, portale e client `lh-cli` sono decisi (Q-615…Q-619, Q-626, Q-629); dominio e TLS, TLS verso bus e database, tempo reale, `render.yaml` e azzeramento sono decisi con il default proposto (Q-620…Q-624, il 2026-10-01). Il dettaglio è in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). La vetrina come ambiente di test tutto dal browser, i due realm e le credenziali pubbliche sono in ADR-051 (2026-10-02), con i dettagli in Q-670…Q-677. Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).
