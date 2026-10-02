@@ -197,6 +197,9 @@ services:
       # non in chiaro sulla rete interna.
       LH_OIDC_ISSUER: "https://${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}/realms/loyaltyhub"
       LH_OIDC_JWKS_URI: "https://${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}/realms/loyaltyhub/protocol/openid-connect/certs"
+      # Realm dei membri (ADR-051), con lo stesso giro dal proxy.
+      LH_OIDC_MEMBER_ISSUER: "https://${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}/realms/loyaltyhub-members"
+      LH_OIDC_MEMBER_JWKS_URI: "https://${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}/realms/loyaltyhub-members/protocol/openid-connect/certs"
       LH_OTEL_METRICS_ENABLED: "false"
       LH_SECRET_FILE_ENV: "DB_PASSWORD LH_SUBJECT_KEY KAFKA_SSL_CA_B64 KAFKA_SSL_CERT_B64 KAFKA_SSL_KEY_B64"
       LH_VETRINA_REQUIRE_DB_TLS: "DB_URL"
@@ -218,12 +221,16 @@ services:
       LH_WEB_URL: "https://${LH_VETRINA_WEB_HOST:?LH_VETRINA_WEB_HOST obbligatoria}"
       LH_WEB_CLIENT_SECRET: ""
       LH_WEB_CLIENT_SECRET_FILE: /run/secrets/lh_web_client_secret
+      LH_OIDC_MEMBER_ISSUER: "https://${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}/realms/loyaltyhub-members"
+      LH_WEB_MEMBER_CLIENT_SECRET: ""
+      LH_WEB_MEMBER_CLIENT_SECRET_FILE: /run/secrets/lh_portal_client_secret
       LH_WEB_SESSION_KEY: ""
       LH_WEB_SESSION_KEY_FILE: /run/secrets/lh_web_session_key
       # Collegamento di ritorno alla demo in HUB-02 (ADR-049, docs/11 §8); vuota = nessun collegamento.
       LH_HUB_DEMO_URL: "${LH_HUB_DEMO_URL:-}"
     secrets:
       - lh_web_client_secret
+      - lh_portal_client_secret
       - lh_web_session_key
 
   # Keycloak: database con TLS verificato, console /admin solo da 127.0.0.1:8180 (il proxy non la espone; si
@@ -241,17 +248,20 @@ services:
       LH_WEB_URL: "https://${LH_VETRINA_WEB_HOST:?LH_VETRINA_WEB_HOST obbligatoria}"
       LH_WEB_CLIENT_SECRET: ""
       LH_WEB_CLIENT_SECRET_FILE: /run/secrets/lh_web_client_secret
+      LH_PORTAL_CLIENT_SECRET: ""
+      LH_PORTAL_CLIENT_SECRET_FILE: /run/secrets/lh_portal_client_secret
       LH_WIDGETS_CLIENT_SECRET: ""
       LH_WIDGETS_CLIENT_SECRET_FILE: /run/secrets/lh_widgets_client_secret
       LH_CMS_CLIENT_SECRET: ""
       LH_CMS_CLIENT_SECRET_FILE: /run/secrets/lh_cms_client_secret
-      LH_SECRET_FILE_ENV: "KC_DB_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET LH_CMS_CLIENT_SECRET"
+      LH_SECRET_FILE_ENV: "KC_DB_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_PORTAL_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET LH_CMS_CLIENT_SECRET"
       LH_VETRINA_REQUIRE_DB_TLS: "KC_DB_URL"
     secrets:
       - lh_tls_ca
       - lh_idp_db_password
       - lh_idp_admin_password
       - lh_web_client_secret
+      - lh_portal_client_secret
       - lh_widgets_client_secret
       - lh_cms_client_secret
 
@@ -266,6 +276,8 @@ secrets:
     file: "${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/secrets/idp-admin-password"
   lh_web_client_secret:
     file: "${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/secrets/web-client-secret"
+  lh_portal_client_secret:
+    file: "${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/secrets/portal-client-secret"
   lh_widgets_client_secret:
     file: "${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/secrets/widgets-client-secret"
   lh_cms_client_secret:

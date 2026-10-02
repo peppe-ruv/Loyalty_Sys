@@ -17,13 +17,22 @@ const TEMPLATES = path.join(CHART, 'templates');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 const REALM = 'deploy/idp/realm.json';
+// Realm dei membri (ADR-051): seconda copia nel chart, importata dallo stesso Keycloak.
+const MEMBERS_REALM = 'deploy/idp/realm-members.json';
 const COMPOSE = 'deploy/compose/reference.yml';
 const TOPICS = ['lh.actions.v1', 'lh.effects.v1', 'lh.facts.v1', 'lh.audit.v1', 'lh.dlq.v1'];
-const placeholders = () => [...new Set(read(REALM).match(/\$\{LH_[A-Z0-9_]+\}/g).map((p) => p.slice(2, -1)))].sort();
+const placeholders = () => [...new Set([REALM, MEMBERS_REALM].flatMap((f) => read(f).match(/\$\{LH_[A-Z0-9_]+\}/g)).map((p) => p.slice(2, -1)))].sort();
 
 test('la copia del realm nel chart è identica a deploy/idp/realm.json (Helm non legge file fuori dal chart)', () => {
   assert.equal(read('deploy/helm/loyaltyhub/files/realm.json'), read(REALM),
     'aggiornare con: cp deploy/idp/realm.json deploy/helm/loyaltyhub/files/realm.json');
+  assert.equal(read('deploy/helm/loyaltyhub/files/realm-members.json'), read(MEMBERS_REALM),
+    'aggiornare con: cp deploy/idp/realm-members.json deploy/helm/loyaltyhub/files/realm-members.json');
+  // Il ConfigMap del ruolo idp porta i due realm; quello dei membri con il nome che Keycloak accetta (<realm>-realm.json).
+  const idp = read('deploy/helm/loyaltyhub/templates/idp.yaml');
+  assert.match(idp, /\{\{ \$memberRealm \}\}-realm\.json: \|-\n\s+\{\{- \.Files\.Get "files\/realm-members\.json"/);
+  assert.match(idp, /checksum\/realm-members: \{\{ \.Files\.Get "files\/realm-members\.json" \| sha256sum \}\}/);
+  assert.equal(JSON.parse(read(MEMBERS_REALM)).realm, 'loyaltyhub-members');
 });
 
 test('ogni segnaposto ${LH_*} del realm arriva a Keycloak nel chart e nel compose di riferimento', () => {
@@ -111,6 +120,12 @@ test('compose di riferimento: ruoli dell\'immagine unica, nessun segreto in chia
   assert.equal(envOf(web, 'LH_WEB_URL'), envOf(idp, 'LH_WEB_URL'), 'LH_WEB_URL del web e di Keycloak');
   assert.equal(envOf(web, 'LH_WEB_CLIENT_SECRET'), envOf(idp, 'LH_WEB_CLIENT_SECRET'), 'segreto del client web');
   assert.equal(envOf(web, 'LH_WEB_CLIENT_ID'), '"web"', 'client del realm');
+  // Realm dei membri (ADR-051): stesso emittente per hub e web, client portal con lo stesso segreto dato a Keycloak.
+  assert.equal(envOf(hub, 'LH_OIDC_MEMBER_ISSUER'), '"${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub-members"');
+  assert.equal(envOf(web, 'LH_OIDC_MEMBER_ISSUER'), envOf(hub, 'LH_OIDC_MEMBER_ISSUER'), 'emittente dei membri del web e dell\'hub');
+  assert.equal(envOf(hub, 'LH_OIDC_MEMBER_JWKS_URI'), '"http://idp:8080/realms/loyaltyhub-members/protocol/openid-connect/certs"');
+  assert.equal(envOf(web, 'LH_WEB_MEMBER_CLIENT_ID'), '"portal"');
+  assert.equal(envOf(web, 'LH_WEB_MEMBER_CLIENT_SECRET'), envOf(idp, 'LH_PORTAL_CLIENT_SECRET'), 'segreto del client portal');
   assert.equal(envOf(web, 'LH_WEB_SESSION_KEY'), '"${LH_WEB_SESSION_KEY:-}"');
   // Chiave dello pseudonimo subjectRef (F2-SEC-09, ADR-048, Q-552): solo l'hub, dall'ambiente, richiesta in enterprise.
   assert.equal(envOf(hub, 'LH_SUBJECT_KEY'), '"${LH_SUBJECT_KEY:-}"');
@@ -157,6 +172,13 @@ test('compose di riferimento: la guardia del web rifiuta emittente e origine non
   assert.equal(run({ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: 'https://idp.example.org:8443/realms/loyaltyhub',
     LH_WEB_URL: 'https://loyalty.example.org:8443' }).stdout, 'avviato');
   assert.equal(run({ LH_PROFILE: 'demo', LH_OIDC_ISSUER: loopback, LH_WEB_URL: 'http://localhost:3000' }).stdout, 'avviato');
+  // Emittente dei membri (ADR-051): facoltativo; se c'è, stessa forma e realm diverso da quello degli operatori.
+  const members = 'https://idp.example.org/realms/loyaltyhub-members';
+  assert.equal(run({ LH_PROFILE: 'enterprise', LH_OIDC_ISSUER: tls, LH_OIDC_MEMBER_ISSUER: members, LH_WEB_URL: web }).stdout, 'avviato');
+  for (const miss of [tls, 'http://idp.example.org/realms/loyaltyhub-members', 'https://idp.example.org/realms/loyaltyhub-members/',
+    'https://idp.example.org//realms/loyaltyhub-members', 'https://idp.example.org/realms/']) {
+    refused({ LH_OIDC_ISSUER: tls, LH_OIDC_MEMBER_ISSUER: miss, LH_WEB_URL: web }, badIssuer);
+  }
 });
 
 test('compose di riferimento: l\'hub richiede LH_SUBJECT_KEY (o LH_SUBJECT_KEY_FILE) con profilo enterprise o identità oidc, senza stamparla', () => {
@@ -189,6 +211,12 @@ test('compose di riferimento: l\'hub richiede LH_SUBJECT_KEY (o LH_SUBJECT_KEY_F
   assert.equal(run({ LH_PROFILE: 'demo', LH_IDENTITY_MODE: 'header' }).stdout, 'avviato');
   assert.equal(run({ LH_PROFILE: 'demo' }).stdout, 'avviato');
   assert.equal(run({}).stdout, 'avviato');
+  // Identità simulata: l'emittente dei membri si toglie (l'hub lo rifiuterebbe in modalità header, ADR-051); in oidc resta.
+  const memberVars = { LH_OIDC_MEMBER_ISSUER: 'https://idp.example.org/realms/loyaltyhub-members', LH_OIDC_MEMBER_JWKS_URI: 'http://idp:8080/x' };
+  const show = (env) => spawnSync('sh', ['-c', script, 'lh-require-env', 'sh', '-c', 'printf "%s|%s" "${LH_OIDC_MEMBER_ISSUER-<assente>}" "${LH_OIDC_MEMBER_JWKS_URI-<assente>}"'],
+    { encoding: 'utf8', env: { PATH: process.env.PATH, ...base, ...memberVars, ...env } }).stdout;
+  assert.equal(show({ LH_PROFILE: 'demo', LH_IDENTITY_MODE: 'header' }), '<assente>|<assente>');
+  assert.equal(show({ LH_PROFILE: 'enterprise', LH_IDENTITY_MODE: 'oidc', LH_SUBJECT_KEY: secret }), `${memberVars.LH_OIDC_MEMBER_ISSUER}|${memberVars.LH_OIDC_MEMBER_JWKS_URI}`);
   const noDb = run({ LH_PROFILE: 'demo', LH_IDENTITY_MODE: 'header', DB_PASSWORD: '' });
   assert.equal(noDb.status, 1);
   assert.match(noDb.stderr, /Variabile obbligatoria mancante: DB_PASSWORD/);
@@ -399,6 +427,13 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   assert.equal(env(webDeployment, 'LH_OIDC_ISSUER'), env(hubDeployment, 'LH_OIDC_ISSUER'), 'stesso emittente dell\'hub');
   assert.equal(env(webDeployment, 'LH_WEB_URL'), 'value: "https://loyalty.example.org"');
   assert.equal(env(webDeployment, 'LH_WEB_CLIENT_ID'), 'value: "web"');
+  // Realm dei membri (ADR-051): emittente uguale per hub e web, JWKS dentro il cluster, client portal con il Secret di Keycloak.
+  assert.equal(env(webDeployment, 'LH_OIDC_MEMBER_ISSUER'), 'value: "https://idp.example.org/realms/loyaltyhub-members"');
+  assert.equal(env(webDeployment, 'LH_WEB_MEMBER_CLIENT_ID'), 'value: "portal"');
+  assert.equal(env(webDeployment, 'LH_WEB_MEMBER_CLIENT_SECRET'),
+    'valueFrom:\n                secretKeyRef: { name: lh-idp-clients, key: portal-client-secret }', 'stesso Secret di Keycloak');
+  assert.match(tpl.stdout, /- path: \/realms\/loyaltyhub-members\//);
+  assert.match(tpl.stdout, /loyaltyhub-members-realm\.json: \|-/);
   assert.equal(env(webDeployment, 'LH_WEB_CLIENT_SECRET'),
     'valueFrom:\n                secretKeyRef: { name: lh-idp-clients, key: web-client-secret }', 'stesso Secret di Keycloak');
   assert.equal(env(webDeployment, 'LH_WEB_SESSION_KEY'),
@@ -410,6 +445,20 @@ test('helm lint e helm template: valori di default, servizi gestiti, rifiuti', {
   const idpDeployment = tpl.stdout.split(/^---$/m)
     .find((d) => /^kind: Deployment$/m.test(d) && /^  name: lh-loyaltyhub-idp$/m.test(d));
   assert.equal(env(idpDeployment, 'LH_WEB_URL'), env(webDeployment, 'LH_WEB_URL'), 'stessa origine nel realm');
+  assert.equal(env(idpDeployment, 'LH_PORTAL_CLIENT_SECRET'), env(webDeployment, 'LH_WEB_MEMBER_CLIENT_SECRET'), 'segreto del client portal');
+  assert.equal(env(hubDeployment, 'LH_OIDC_MEMBER_ISSUER'), env(webDeployment, 'LH_OIDC_MEMBER_ISSUER'), 'stesso emittente dei membri');
+  assert.equal(env(hubDeployment, 'LH_OIDC_MEMBER_JWKS_URI'), 'value: "http://lh-loyaltyhub-idp:8080/realms/loyaltyhub-members/protocol/openid-connect/certs"');
+  refuses(/oidc\.memberIssuer "https:\/\/idp\.example\.org\/realms\/loyaltyhub" coincide/, 'oidc.memberIssuer=https://idp.example.org/realms/loyaltyhub');
+  refuses(/oidc\.memberIssuer "https:\/\/sso\.example\.org\/realms\/membri" diverso dall'emittente dei membri del ruolo idp/, 'oidc.memberIssuer=https://sso.example.org/realms/membri');
+  refuses(/roles\.web\.bff\.member\.clientId "altro" non è il client del BFF nel realm dei membri/, 'roles.web.bff.member.clientId=altro');
+  // IdP aziendale senza realm dei membri: nessuna variabile dei membri (un solo realm, come prima).
+  const single = template('roles.idp.enabled=false', 'oidc.issuer=https://sso.example.org/realms/loyaltyhub', 'roles.web.bff.clientSecret.name=lh-web-oidc');
+  assert.equal(single.status, 0, single.stderr);
+  assert.doesNotMatch(single.stdout, /LH_OIDC_MEMBER_|LH_WEB_MEMBER_/);
+  refuses(/roles\.web\.bff\.member\.clientSecret\.name è obbligatorio/, 'roles.idp.enabled=false', 'oidc.issuer=https://sso.example.org/realms/loyaltyhub',
+    'roles.web.bff.clientSecret.name=lh-web-oidc', 'oidc.memberIssuer=https://sso.example.org/realms/membri');
+  refuses(/INSECURE_CONFIG: emittente dei membri/, 'roles.idp.enabled=false', 'oidc.issuer=https://sso.example.org/realms/loyaltyhub',
+    'roles.web.bff.clientSecret.name=lh-web-oidc', 'roles.web.bff.member.clientSecret.name=lh-portal', 'oidc.memberIssuer=http://sso.example.org/realms/membri');
   // CA privata dell'emittente e segreto proprio del web (IdP aziendale).
   const ca = template('roles.web.bff.issuerCaBundle.name=corp-ca', 'roles.web.bff.clientSecret.name=lh-web-oidc',
     'publicUrls.web=https://loyalty.example.org/');

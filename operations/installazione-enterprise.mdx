@@ -13,14 +13,14 @@ Ogni ruolo dell'immagine è un Deployment con repliche distribuite tra le zone. 
 ```mermaid
 flowchart TB
   accTitle: Topologia del chart Helm in un cluster multi-zona
-  accDescr: L'Ingress porta il browser al ruolo web e al login del ruolo idp; il web, con una sola replica nel profilo enterprise, fa login su idp con l'URL pubblico dell'emittente passando dall'Ingress e chiama hub dentro il cluster con l'access token; hub usa Postgres di CloudNativePG e i 5 topic di Kafka gestiti da Strimzi; il Job di migrazione aggiorna gli schemi prima dei nuovi Pod; con i valori per servizi gestiti Postgres e Kafka stanno fuori dal cluster.
+  accDescr: L'Ingress porta il browser al ruolo web e al login del ruolo idp, che ha un realm per gli operatori e uno per i membri; il web, con una sola replica nel profilo enterprise, fa login su idp con l'URL pubblico dell'emittente passando dall'Ingress e chiama hub dentro il cluster con l'access token; hub usa Postgres di CloudNativePG e i 5 topic di Kafka gestiti da Strimzi; il Job di migrazione aggiorna gli schemi prima dei nuovi Pod; con i valori per servizi gestiti Postgres e Kafka stanno fuori dal cluster.
   USR[Browser di membri e operatori]
   ING[Ingress con TLS]
   GW[Gateway, segnaposto fino a M8.5]
   subgraph K8S["Namespace loyaltyhub, repliche su più zone"]
     WEB[web: portale, backoffice e BFF, 1 replica]
     HUB[hub: moduli Java con HPA]
-    IDP[idp: Keycloak con realm as code]
+    IDP[idp: Keycloak con due realm as code]
     MIG[Job delle migrazioni Flyway]
     PG[(Postgres CloudNativePG, 3 istanze)]
     KF{{Kafka Strimzi, 3 broker, 5 topic}}
@@ -108,11 +108,46 @@ flowchart LR
   class VWF,VER check
 ```
 
+## Due realm: operatori e membri
+
+Keycloak ha due realm nella stessa istanza (ADR-051). Il realm `loyaltyhub` è degli operatori del backoffice, delle fonti di ingestion e dei job; il realm `loyaltyhub-members` è dei membri del portale e dei widget. Ognuno ha flusso di login, policy, sessioni e blocco dei tentativi propri: gli operatori hanno l'OTP obbligatorio, i membri si registrano da soli e possono aggiungere una passkey. Tra i due realm non c'è nessun legame: chi è sia dipendente sia membro ha due registrazioni.
+
+```mermaid
+flowchart LR
+  accTitle: Due realm di Keycloak nella stessa istanza
+  accDescr: Il web fa entrare gli operatori nel realm loyaltyhub con il client web e i membri nel realm loyaltyhub-members con il client portal; i widget usano il client widgets del realm dei membri. L'hub accetta i token dei due emittenti e, per ciascuno, solo i suoi ruoli: operatori, SOURCE e job dal primo, MEMBER dal secondo. Tra i due realm non c'è nessun broker.
+  OP[Operatori del backoffice]
+  MB[Membri del portale]
+  WG[Widget incorporati]
+  subgraph KC["idp: una sola istanza di Keycloak"]
+    RO[Realm loyaltyhub: client web, fonti src-*, lh-jobs]
+    RM[Realm loyaltyhub-members: client portal e widgets]
+  end
+  WEB[web: BFF con due login]
+  HUB[hub: due emittenti]
+  OP --> WEB
+  MB --> WEB
+  WEB -->|backoffice, OTP obbligatorio| RO
+  WEB -->|portale, registrazione e passkey| RM
+  WG --> RM
+  WEB -->|token degli operatori o dei membri| HUB
+  HUB -.->|ADMIN, MARKETING, LEGAL, CARE, ANALYST, SOURCE| RO
+  HUB -.->|solo MEMBER| RM
+  classDef svc fill:#EFF6FF,stroke:#2563EB,color:#1E3A8A
+  classDef realm fill:#F1F5F9,stroke:#475569,color:#0F172A
+  classDef human fill:#ECFDF5,stroke:#059669,color:#064E3B
+  class WEB,HUB svc
+  class RO,RM realm
+  class OP,MB,WG human
+```
+
+Il chart e il compose di riferimento importano i due realm e passano all'hub e al web l'emittente dei membri, `LH_OIDC_MEMBER_ISSUER`. L'hub accetta `MEMBER` solo dai token di quel realm e rifiuta un token del realm dei membri con un ruolo da operatore. Con un IdP aziendale al posto del ruolo `idp`, imposta `oidc.memberIssuer` per avere il secondo realm; senza, resta un solo realm come prima.
+
 ## Crea i segreti del web
 
-Nel profilo `enterprise` il web fa il login OIDC come client confidential `web` e tiene le sessioni lato server (BFF, vedi [Autenticazione](/api/autenticazione)). Gli servono due segreti: il segreto del client `web`, lo stesso che riceve Keycloak, e una chiave di 32 byte casuali che cifra le sessioni. Se mancano o sono deboli, il web non parte (`INSECURE_CONFIG`). Per generarli ti serve `openssl`.
+Nel profilo `enterprise` il web fa il login OIDC come client confidential `web` per gli operatori e `portal` per i membri, e tiene le sessioni lato server (BFF, vedi [Autenticazione](/api/autenticazione)). Gli servono tre segreti: i segreti dei client `web` e `portal`, gli stessi che riceve Keycloak, e una chiave di 32 byte casuali che cifra le sessioni. Se mancano o sono deboli, il web non parte (`INSECURE_CONFIG`). Per generarli ti serve `openssl`.
 
-Con Helm il segreto del client `web` è la chiave `web-client-secret` del Secret `lh-idp-clients`, che crei insieme agli altri Secret dell'installazione ([passo 2 di deploy/README.md](https://github.com/peppe-ruv/loyalty_sys/blob/main/deploy/README.md#installazione-con-helm)): lo leggono sia Keycloak sia il web. In più crea la chiave delle sessioni prima di installare il chart:
+Con Helm i segreti dei client sono le chiavi `web-client-secret` e `portal-client-secret` del Secret `lh-idp-clients`, che crei insieme agli altri Secret dell'installazione ([passo 2 di deploy/README.md](https://github.com/peppe-ruv/loyalty_sys/blob/main/deploy/README.md#installazione-con-helm)): li leggono sia Keycloak sia il web. In più crea la chiave delle sessioni prima di installare il chart:
 
 ```bash
 # Chiave delle sessioni del BFF: 32 byte casuali in base64 (roles.web.bff.sessionKey)
@@ -124,8 +159,9 @@ Il chart passa al web solo riferimenti a questi Secret. Emittente e origine del 
 Con il compose di riferimento esporta le variabili prima di `docker compose up`:
 
 ```bash
-# Stesso segreto per Keycloak e per il web
+# Stessi segreti per Keycloak e per il web: client web (operatori) e portal (membri)
 export LH_WEB_CLIENT_SECRET="$(openssl rand -hex 32)"
+export LH_PORTAL_CLIENT_SECRET="$(openssl rand -hex 32)"
 # Chiave delle sessioni del BFF
 export LH_WEB_SESSION_KEY="$(openssl rand -base64 32)"
 # URL https del reverse proxy davanti a web e Keycloak, senza barra finale

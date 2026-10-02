@@ -232,7 +232,7 @@ Cambia `LH_IMAGE` in `/etc/loyaltyhub-vetrina/vetrina.env` e rilancia `sudo depl
 | `secrets/db-password` | password del ruolo `loyaltyhub` | 1000, `0600` | Postgres, migrazioni, hub |
 | `secrets/idp-db-password` | password del ruolo `idp` | 1000, `0600` | Postgres, Keycloak |
 | `secrets/idp-admin-password` | amministratore iniziale di Keycloak | 1000, `0600` | Keycloak, `vetrina.sh` |
-| `secrets/web-client-secret`, `widgets-client-secret`, `cms-client-secret` | segreti dei client del realm | 1000, `0600` | Keycloak, web |
+| `secrets/web-client-secret`, `portal-client-secret`, `widgets-client-secret`, `cms-client-secret` | segreti dei client dei due realm (`portal` e `widgets` nel realm dei membri, ADR-051) | 1000, `0600` | Keycloak, web |
 | `secrets/web-session-key` | chiave delle sessioni del BFF | 1000, `0600` | web |
 | `secrets/subject-key` | `LH_SUBJECT_KEY`, **immutabile** (docs/11 §16) | 1000, `0600` | hub |
 | `ca/ca.key`, `ca/ca.crt` | CA locale | root, `0600` | solo `vetrina.sh` sull'host |

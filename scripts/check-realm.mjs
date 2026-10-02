@@ -9,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REALM_PATH = path.join(ROOT, 'deploy/idp/realm.json');
+// Realm dei membri del portale e dei widget (ADR-051 decisioni 6 e 7), nella stessa istanza di Keycloak.
+const MEMBERS_REALM_PATH = path.join(ROOT, 'deploy/idp/realm-members.json');
+const REFERENCE_COMPOSE_PATH = path.join(ROOT, 'deploy/compose/reference.yml');
 const OVERLAY_PATH = path.join(ROOT, 'deploy/idp/test-idp/realm-test-overlay.json');
 const APPLY_OVERLAY_PATH = path.join(ROOT, 'deploy/idp/test-idp/apply-overlay.sh');
 const VETRINA_OVERLAY_PATH = path.join(ROOT, 'deploy/idp/vetrina/realm-vetrina-overlay.json');
@@ -263,8 +266,8 @@ test('Ogni client scope referenziato è definito in clientScopes', () => {
   }
 });
 
-test('Nessun segreto letterale (secret, clientSecret, bindCredential) in realm.json e negli overlay (prova e vetrina)', () => {
-  for (const file of [REALM_PATH, OVERLAY_PATH, VETRINA_OVERLAY_PATH]) {
+test('Nessun segreto letterale (secret, clientSecret, bindCredential) nei due realm e negli overlay (prova e vetrina)', () => {
+  for (const file of [REALM_PATH, MEMBERS_REALM_PATH, OVERLAY_PATH, VETRINA_OVERLAY_PATH]) {
     const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
     for (const [where, value] of secretValues(doc)) {
       assert.ok(typeof value === 'string' && PLACEHOLDER.test(value),
@@ -310,32 +313,47 @@ test('Overlay di prova: il membro di prova è come un membro registrato e le sue
   assert.equal(users.filter(u => u.username === 'testmember').length, 1);
 });
 
-test('Ogni segnaposto ${LH_*} di realm.json è passato al servizio idp nel compose', () => {
-  const vars = new Set([...fs.readFileSync(REALM_PATH, 'utf8').matchAll(/\$\{(LH_[A-Z0-9_]+)\}/g)].map(m => m[1]));
-  const compose = fs.readFileSync(COMPOSE_PATH, 'utf8');
-  const block = compose.match(/\n  idp:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n)/);
-  assert.ok(block, 'Servizio idp non trovato in deploy/docker-compose.yml');
-  const missing = [...vars].filter(v => !new RegExp(`^\\s+${v}:`, 'm').test(block[1]));
-  assert.deepEqual(missing, [], `Variabili non passate a idp (Keycloak lascerebbe il segnaposto e l'avvio fallisce): ${missing.join(', ')}`);
+test('Ogni segnaposto ${LH_*} dei due realm è passato al servizio idp nei due compose, che importano entrambi i realm', () => {
+  const vars = new Set([REALM_PATH, MEMBERS_REALM_PATH]
+    .flatMap(f => [...fs.readFileSync(f, 'utf8').matchAll(/\$\{(LH_[A-Z0-9_]+)\}/g)].map(m => m[1])));
+  assert.ok(vars.has('LH_PORTAL_CLIENT_SECRET'), 'il realm dei membri usa LH_PORTAL_CLIENT_SECRET');
+  for (const file of [COMPOSE_PATH, REFERENCE_COMPOSE_PATH]) {
+    const compose = fs.readFileSync(file, 'utf8');
+    const block = compose.match(/\n  idp:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n)/);
+    assert.ok(block, `Servizio idp non trovato in ${path.relative(ROOT, file)}`);
+    const missing = [...vars].filter(v => !new RegExp(`^\\s+${v}:`, 'm').test(block[1]));
+    assert.deepEqual(missing, [], `${path.relative(ROOT, file)}: variabili non passate a idp (Keycloak lascerebbe il segnaposto e l'avvio fallisce): ${missing.join(', ')}`);
+    // Il segreto del client portal è obbligatorio come gli altri segreti dei client (guardia x-lh-require-env).
+    assert.match(block[1], /LH_REQUIRED_ENV: "[^"]*\bLH_PORTAL_CLIENT_SECRET\b/, `${path.relative(ROOT, file)}: LH_PORTAL_CLIENT_SECRET non obbligatoria`);
+    // Keycloak rifiuta un file <nome>-realm.json che contiene un realm diverso: il nome del file segue il realm.
+    assert.match(block[1], /realm-members\.json:\/opt\/keycloak\/data\/import\/loyaltyhub-members-realm\.json:ro/, `${path.relative(ROOT, file)}: realm dei membri non importato`);
+  }
 });
 
 // Auto-registrazione dei membri (Q-557, D10, ADR-048, F2-IAM-03, docs/09 PT-16): registrazione aperta, senza verifica
 // dell'e-mail. La verifica richiederebbe un `smtpServer`, cioè una nuova destinazione di rete in uscita (CLAUDE.md
 // §7 «Fermati e chiedi»): si abilita solo con un'ADR, dopo il modulo `delivery` (M8.4). Senza verifica `email_verified`
 // resta falso e nessun collegamento tra un account e un membro può fondarsi sull'e-mail (Q-558).
-test('Registrazione aperta ai membri, senza verifica dell\'e-mail e senza SMTP (Q-557)', () => {
-  assert.equal(realm.registrationAllowed, true, 'registrationAllowed deve essere true: sblocca PT-16 (auto-registrazione dei membri)');
-  assert.ok('verifyEmail' in realm, 'verifyEmail deve essere dichiarato in modo esplicito (default di Keycloak implicito = decisione nascosta)');
-  assert.equal(realm.verifyEmail, false, 'verifyEmail: true richiede un smtpServer (nuova destinazione di rete): serve un\'ADR (Q-557)');
-  const smtp = realm.smtpServer;
+// Con ADR-051 i membri si registrano nel loro realm (`loyaltyhub-members`, test sotto): il realm degli operatori ha la
+// registrazione chiusa. Resta senza verifica dell'e-mail e senza SMTP, come quello dei membri.
+function assertNoEmailVerification(r, name) {
+  assert.ok('verifyEmail' in r, `${name}: verifyEmail deve essere dichiarato in modo esplicito (default di Keycloak implicito = decisione nascosta)`);
+  assert.equal(r.verifyEmail, false, `${name}: verifyEmail: true richiede un smtpServer (nuova destinazione di rete): serve un'ADR (Q-557)`);
+  const smtp = r.smtpServer;
   assert.ok(smtp === undefined || (typeof smtp === 'object' && smtp !== null && Object.keys(smtp).length === 0),
-    'smtpServer non deve essere configurato nel realm: nuova destinazione di rete in uscita, serve un\'ADR (CLAUDE.md §7, Q-557)');
+    `${name}: smtpServer non deve essere configurato: nuova destinazione di rete in uscita, serve un'ADR (CLAUDE.md §7, Q-557)`);
   // Un'azione richiesta di default «Verify Email» farebbe la stessa cosa a ogni nuovo utente, senza SMTP li bloccherebbe.
-  for (const a of realm.requiredActions ?? []) {
+  for (const a of r.requiredActions ?? []) {
     if (a.alias === 'VERIFY_EMAIL' || a.providerId === 'VERIFY_EMAIL') {
-      assert.ok(!(a.enabled && a.defaultAction), 'VERIFY_EMAIL non deve essere un\'azione richiesta di default (serve SMTP)');
+      assert.ok(!(a.enabled && a.defaultAction), `${name}: VERIFY_EMAIL non deve essere un'azione richiesta di default (serve SMTP)`);
     }
   }
+}
+
+test('Realm degli operatori: registrazione chiusa (i membri si registrano nel loro realm, ADR-051), niente SMTP (Q-557)', () => {
+  assert.equal(realm.registrationAllowed, false, 'registrationAllowed deve essere false nel realm degli operatori: i membri si registrano in loyaltyhub-members (ADR-051)');
+  assertNoEmailVerification(realm, 'realm.json');
+  assert.ok(!realm.clients.some(c => c.clientId === 'widgets' || c.clientId === 'portal'), 'widgets e portal stanno nel realm dei membri (ADR-051)');
 });
 
 // Il ruolo predefinito. Verificato con l'import reale di Keycloak 26.7.4 (kc.sh import + export):
@@ -385,6 +403,145 @@ test('Ogni client con service account ha la sua utenza nel file, con ruoli espli
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Realm dei membri `loyaltyhub-members` (ADR-051 decisioni 6 e 7, F2-IAM-01, F2-IAM-03, docs/18 M8.14 R2). Stessa istanza
+// di Keycloak, nessun legame con il realm degli operatori: solo MEMBER, client `portal` (BFF) e `widgets`, registrazione
+// aperta, passkey disponibili, flusso di login standard. Nessun utente né credenziale.
+// ---------------------------------------------------------------------------------------------------------------------
+const members = () => JSON.parse(fs.readFileSync(MEMBERS_REALM_PATH, 'utf8'));
+const MEMBERS_DEFAULT_ROLE = 'default-roles-loyaltyhub-members';
+
+test('Realm dei membri: nome, nessun utente, nessuna credenziale, nessun broker né federazione (ADR-051 decisione 7)', () => {
+  const m = members();
+  assert.equal(m.realm, 'loyaltyhub-members');
+  assert.equal(m.id, 'loyaltyhub-members');
+  assert.equal(m.enabled, true);
+  assert.deepEqual(m.users ?? [], [], 'nessun utente nel realm dei membri');
+  assert.ok(!JSON.stringify(m).includes('"credentials"'), 'nessuna credenziale');
+  for (const k of ['identityProviders', 'identityProviderMappers', 'components', 'groups', 'smtpServer']) {
+    const v = m[k];
+    assert.ok(v === undefined || (Array.isArray(v) ? v.length === 0 : Object.keys(v).length === 0), `il realm dei membri non deve avere ${k} (nessun broker, nessuna federazione, nessun SMTP)`);
+  }
+  assert.doesNotMatch(JSON.stringify(m), /"loyaltyhub"(?!-)/, 'nessun riferimento al realm degli operatori');
+});
+
+test('Realm dei membri: MEMBER è l\'unico ruolo applicativo ed è nel ruolo predefinito', () => {
+  const m = members();
+  const names = m.roles.realm.map(r => r.name).sort();
+  assert.deepEqual(names, ['MEMBER', MEMBERS_DEFAULT_ROLE].sort(), 'solo MEMBER e il ruolo predefinito: nessun ruolo operatore, SOURCE o MFA_REQUIRED_ROLE');
+  assert.deepEqual(m.roles.client ?? {}, {}, 'nessun ruolo di client');
+  assert.equal(m.defaultRole?.name, MEMBERS_DEFAULT_ROLE);
+  assert.ok(!('composites' in m.defaultRole), 'defaultRole non porta composites: Keycloak li ignora, valgono quelli di roles.realm');
+  const entry = m.roles.realm.find(r => r.name === MEMBERS_DEFAULT_ROLE);
+  assert.equal(entry.composite, true);
+  assert.deepEqual(entry.composites, { realm: ['MEMBER'] }, 'il ruolo predefinito contiene solo MEMBER');
+});
+
+test('Realm dei membri: client portal confidential per il BFF, Authorization Code con PKCE S256 e i percorsi /members', () => {
+  const m = members();
+  assert.deepEqual(m.clients.map(c => c.clientId).sort(), ['portal', 'widgets'], 'solo i client portal e widgets');
+  const c = m.clients.find(x => x.clientId === 'portal');
+  assert.equal(c.enabled, true);
+  assert.equal(c.publicClient, false, 'portal è confidential');
+  assert.equal(c.bearerOnly, false);
+  assert.equal(c.clientAuthenticatorType, 'client-secret');
+  assert.equal(c.secret, '${LH_PORTAL_CLIENT_SECRET}', 'segreto da segnaposto, mai un valore');
+  assert.equal(c.standardFlowEnabled, true);
+  for (const k of ['implicitFlowEnabled', 'directAccessGrantsEnabled', 'serviceAccountsEnabled', 'frontchannelLogout']) {
+    assert.equal(c[k], false, `portal: ${k} deve essere false`);
+  }
+  assert.ok(!(c.attributes?.['oauth2.device.authorization.grant.enabled'] === 'true'), 'portal: nessun device grant');
+  // Percorsi del BFF per il realm dei membri (ADR-051): callback e back-channel logout con /members, ritorno alla radice.
+  assert.deepEqual(c.redirectUris, ['${LH_WEB_URL}/api/auth/callback/members']);
+  assert.equal(c.attributes?.['post.logout.redirect.uris'], '${LH_WEB_URL}/');
+  assert.equal(c.attributes?.['backchannel.logout.url'], '${LH_WEB_URL}/api/auth/backchannel-logout/members');
+  assert.equal(c.attributes?.['backchannel.logout.session.required'], 'true');
+  assert.equal(c.attributes?.['pkce.code.challenge.method'], 'S256');
+  // Stesse impostazioni del client web del realm degli operatori, salvo nome, segreto e percorsi.
+  const web = realm.clients.find(x => x.clientId === 'web');
+  for (const k of ['standardFlowEnabled', 'implicitFlowEnabled', 'directAccessGrantsEnabled', 'serviceAccountsEnabled', 'publicClient', 'consentRequired', 'protocol']) {
+    assert.equal(c[k], web[k], `portal.${k} come web.${k}`);
+  }
+  assert.deepEqual(c.webOrigins, web.webOrigins);
+});
+
+test('Realm dei membri: il token di portal porta audience hub e il claim lh_roles, con gli scope definiti nel realm', () => {
+  const m = members();
+  const c = m.clients.find(x => x.clientId === 'portal');
+  for (const scope of ['hub-audience', 'lh-roles-scope']) {
+    assert.ok(c.defaultClientScopes.includes(scope), `portal: manca lo scope predefinito ${scope}`);
+    assert.ok(m.defaultDefaultClientScopes.includes(scope), `${scope} non è tra gli scope predefiniti del realm dei membri`);
+    // Stessa definizione del realm degli operatori: stesso aud e stesso claim, che l'hub verifica (ADR-051 decisione 6).
+    assert.deepEqual(m.clientScopes.find(s => s.name === scope), realm.clientScopes.find(s => s.name === scope), `${scope} diverso dal realm degli operatori`);
+  }
+  const aud = m.clientScopes.find(s => s.name === 'hub-audience').protocolMappers[0];
+  assert.equal(aud.config['included.client.audience'], 'hub');
+  assert.equal(aud.config['access.token.claim'], 'true');
+  const roles = m.clientScopes.find(s => s.name === 'lh-roles-scope').protocolMappers[0];
+  assert.equal(roles.config['claim.name'], 'lh_roles');
+  assert.equal(roles.config['access.token.claim'], 'true');
+  const defined = new Set(m.clientScopes.map(s => s.name));
+  const refs = [...m.defaultDefaultClientScopes, ...m.defaultOptionalClientScopes,
+    ...m.clients.flatMap(x => [...(x.defaultClientScopes ?? []), ...(x.optionalClientScopes ?? [])])];
+  assert.deepEqual(refs.filter(n => !defined.has(n)), [], 'client scope referenziati ma non definiti nel realm dei membri');
+  for (const std of ['profile', 'email', 'roles', 'web-origins', 'acr', 'basic']) assert.ok(c.defaultClientScopes.includes(std), `portal: manca lo scope standard ${std}`);
+});
+
+test('Realm dei membri: widgets spostato qui dal realm degli operatori, con la stessa definizione', () => {
+  const w = members().clients.find(x => x.clientId === 'widgets');
+  assert.ok(w, 'manca il client widgets');
+  assert.equal(w.secret, '${LH_WIDGETS_CLIENT_SECRET}');
+  assert.equal(w.publicClient, false);
+  for (const k of ['standardFlowEnabled', 'implicitFlowEnabled', 'directAccessGrantsEnabled', 'serviceAccountsEnabled']) assert.equal(w[k], false, `widgets: ${k}`);
+  assert.deepEqual(w.redirectUris, []);
+});
+
+test('Realm dei membri: registrazione aperta senza verifica dell\'e-mail né SMTP, passkey disponibili, login standard', () => {
+  const m = members();
+  assert.equal(m.registrationAllowed, true, 'i membri si registrano da soli (PT-16, ADR-051)');
+  assertNoEmailVerification(m, 'realm-members.json');
+  assert.equal(m.browserFlow, 'browser', 'flusso di login standard: niente OTP obbligatorio per i membri');
+  assert.ok(!('authenticationFlows' in m), 'nessun flusso personalizzato');
+  assert.ok(!m.roles.realm.some(r => r.name === 'MFA_REQUIRED_ROLE'));
+  // Passkey: politica WebAuthn passwordless con chiave residente e verifica dell'utente; azione richiesta abilitata, non predefinita.
+  assert.equal(m.webAuthnPolicyPasswordlessRequireResidentKey, 'Yes');
+  assert.equal(m.webAuthnPolicyPasswordlessUserVerificationRequirement, 'required');
+  assert.ok(m.webAuthnPolicyPasswordlessSignatureAlgorithms.includes('ES256'));
+  const passkey = (m.requiredActions ?? []).find(a => a.alias === 'webauthn-register-passwordless');
+  assert.ok(passkey && passkey.enabled === true && passkey.defaultAction === false, 'webauthn-register-passwordless abilitata e non predefinita');
+  for (const a of m.requiredActions) assert.equal(a.defaultAction, false, `${a.alias}: nessuna azione richiesta di default`);
+});
+
+test('Realm dei membri: tentativi, sessioni, token, rotazione dei refresh token ed eventi come nel realm degli operatori', () => {
+  const m = members();
+  for (const k of ['bruteForceProtected', 'sslRequired', 'ssoSessionIdleTimeout', 'ssoSessionMaxLifespan', 'accessTokenLifespan',
+    'revokeRefreshToken', 'refreshTokenMaxReuse', 'eventsEnabled', 'adminEventsEnabled']) {
+    assert.ok(k in m, `${k} dichiarato`);
+    assert.equal(m[k], realm[k], `${k} come nel realm degli operatori`);
+  }
+  assert.equal(m.bruteForceProtected, true);
+  assert.ok(m.accessTokenLifespan <= 300);
+  assert.equal(m.revokeRefreshToken, true);
+  assert.equal(m.eventsEnabled, true);
+  assert.equal(m.adminEventsEnabled, true);
+});
+
+// Utenti di test (Q-676, ADR-051 decisione 1): il ruolo LH_TEST_USER e le credenziali degli utenti di test esistono solo
+// negli overlay di vetrina (fetta V8), mai nei realm di base importati da ogni installazione. Hub e web rifiutano un
+// utente con LH_TEST_USER salvo LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test.
+test('Realm di base (operatori e membri): nessun ruolo LH_TEST_USER e nessuna credenziale di utente (Q-676)', () => {
+  for (const file of [REALM_PATH, MEMBERS_REALM_PATH]) {
+    const name = path.relative(ROOT, file);
+    const r = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.ok(!JSON.stringify(r).includes('LH_TEST_USER'), `${name}: il ruolo LH_TEST_USER sta solo negli overlay di vetrina`);
+    for (const u of r.users ?? []) {
+      assert.ok(!u.credentials?.length, `${name}: l'utente ${u.username} ha credenziali (solo negli overlay di vetrina)`);
+      assert.ok(!(u.realmRoles ?? []).includes('LH_TEST_USER'), `${name}: ${u.username} con LH_TEST_USER`);
+    }
+    assert.ok(!/"(credentials|password|hashedSaltedValue|secretData|credentialData)"\s*:/.test(fs.readFileSync(file, 'utf8')), `${name}: credenziali nel file`);
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
 // Overlay di vetrina (F2-IAM-01, F2-IAM-03, ADR-048, ADR-049; Q-618, Q-619, Q-626: decise il 2026-09-30).
 // La vetrina enterprise ospitata (docs/18 M8.14, V2) applica questo overlay al realm già avviato con
 // deploy/idp/vetrina/apply-overlay.sh. Il realm base e l'overlay di prova restano invariati: qui si verifica che
@@ -399,7 +556,8 @@ test('Overlay di vetrina: solo impostazioni del realm ammesse e registrazione ch
   const o = vetrina();
   assert.equal(o.realm, 'loyaltyhub');
   assert.equal(o.registrationAllowed, false, 'registrationAllowed deve essere false nella vetrina: portale membri chiuso nel primo passo (Q-619)');
-  assert.equal(realm.registrationAllowed, true, 'il realm base resta invariato (registrazione aperta, Q-557): la chiude solo l\'overlay di vetrina');
+  // Il realm base ha già la registrazione chiusa (ADR-051): l'overlay la ribadisce, senza effetti sul realm dei membri.
+  assert.equal(realm.registrationAllowed, false, 'il realm degli operatori ha la registrazione chiusa (ADR-051)');
   // Nessun utente, ruolo, flusso, azione richiesta, broker, componente o SMTP: l'overlay non crea credenziali né allarga l'accesso.
   const settings = Object.keys(o).filter(k => !OVERLAY_META_KEYS.includes(k));
   assert.deepEqual(settings, ['registrationAllowed'], `l'overlay di vetrina ha chiavi non ammesse: ${settings.join(', ')}`);

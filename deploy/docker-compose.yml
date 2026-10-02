@@ -115,7 +115,7 @@ services:
 
   # ---------- Identità (solo con --profile idp; IdP e LDAP di prova con --profile idp-test) ----------
   # Le variabili sono documentate in deploy/idp/README.md. Keycloak sostituisce i segnaposto ${LH_*}
-  # di realm.json con queste variabili all'import. I segreti non hanno valore di default: se mancano il
+  # di realm.json e realm-members.json (due realm, ADR-051) con queste variabili all'import. I segreti non hanno valore di default: se mancano il
   # container non parte (x-lh-require-env).
   # Gli URL JWKS hanno un default locale segnaposto: finché non puntano al JWKS reale della fonte,
   # l'autenticazione private_key_jwt di quel client fallisce (fail-closed).
@@ -134,13 +134,14 @@ services:
       KC_DB_PASSWORD: "loyaltyhub"
       KC_BOOTSTRAP_ADMIN_USERNAME: "${LH_IDP_ADMIN_USERNAME:-admin}"
       KC_BOOTSTRAP_ADMIN_PASSWORD: "${LH_IDP_ADMIN_PASSWORD:-}"
-      LH_REQUIRED_ENV: "KC_BOOTSTRAP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET LH_CMS_CLIENT_SECRET"
+      LH_REQUIRED_ENV: "KC_BOOTSTRAP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_PORTAL_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET LH_CMS_CLIENT_SECRET"
       KC_METRICS_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
-      # Segnaposto di realm.json
+      # Segnaposto di realm.json e realm-members.json
       LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
       LH_CMS_URL: "${LH_CMS_URL:-http://localhost:8055}"
       LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
+      LH_PORTAL_CLIENT_SECRET: "${LH_PORTAL_CLIENT_SECRET:-}"
       LH_WIDGETS_CLIENT_SECRET: "${LH_WIDGETS_CLIENT_SECRET:-}"
       LH_CMS_CLIENT_SECRET: "${LH_CMS_CLIENT_SECRET:-}"
       LH_JOBS_JWKS_URL: "${LH_JOBS_JWKS_URL:-http://localhost/jwks/lh-jobs.json}"
@@ -150,8 +151,10 @@ services:
       LH_SOURCE_BILLING_JWKS_URL: "${LH_SOURCE_BILLING_JWKS_URL:-http://localhost/jwks/billing.json}"
       LH_SOURCE_PARTNER_JWKS_URL: "${LH_SOURCE_PARTNER_JWKS_URL:-http://localhost/jwks/partner.json}"
     volumes:
-      # Solo il realm principale: l'overlay di prova si applica con deploy/idp/test-idp/apply-overlay.sh.
+      # I due realm (ADR-051); l'overlay di prova si applica con deploy/idp/test-idp/apply-overlay.sh. Keycloak rifiuta
+      # un file <nome>-realm.json che contiene un realm diverso: il realm dei membri va montato con il suo nome.
       - ./idp/realm.json:/opt/keycloak/data/import/realm.json:ro
+      - ./idp/realm-members.json:/opt/keycloak/data/import/loyaltyhub-members-realm.json:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -370,6 +370,29 @@ topologySpreadConstraints:
 {{- end -}}
 {{- end -}}
 
+{{/* Realm dei membri (ADR-051): il nome scritto in files/realm-members.json, copia di deploy/idp/realm-members.json. */}}
+{{- define "loyaltyhub.memberRealm" -}}
+{{- (.Files.Get "files/realm-members.json" | fromJson).realm -}}
+{{- end -}}
+
+{{/* Emittente dei membri (LH_OIDC_MEMBER_ISSUER, ADR-051): oidc.memberIssuer, oppure quello del ruolo idp; vuoto senza
+ruolo idp e senza valore (un solo realm, come prima: regola 14). */}}
+{{- define "loyaltyhub.oidc.memberIssuer" -}}
+{{- if .Values.oidc.memberIssuer -}}
+{{- .Values.oidc.memberIssuer -}}
+{{- else if .Values.roles.idp.enabled -}}
+{{- printf "%s/realms/%s" (trimSuffix "/" .Values.publicUrls.idp) (include "loyaltyhub.memberRealm" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "loyaltyhub.oidc.memberJwksUri" -}}
+{{- if .Values.oidc.memberJwksUri -}}
+{{- .Values.oidc.memberJwksUri -}}
+{{- else if and .Values.roles.idp.enabled (include "loyaltyhub.oidc.memberIssuer" .) -}}
+{{- printf "http://%s-idp:%d/realms/%s/protocol/openid-connect/certs" (include "loyaltyhub.fullname" .) (int (include "loyaltyhub.port.idp" .)) (include "loyaltyhub.memberRealm" .) -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Origine pubblica del web (LH_WEB_URL del BFF e del realm), nella stessa forma che ne ricava il BFF con `new URL()`:
 senza barra finale, schema e host in minuscolo, senza porta di default (:443, :80). Keycloak confronta alla lettera
 `${LH_WEB_URL}/api/auth/callback` con la redirect URI del BFF: una forma diversa farebbe fallire il login in silenzio. */}}
@@ -394,6 +417,18 @@ lo stesso Secret dato a Keycloak (i due valori devono coincidere). Vuoto se non 
 {{- end -}}
 {{- end -}}
 
+{{/* Segreto del client `portal` del realm dei membri per il BFF (ADR-051), come JSON {name, key}: come
+loyaltyhub.web.clientSecretRef, con roles.idp.clientSecrets.portal. */}}
+{{- define "loyaltyhub.web.memberClientSecretRef" -}}
+{{- if .Values.roles.web.bff.member.clientSecret.name -}}
+{{- toJson .Values.roles.web.bff.member.clientSecret -}}
+{{- else if .Values.roles.idp.enabled -}}
+{{- toJson .Values.roles.idp.clientSecrets.portal -}}
+{{- else -}}
+{{- toJson (dict "name" "" "key" "") -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Verifiche d'identità del profilo enterprise (ADR-027, regola 22, F2-SEC-06): emittente https e, con il ruolo idp,
 proprio quello di Keycloak; origine del web https senza percorso (la usa anche il realm); host coerenti con l'Ingress;
 client e segreti del BFF; una sola replica del web, senza PDB (Q-409, Q-419). */}}
@@ -413,6 +448,24 @@ client e segreti del BFF; una sola replica del web, senza PDB (Q-409, Q-419). */
 {{- fail (printf "publicUrls.idp (host %s) e ingress.hosts.idp (%s) devono indicare lo stesso host: Keycloak si presenta con publicUrls.idp e l'Ingress serve solo ingress.hosts.idp" $idpHost .Values.ingress.hosts.idp) -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+{{- /* Realm dei membri (ADR-051): emittente https distinto da quello degli operatori e, con il ruolo idp, quello di Keycloak. */ -}}
+{{- $memberIssuer := include "loyaltyhub.oidc.memberIssuer" . -}}
+{{- if $memberIssuer -}}
+{{- if not (regexMatch "^https://[^/?#@\\s]+(/[^?#\\s]*)?$" $memberIssuer) -}}
+{{- fail (printf "INSECURE_CONFIG: emittente dei membri %q non https nel profilo enterprise: il browser vi fa login e il BFF lo raggiunge con lo stesso URL; impostare publicUrls.idp o oidc.memberIssuer con https:// (regola 22, ADR-051)" $memberIssuer) -}}
+{{- end -}}
+{{- if eq (trimSuffix "/" $memberIssuer) (trimSuffix "/" $issuer) -}}
+{{- fail (printf "oidc.memberIssuer %q coincide con l'emittente degli operatori: il realm dei membri deve essere un emittente distinto, altrimenti l'hub non parte (INSECURE_CONFIG, ADR-051)" $memberIssuer) -}}
+{{- end -}}
+{{- if .Values.roles.idp.enabled -}}
+{{- $idpMemberIssuer := printf "%s/realms/%s" (trimSuffix "/" .Values.publicUrls.idp) (include "loyaltyhub.memberRealm" .) -}}
+{{- if ne $memberIssuer $idpMemberIssuer -}}
+{{- fail (printf "oidc.memberIssuer %q diverso dall'emittente dei membri del ruolo idp %q: Keycloak firma i token dei membri con <publicUrls.idp>/realms/%s; lasciare oidc.memberIssuer vuoto (ADR-051)" $memberIssuer $idpMemberIssuer (include "loyaltyhub.memberRealm" .)) -}}
+{{- end -}}
+{{- end -}}
+{{- else if .Values.oidc.memberJwksUri -}}
+{{- fail "INSECURE_CONFIG: oidc.memberJwksUri senza emittente dei membri: impostare oidc.memberIssuer o lasciarli vuoti entrambi (ADR-051)" -}}
 {{- end -}}
 {{- /* Chiave dello pseudonimo subjectRef (F2-SEC-09, ADR-048, Q-552): senza il riferimento l'hub non legherebbe i token ai
 membri e in enterprise rifiuterebbe l'avvio (INSECURE_CONFIG, regola 22): meglio fermarsi già a `helm install`. Il
@@ -449,6 +502,19 @@ contenuto del Secret (base64, almeno 32 byte) lo verifica l'hub all'avvio; il ch
 {{- if ne $r.bff.clientId $realmClient -}}
 {{- fail (printf "roles.web.bff.clientId %q non è il client del BFF nel realm del ruolo idp (%q, files/realm.json): con un altro client il login fallisce" $r.bff.clientId $realmClient) -}}
 {{- end -}}
+{{- end -}}
+{{- if and (include "loyaltyhub.oidc.memberIssuer" .) .Values.roles.idp.enabled -}}
+{{- /* Il client dei membri nel realm dei membri è quello che riceve LH_PORTAL_CLIENT_SECRET (files/realm-members.json). */ -}}
+{{- $memberClient := "" -}}
+{{- range (.Files.Get "files/realm-members.json" | fromJson).clients -}}
+{{- if eq (toString .secret) "${LH_PORTAL_CLIENT_SECRET}" -}}{{- $memberClient = .clientId -}}{{- end -}}
+{{- end -}}
+{{- if ne $r.bff.member.clientId $memberClient -}}
+{{- fail (printf "roles.web.bff.member.clientId %q non è il client del BFF nel realm dei membri del ruolo idp (%q, files/realm-members.json): con un altro client il login dei membri fallisce" $r.bff.member.clientId $memberClient) -}}
+{{- end -}}
+{{- end -}}
+{{- if and (include "loyaltyhub.oidc.memberIssuer" .) (not (include "loyaltyhub.web.memberClientSecretRef" . | fromJson).name) -}}
+{{- fail "roles.web.bff.member.clientSecret.name è obbligatorio con oidc.memberIssuer senza ruolo idp: Secret con il segreto del client dei membri registrato nell'IdP aziendale (ADR-051)" -}}
 {{- end -}}
 {{- if not (include "loyaltyhub.web.clientSecretRef" . | fromJson).name -}}
 {{- fail "roles.web.bff.clientSecret.name è obbligatorio nel profilo enterprise senza ruolo idp: Secret con il segreto del client `web` registrato nell'IdP aziendale (F2-SEC-06)" -}}

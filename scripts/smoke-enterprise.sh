@@ -49,7 +49,7 @@ hex() { openssl rand -hex "$1"; }
 key32() { openssl rand -base64 32; }
 
 # Variabili dell'env file che sono segreti (mascherate in GitHub Actions).
-SECRET_VARS=(LH_DB_PASSWORD LH_IDP_DB_PASSWORD LH_IDP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET
+SECRET_VARS=(LH_DB_PASSWORD LH_IDP_DB_PASSWORD LH_IDP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_PORTAL_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET
   LH_CMS_CLIENT_SECRET LH_WEB_SESSION_KEY LH_SUBJECT_KEY LH_TEST_IDP_SECRET LH_LDAP_BIND_CREDENTIAL
   LH_LDAP_TEST_CLIENT_SECRET LH_MEMBER_TEST_PASSWORD)
 
@@ -95,6 +95,7 @@ prepare() {
     echo "LH_IDP_DB_PASSWORD=$(hex 24)"
     echo "LH_IDP_ADMIN_PASSWORD=$(hex 24)"
     echo "LH_WEB_CLIENT_SECRET=$(hex 32)"
+    echo "LH_PORTAL_CLIENT_SECRET=$(hex 32)"
     echo "LH_WIDGETS_CLIENT_SECRET=$(hex 32)"
     echo "LH_CMS_CLIENT_SECRET=$(hex 32)"
     echo "LH_WEB_SESSION_KEY=$(key32)"
@@ -148,8 +149,9 @@ wait_ready() {
     health="$(curl -fsS --max-time 10 "$HUB_URL/actuator/health" 2>/dev/null || true)"
     if [[ "$health" == *'"status":"UP"'* ]] \
       && "${curl_ca[@]}" "$IDP_URL/realms/loyaltyhub/.well-known/openid-configuration" 2>/dev/null \
+      && "${curl_ca[@]}" "$IDP_URL/realms/loyaltyhub-members/.well-known/openid-configuration" 2>/dev/null \
       && "${curl_ca[@]}" "$WEB_URL/api/demo/status" 2>/dev/null; then
-      echo "Stack enterprise pronto: hub UP, discovery OIDC e web raggiungibili dal proxy TLS."
+      echo "Stack enterprise pronto: hub UP, discovery OIDC dei due realm e web raggiungibili dal proxy TLS."
       return 0
     fi
     if [ "$SECONDS" -ge "$deadline" ]; then

@@ -6,7 +6,7 @@
 #
 #   export LH_IMAGE=ghcr.io/<owner>/loyaltyhub:<versione>
 #   export LH_DB_PASSWORD=… LH_IDP_DB_PASSWORD=… LH_IDP_ADMIN_PASSWORD=…
-#   export LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
+#   export LH_WEB_CLIENT_SECRET=… LH_PORTAL_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
 #   export LH_WEB_SESSION_KEY="$(openssl rand -base64 32)"
 #   export LH_SUBJECT_KEY="$(openssl rand -base64 32)"
 #   export LH_WEB_URL=https://loyalty.example.org LH_IDP_PUBLIC_URL=https://idp.example.org
@@ -29,6 +29,9 @@
 # Ruolo idp: immagine ufficiale di Keycloak alla versione di deploy/docker-compose.yml finché l'immagine unica non
 # contiene Keycloak (SPEC-GAP: Q-374). Ruolo cms (Directus) con Redis e MinIO: arrivano con M10.2 (Q-374).
 # Per valutare con i dati fittizi senza reverse proxy: LH_PROFILE=demo LH_IDENTITY_MODE=header.
+# Due realm nella stessa istanza di Keycloak (ADR-051): `loyaltyhub` (operatori, fonti, job) e `loyaltyhub-members`
+# (membri del portale e widget). L'hub accetta i due emittenti (LH_OIDC_MEMBER_ISSUER), il web fa entrare i membri
+# nel loro realm con il client `portal` (LH_PORTAL_CLIENT_SECRET, lo stesso dato a Keycloak).
 #
 # Osservabilità (F2-OBS-01, M8.6a; profilo `observability`, spento di default): collector OpenTelemetry, Prometheus 3 e
 # Grafana con la dashboard SLO e le regole del chart (deploy/helm/loyaltyhub/files/observability, un solo file per i due).
@@ -62,6 +65,8 @@ x-lh-require-env-or-file: &lh-require-env-or-file
   - |
     required="$${LH_REQUIRED_ENV:-}"
     if [ "$${LH_PROFILE:-}" = "enterprise" ] || [ "$${LH_IDENTITY_MODE:-}" = "oidc" ]; then required="$$required $${LH_REQUIRED_ENV_OIDC:-}"; fi
+    # Identità simulata (header): l'emittente dei membri non vale e l'hub lo rifiuterebbe (INSECURE_CONFIG, ADR-051).
+    if [ "$${LH_IDENTITY_MODE:-}" = "header" ]; then unset LH_OIDC_MEMBER_ISSUER LH_OIDC_MEMBER_JWKS_URI; fi
     for v in $$required; do
       eval "val=\$${$$v:-}\$${$${v}_FILE:-}"
       if [ -z "$$val" ]; then echo "Variabile obbligatoria mancante: $$v (o $${v}_FILE)" >&2; exit 1; fi
@@ -87,8 +92,17 @@ x-lh-web-oidc-guard: &lh-web-oidc-guard
       case "$$host" in ''|*[!A-Za-z0-9.:-]*) bad=1 ;; esac
       # Tolto /realms/ resta il solo nome del realm: ogni altra forma (`//`, percorso, barra finale) lascia una barra.
       case "$${path#/realms/}" in ''|*[!A-Za-z0-9_-]*) bad=1 ;; esac
+      # Emittente dei membri (ADR-051), facoltativo: se c'è, stessa forma, realm diverso.
+      miss="$${LH_OIDC_MEMBER_ISSUER:-}"
+      if [ -n "$$miss" ]; then
+        rest="$${miss#https://}"; host="$${rest%%/*}"; path="$${rest#"$$host"}"
+        case "$$miss" in https://?*) ;; *) bad=1 ;; esac
+        case "$$host" in ''|*[!A-Za-z0-9.:-]*) bad=1 ;; esac
+        case "$${path#/realms/}" in ''|*[!A-Za-z0-9_-]*) bad=1 ;; esac
+        [ "$$miss" != "$$iss" ] || bad=1
+      fi
       if [ "$$bad" = 1 ]; then
-        echo "LH_IDP_PUBLIC_URL deve essere l'URL https del reverse proxy davanti a Keycloak, senza percorso né barra finale, raggiungibile anche dal container web: l'emittente deve valere https://<host>[:porta]/realms/<realm> (attuale: $${iss:-assente}; deploy/README.md, Q-420)" >&2
+        echo "LH_IDP_PUBLIC_URL deve essere l'URL https del reverse proxy davanti a Keycloak, senza percorso né barra finale, raggiungibile anche dal container web: l'emittente deve valere https://<host>[:porta]/realms/<realm>, quello dei membri (se c'è) un altro realm dello stesso tipo (attuale: $${iss:-assente}, membri: $${miss:-assente}; deploy/README.md, Q-420, ADR-051)" >&2
         ko=1
       fi
       web="$${LH_WEB_URL:-}"; bad=0
@@ -238,6 +252,9 @@ services:
       # Emittente visto dal browser; JWKS letto dentro la rete compose.
       LH_OIDC_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub"
       LH_OIDC_JWKS_URI: "http://idp:8080/realms/loyaltyhub/protocol/openid-connect/certs"
+      # Realm dei membri (ADR-051): MEMBER vale solo dai suoi token. Con LH_IDENTITY_MODE=header la guardia le toglie.
+      LH_OIDC_MEMBER_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub-members"
+      LH_OIDC_MEMBER_JWKS_URI: "http://idp:8080/realms/loyaltyhub-members/protocol/openid-connect/certs"
       LH_OIDC_AUDIENCE: "hub"
       # Osservabilità (F2-OBS-01, M8.6a): con il profilo observability e LH_OTEL_METRICS_ENABLED=true l'hub invia le metriche in OTLP al collector (servizio otelcol). Spento di default.
       LH_OTEL_METRICS_ENABLED: "${LH_OTEL_METRICS_ENABLED:-false}"
@@ -293,6 +310,11 @@ services:
       LH_OIDC_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub"
       LH_WEB_CLIENT_ID: "web"
       LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
+      # Login dei membri nel loro realm (ADR-051): stesso emittente dei membri dell'hub, client `portal` con il segreto
+      # dato a Keycloak.
+      LH_OIDC_MEMBER_ISSUER: "${LH_IDP_PUBLIC_URL:-http://localhost:8180}/realms/loyaltyhub-members"
+      LH_WEB_MEMBER_CLIENT_ID: "portal"
+      LH_WEB_MEMBER_CLIENT_SECRET: "${LH_PORTAL_CLIENT_SECRET:-}"
       LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
       # 32 byte casuali in base64 (openssl rand -base64 32): cifra sessioni e stato del login; cambiarla le chiude.
       LH_WEB_SESSION_KEY: "${LH_WEB_SESSION_KEY:-}"
@@ -312,7 +334,7 @@ services:
     mem_limit: 768m
     cpus: 1
 
-  # Keycloak con il realm as code di deploy/idp/realm.json (ADR-027). SPEC-GAP: Q-374. Vulnerabilità note nelle
+  # Keycloak con i realm as code di deploy/idp/realm.json e deploy/idp/realm-members.json (ADR-027, ADR-051). SPEC-GAP: Q-374. Vulnerabilità note nelle
   # librerie incluse, senza una versione di Keycloak che le corregga: rischio residuo accettato (Q-482, TOBE-007).
   # Solo su 127.0.0.1 dell'host: anche la console /admin è su questa porta, in HTTP (Q-392).
   idp:
@@ -336,11 +358,12 @@ services:
       KC_PROXY_HEADERS: "xforwarded"
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
-      LH_REQUIRED_ENV: "KC_DB_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET LH_CMS_CLIENT_SECRET"
-      # Segnaposto di realm.json (deploy/idp/README.md)
+      LH_REQUIRED_ENV: "KC_DB_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_PORTAL_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET LH_CMS_CLIENT_SECRET"
+      # Segnaposto di realm.json e realm-members.json (deploy/idp/README.md)
       LH_WEB_URL: "${LH_WEB_URL:-http://localhost:3000}"
       LH_CMS_URL: "${LH_CMS_URL:-http://localhost:8055}"
       LH_WEB_CLIENT_SECRET: "${LH_WEB_CLIENT_SECRET:-}"
+      LH_PORTAL_CLIENT_SECRET: "${LH_PORTAL_CLIENT_SECRET:-}"
       LH_WIDGETS_CLIENT_SECRET: "${LH_WIDGETS_CLIENT_SECRET:-}"
       LH_CMS_CLIENT_SECRET: "${LH_CMS_CLIENT_SECRET:-}"
       LH_JOBS_JWKS_URL: "${LH_JOBS_JWKS_URL:-http://localhost/jwks/lh-jobs.json}"
@@ -351,6 +374,8 @@ services:
       LH_SOURCE_PARTNER_JWKS_URL: "${LH_SOURCE_PARTNER_JWKS_URL:-http://localhost/jwks/partner.json}"
     volumes:
       - ../idp/realm.json:/opt/keycloak/data/import/realm.json:ro
+      # Keycloak rifiuta un file <nome>-realm.json che contiene un realm diverso: il nome segue il realm.
+      - ../idp/realm-members.json:/opt/keycloak/data/import/loyaltyhub-members-realm.json:ro
     # L'immagine di Keycloak non ha curl: richiesta HTTP con /dev/tcp di bash alla porta di gestione (9000).
     healthcheck:
       test:

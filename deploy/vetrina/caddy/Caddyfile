@@ -26,12 +26,13 @@
 	reverse_proxy web:3000
 }
 
-# Keycloak: solo il realm `loyaltyhub` (login, token, JWKS, pagina /device del client lh-cli) e le risorse statiche.
+# Keycloak: solo i realm `loyaltyhub` (login, token, JWKS, pagina /device del client lh-cli) e `loyaltyhub-members`
+# (membri del portale e widget, ADR-051) e le risorse statiche.
 # La console /admin e il realm `master` non passano dal proxy (docs/18 §3.15 punto 2: console mai esposta senza
 # allowlist): si usano da 127.0.0.1:8180 dell'host con un tunnel SSH (deploy/vetrina/README.md).
 {$LH_VETRINA_IDP_HOST} {
 	import intestazioni
-	@realm path /realms/loyaltyhub /realms/loyaltyhub/* /resources/*
+	@realm path /realms/loyaltyhub /realms/loyaltyhub/* /realms/loyaltyhub-members /realms/loyaltyhub-members/* /resources/*
 	handle @realm {
 		reverse_proxy idp:8080
 	}

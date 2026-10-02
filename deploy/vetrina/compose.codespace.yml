@@ -35,10 +35,19 @@ services:
   idp:
     environment:
       KC_HOSTNAME_ADMIN: "https://${LH_VETRINA_ADMIN_HOST:?LH_VETRINA_ADMIN_HOST obbligatoria nel codespace}"
+  # Utenti di test (Q-676, ADR-051): ammessi solo con LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test, che vetrina.sh
+  # passa solo dentro un GitHub Codespace (CODESPACES=true); vuote altrove, e un utente con LH_TEST_USER è rifiutato.
+  # Solo questo overlay le dichiara: né il compose di riferimento né il chart.
   # Healthcheck con Node: l'immagine su base Wolfi non ha l'applet wget usato da /opt/lh/healthcheck.sh.
   hub:
+    environment:
+      LH_TEST_USERS_ALLOWED: "${LH_TEST_USERS_ALLOWED:-}"
+      LH_ENVIRONMENT: "${LH_ENVIRONMENT:-}"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8080/actuator/health').then(r=>r.text()).then(t=>process.exit(t.includes('\"status\":\"UP\"')?0:1),()=>process.exit(1))"]
   web:
+    environment:
+      LH_TEST_USERS_ALLOWED: "${LH_TEST_USERS_ALLOWED:-}"
+      LH_ENVIRONMENT: "${LH_ENVIRONMENT:-}"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/demo/status').then(r=>r.text()).then(t=>process.exit(t.includes('checkedAt')?0:1),()=>process.exit(1))"]

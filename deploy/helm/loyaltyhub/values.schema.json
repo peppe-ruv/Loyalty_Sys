@@ -94,6 +94,8 @@
       "properties": {
         "issuer": { "type": "string" },
         "jwksUri": { "type": "string" },
+        "memberIssuer": { "type": "string", "description": "Emittente del realm dei membri (ADR-051); vuoto = quello del ruolo idp, o nessuno senza ruolo idp." },
+        "memberJwksUri": { "type": "string" },
         "audience": { "type": "string", "minLength": 1 }
       }
     },
@@ -180,7 +182,16 @@
                 "sessionIdleSeconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
                 "sessionMaxSeconds": { "type": "integer", "minimum": 300, "maximum": 604800 },
                 "sessionMaxCount": { "type": "integer", "minimum": 1, "maximum": 1000000 },
-                "issuerCaBundle": { "$ref": "#/definitions/configMapRef" }
+                "issuerCaBundle": { "$ref": "#/definitions/configMapRef" },
+                "member": {
+                  "type": "object",
+                  "description": "Login dei membri nel realm dei membri (ADR-051), letto solo con un emittente dei membri.",
+                  "additionalProperties": false,
+                  "properties": {
+                    "clientId": { "type": "string", "minLength": 1 },
+                    "clientSecret": { "$ref": "#/definitions/secretRef" }
+                  }
+                }
               }
             },
             "extraEnv": { "type": "array" }
@@ -209,9 +220,10 @@
             "clientSecrets": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["web", "widgets", "cms"],
+              "required": ["web", "portal", "widgets", "cms"],
               "properties": {
                 "web": { "$ref": "#/definitions/secretRef" },
+                "portal": { "$ref": "#/definitions/secretRef" },
                 "widgets": { "$ref": "#/definitions/secretRef" },
                 "cms": { "$ref": "#/definitions/secretRef" }
               }

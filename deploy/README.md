@@ -128,6 +128,7 @@ kubectl get nodes -L topology.kubernetes.io/zone
 kubectl create secret generic lh-idp-admin --from-literal=password="$(openssl rand -base64 24)"
 kubectl create secret generic lh-idp-clients \
   --from-literal=web-client-secret="$(openssl rand -hex 32)" \
+  --from-literal=portal-client-secret="$(openssl rand -hex 32)" \
   --from-literal=widgets-client-secret="$(openssl rand -hex 32)" \
   --from-literal=cms-client-secret="$(openssl rand -hex 32)"
 kubectl create secret generic lh-idp-db --type=kubernetes.io/basic-auth \
@@ -178,9 +179,19 @@ nessuna.
 | `LH_WEB_SESSION_KEY` | Secret di `roles.web.bff.sessionKey` (default `lh-web-session`, chiave `session-key`) | `LH_WEB_SESSION_KEY` |
 | `LH_WEB_SESSION_IDLE_SECONDS`, `LH_WEB_SESSION_MAX_SECONDS`, `LH_WEB_SESSION_MAX_COUNT` | `roles.web.bff.sessionIdleSeconds` (1800), `sessionMaxSeconds` (36000), `sessionMaxCount` (10000) | stesse variabili; vuote = default del web |
 | `NODE_EXTRA_CA_CERTS` | ConfigMap di `roles.web.bff.issuerCaBundle`, montato in sola lettura | file di override con il certificato montato |
+| `LH_OIDC_MEMBER_ISSUER` (anche all'hub) | `oidc.memberIssuer`; vuoto = `<publicUrls.idp>/realms/loyaltyhub-members` con il ruolo `idp`, nessuno senza | `${LH_IDP_PUBLIC_URL}/realms/loyaltyhub-members`, lo stesso dell'hub |
+| `LH_WEB_MEMBER_CLIENT_ID` | `roles.web.bff.member.clientId` (`portal`) | `portal` |
+| `LH_WEB_MEMBER_CLIENT_SECRET` | Secret di `roles.web.bff.member.clientSecret`; nome vuoto = `roles.idp.clientSecrets.portal`, lo stesso di Keycloak | `LH_PORTAL_CLIENT_SECRET`, la stessa variabile di `idp` |
+
+**Due realm (ADR-051).** Il backoffice entra nel realm `loyaltyhub` (operatori, fonti, job) con il client `web`; il
+portale e i widget nel realm `loyaltyhub-members` con i client `portal` e `widgets`, nella stessa istanza di Keycloak e
+senza legami tra i due. Con un emittente dei membri l'hub riceve anche `LH_OIDC_MEMBER_ISSUER` e
+`LH_OIDC_MEMBER_JWKS_URI` (`oidc.memberJwksUri`; vuoto = JWKS del ruolo `idp` dentro il cluster) e accetta `MEMBER` solo
+dai token di quel realm. Senza ruolo `idp` e senza `oidc.memberIssuer` resta un solo realm, come prima. L'Ingress
+espone `/realms/loyaltyhub-members/` accanto a `/realms/<global.realm>/`.
 
 Nel chart i segreti arrivano solo come riferimenti a Secret esistenti (`secretKeyRef`), mai come valori. Il web accetta
-anche `LH_WEB_CLIENT_SECRET_FILE` e `LH_WEB_SESSION_KEY_FILE`.
+anche `LH_WEB_CLIENT_SECRET_FILE`, `LH_WEB_MEMBER_CLIENT_SECRET_FILE` e `LH_WEB_SESSION_KEY_FILE`.
 
 Il chart rifiuta di installarsi nel profilo `enterprise` quando:
 
@@ -190,6 +201,10 @@ Il chart rifiuta di installarsi nel profilo `enterprise` quando:
 - `publicUrls.web` non è un'origine `https` senza percorso, anche con il web spento se c'è il ruolo `idp` (il realm la
   usa), o ha un host diverso da `ingress.hosts.web` (lo stesso vale per `publicUrls.idp` e `ingress.hosts.idp`);
 - manca il Secret della chiave delle sessioni, o quello del client `web` quando il ruolo `idp` è spento;
+- l'emittente dei membri non è `https`, coincide con quello degli operatori o, con il ruolo `idp`, è diverso da
+  `<publicUrls.idp>/realms/loyaltyhub-members`; `roles.web.bff.member.clientId` non è il client del realm dei membri che
+  riceve `LH_PORTAL_CLIENT_SECRET` (`portal`); manca il Secret del client dei membri con `oidc.memberIssuer` e il ruolo
+  `idp` spento; `oidc.memberJwksUri` è impostato senza emittente dei membri (ADR-051);
 - `roles.web.replicas` è maggiore di 1, l'HPA del web può superare una replica o il PDB del web è acceso
   (`WEB_SINGLE_REPLICA`, Q-409, Q-419).
 
@@ -207,7 +222,10 @@ helm upgrade lh deploy/helm/loyaltyhub --reuse-values --set roles.web.bff.issuer
 
 Keycloak, a sua volta, chiama il back-channel logout su `publicUrls.web` (Q-421).
 
-**Realm già importato.** Keycloak importa `realm.json` solo al primo avvio. Su un realm esistente modifica a mano il
+**Realm già importato.** Il realm dei membri (`realm-members.json`) è nuovo: Keycloak lo importa al primo avvio dopo
+l'aggiornamento, perché non esiste ancora (serve solo il nuovo segreto `portal-client-secret` nel Secret
+`lh-idp-clients`, o `LH_PORTAL_CLIENT_SECRET` nel compose). Le modifiche al realm degli operatori invece non arrivano da
+sole: vedi `deploy/idp/README.md`, sezione «Aggiornare un realm già importato a due realm». Keycloak importa `realm.json` solo al primo avvio. Su un realm esistente modifica a mano il
 client `web` nella console: aggiungi la *post logout redirect URI* `<LH_WEB_URL>/` (senza, Keycloak rifiuta il ritorno
 al web dopo il logout) e sostituisci la redirect URI `<LH_WEB_URL>/*` con quella esatta
 `<LH_WEB_URL>/api/auth/callback`.
@@ -284,7 +302,7 @@ Il profilo facoltativo `observability` aggiunge collector, Prometheus e Grafana 
 ```bash
 export LH_IMAGE=ghcr.io/<owner>/loyaltyhub:<versione>
 export LH_DB_PASSWORD=… LH_IDP_DB_PASSWORD=… LH_IDP_ADMIN_PASSWORD=…
-export LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
+export LH_WEB_CLIENT_SECRET=… LH_PORTAL_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
 # profilo enterprise: chiave delle sessioni del BFF, chiave dello pseudonimo del membro e URL https del reverse proxy (vedi sotto)
 export LH_WEB_SESSION_KEY="$(openssl rand -base64 32)"
 export LH_SUBJECT_KEY="$(openssl rand -base64 32)"
@@ -299,7 +317,7 @@ docker compose -f deploy/compose/reference.yml up -d
 | `LH_PROFILE`, `LH_IDENTITY_MODE` | `enterprise`, `oidc` | `demo` + `header` solo per valutare |
 | `LH_DB_PASSWORD` | — (obbligatoria) | superutente `loyaltyhub` di Postgres, usato da `migrate` e `hub` |
 | `LH_IDP_DB_PASSWORD` | — (obbligatoria) | ruolo `idp` di Postgres, usato solo da Keycloak |
-| `LH_IDP_ADMIN_PASSWORD`, `LH_*_CLIENT_SECRET` | — (obbligatorie) | come in `deploy/idp/README.md`; `LH_WEB_CLIENT_SECRET` va anche al web |
+| `LH_IDP_ADMIN_PASSWORD`, `LH_*_CLIENT_SECRET` | — (obbligatorie) | come in `deploy/idp/README.md`; `LH_WEB_CLIENT_SECRET` e `LH_PORTAL_CLIENT_SECRET` (come `LH_WEB_MEMBER_CLIENT_SECRET`) vanno anche al web |
 | `LH_WEB_SESSION_KEY` | — (obbligatoria in `enterprise`) | chiave delle sessioni del BFF: 32 byte casuali in base64 (`openssl rand -base64 32`) |
 | `LH_SUBJECT_KEY` | — (obbligatoria in `enterprise` e con `LH_IDENTITY_MODE=oidc`, non serve con `LH_PROFILE=demo LH_IDENTITY_MODE=header`) | chiave dello pseudonimo `subjectRef` del membro, solo per l'hub: 32 byte casuali in base64; cambiarla scollega i token dai membri (*Chiave dello pseudonimo del membro*) |
 | `LH_WEB_SESSION_IDLE_SECONDS`, `LH_WEB_SESSION_MAX_SECONDS`, `LH_WEB_SESSION_MAX_COUNT` | vuote (default del web: 1800, 36000, 10000) | inattività, durata massima e numero delle sessioni del BFF |

@@ -3,7 +3,7 @@
   "realm": "loyaltyhub",
   "displayName": "Loyalty Hub",
   "enabled": true,
-  "registrationAllowed": true,
+  "registrationAllowed": false,
   "verifyEmail": false,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
@@ -806,22 +806,6 @@
         "backchannel.logout.url": "${LH_WEB_URL}/api/auth/backchannel-logout",
         "backchannel.logout.session.required": "true"
       }
-    },
-    {
-      "clientId": "widgets",
-      "name": "Widget SDK",
-      "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "${LH_WIDGETS_CLIENT_SECRET}",
-      "redirectUris": [],
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": false,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "publicClient": false,
-      "protocol": "openid-connect"
     },
     {
       "clientId": "cms",

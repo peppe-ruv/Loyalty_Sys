@@ -66,6 +66,17 @@ spec:
             - name: LH_WEB_CLIENT_SECRET
               valueFrom:
                 secretKeyRef: { name: {{ $clientSecret.name }}, key: {{ $clientSecret.key }} }
+            {{- with (include "loyaltyhub.oidc.memberIssuer" .) }}
+            {{- $memberSecret := include "loyaltyhub.web.memberClientSecretRef" $ | fromJson }}
+            # Login dei membri nel loro realm (ADR-051): stesso emittente dei membri dell'hub, client `portal`.
+            - name: LH_OIDC_MEMBER_ISSUER
+              value: {{ . | quote }}
+            - name: LH_WEB_MEMBER_CLIENT_ID
+              value: {{ $r.bff.member.clientId | quote }}
+            - name: LH_WEB_MEMBER_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ $memberSecret.name }}, key: {{ $memberSecret.key }} }
+            {{- end }}
             - name: LH_WEB_URL
               value: {{ include "loyaltyhub.web.publicUrl" . | quote }}
             - name: LH_WEB_SESSION_KEY
