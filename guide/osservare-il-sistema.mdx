@@ -70,6 +70,37 @@ Ogni evento porta con se `lhcorrelationid`. Segui la catena dalla ricezione fino
   </Step>
 </Steps>
 
+## Leggere un tracciato nel backoffice
+
+Apri **Osservabilità → Tracciati** (BO-25) per capire cosa ha fatto un membro, cosa ha ottenuto e perché, senza leggere codici evento. La schermata è pensata per marketing, assistenza, legale e analisi; i dettagli tecnici restano disponibili per l'IT.
+
+1. Scegli una riga dell'elenco. Ogni riga mostra l'azione in italiano, il membro, lo stato (*Completato*, *In corso* o *Bloccato*) e l'esito in chip, per esempio «+124 punti». L'interruttore **Nascondi eventi solo tecnici** è attivo di default.
+2. Leggi la sintesi in alto, per esempio «Anna Rossi ha completato un acquisto da € 24,90, elaborato in 6,4 secondi», e i riquadri con punti, livello, badge e messaggi.
+3. Segui **Passo per passo**: le quattro fasi vanno dall'azione ricevuta alle regole controllate, agli effetti registrati e a obiettivi, badge e messaggi. Se un passo ne ha innescato un altro, lo trovi annidato sotto «Ha innescato a sua volta».
+4. Apri **Perché questi punti** per vedere ogni campagna controllata, se è stata applicata e il motivo.
+5. Se il tracciato è *Bloccato*, il passo fallito è in rosso: usa **Apri in DLQ** per gestirlo.
+6. Per i dettagli tecnici apri **Dettaglio tecnico (per IT)** e scegli un punto della cascata per vederne il contenuto.
+
+```mermaid
+flowchart TD
+  accTitle: Come si legge un tracciato in BO-25
+  accDescr: L'operatore apre Tracciati dal menu o da un link con il correlationId; dall'elenco sceglie una riga e arriva al dettaglio con sintesi e KPI. Se il tracciato è bloccato, il passo fallito porta alla DLQ; altrimenti legge il passo per passo e il riquadro Perché questi punti, che degrada da solo se il servizio campagne non risponde. Il dettaglio tecnico per l'IT è ripiegato e mostra il contenuto dell'evento al clic su un punto.
+  A["Apre Tracciati"] --> B{"Link con ?c=correlationId?"}
+  B -->|"no"| C["Elenco: azione, membro, stato, esito"]
+  C --> D["Sceglie una riga"]
+  B -->|"sì"| E["Dettaglio: sintesi e KPI"]
+  D --> E
+  E --> F{"Stato del tracciato"}
+  F -->|"Bloccato"| G["Passo fallito in rosso"]
+  G --> H["Apri in DLQ (BO-27)"]
+  F -->|"Completato o In corso"| I["Passo per passo: 4 fasi"]
+  I --> J{"Il servizio campagne risponde?"}
+  J -->|"sì"| K["Perché questi punti: campagna, esito, motivo"]
+  J -->|"no"| L["Avviso locale, il resto della pagina funziona"]
+  K --> M["Dettaglio tecnico (per IT), ripiegato"]
+  M --> N["Clic su un punto: codice e contenuto dell'evento"]
+```
+
 ## Gestire la Dead Letter Queue (DLQ)
 
 Gli eventi che falliscono in modo permanente finiscono sul topic `lh.dlq.v1` e sono consultabili via API.

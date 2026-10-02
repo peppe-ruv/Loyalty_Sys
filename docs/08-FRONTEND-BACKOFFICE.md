@@ -284,9 +284,19 @@ Formato: **Scopo** · **Dati** · **Layout** · **Azioni** (ruolo) · **Note**. 
 - **Note**: indicatore di connessione `live` / `live ridotto` (polling) / `disconnesso`.
 
 ### BO-25 — Tracciati
-- **Dati**: `insight GET /v1/traces`, `/v1/traces/{correlationId}`, `/v1/events/{eventId}`; `campaign GET /v1/evaluations/{actionId}`.
-- **Elenco**: ora, membro, azione radice, esito sintetico ("+162 PTS · +130 STS · tier GOLD"), durata, stato.
-- **Dettaglio**: `TraceWaterfall` — una corsia per servizio, nodi posizionati per `offsetMs`, collegati dal `parentEventId`, colorati per topic; pannello esito (punti, cambio tier, messaggi, coupon, giocate, DLQ); clic su un nodo → payload. Riquadro **"Perché"** con l'esito per campagna. Stato `IN_PROGRESS` → aggiornamento via SSE filtrato.
+- **Scopo**: raccontare un giro azione → esito a chi non è tecnico (MARKETING, CARE, LEGAL, ANALYST): cosa ha fatto il membro, cosa ha ottenuto e perché. La cascata per servizio resta per l'IT in un pannello ripiegato (issue #204).
+- **Dati**: `insight GET /v1/traces`, `/v1/traces/{correlationId}`, `/v1/events/{eventId}`; `campaign GET /v1/evaluations/{actionId}`; nomi da `member GET /v1/members` e `wallet GET /v1/currencies` (se non rispondono restano ID e codici). Nessun campo nuovo lato servizio: le etichette leggibili si ricavano nel frontend (`web/lib/observe/`).
+- **Layout**: elenco a sinistra (5/12), dettaglio a destra (7/12); sotto `lg` si impilano.
+- **Elenco**: riga = azione in italiano (`actionLabel()`), membro (nome e ID), ora relativa, stato in italiano su una sola riga e mai troncato (*Completato*, *In corso*, *Bloccato*), esito in chip leggibili («+124 punti», «+24 status», «livello GOLD», «nessun premio», «in elaborazione»). Filtri: membro (nome o ID), tipo di azione, stato; interruttore **Nascondi eventi solo tecnici**, attivo di default (tracciati che partono da un tipo interno, es. `member.segment.entered`, e non hanno esito). Il deep-link `?c=<correlationId>` preseleziona il tracciato.
+- **Dettaglio**, dall'alto:
+  1. **Sintesi**: «*Anna Rossi* ha completato un acquisto da € 24,90», stato, «elaborato in 6,4 secondi» (secondi con un decimale, mai ms; «fermo dopo…» se bloccato, «in corso da…» se in corso) e link alla scheda 360° (BO-03).
+  2. **Riquadri KPI**: punti per valuta con il nome di Valute ed edizioni, livello, badge, obiettivi completati, messaggi, coupon, giocate.
+  3. **Passo per passo**: timeline in quattro fasi, sempre presenti: *Azione ricevuta* (ACTION radice) → *Regole controllate* (`campaign.evaluated`) → *Effetti decisi e registrati* (EFFECT e `wallet.*`) → *Obiettivi, badge e messaggi* (gli altri FACT). I nodi uguali di una fase si raggruppano («Obiettivo avanzato ×3»); un'azione derivata (es. `badge.awarded` reimmessa in ingestion) e i suoi discendenti si annidano sotto il passo che l'ha innescata, «Ha innescato a sua volta…», seguendo `parentEventId`. Ogni passo ha il tempo relativo in secondi.
+  4. **Perché questi punti**: per ogni azione del giro (la radice e le derivate) le campagne valutate con nome, esito (*Applicata* / *Non applicata*), motivo in parole semplici (`NOT_IN_SCHEDULE`, `AUDIENCE`, `CONDITION`, `EXCLUSIVE`, `LIMIT`, `BUDGET`) e punti assegnati. Se `campaign` non risponde il riquadro mostra un `DegradedBox` locale; il resto della pagina resta usabile.
+  5. **Bloccato**: il passo con una voce DLQ è in rosso con il motivo in linguaggio semplice e il link *Apri in DLQ* (`/backoffice/observe/dlq?status=ALL&e=<id>`, BO-27); le fasi successive dicono «Non partito».
+  6. **Dettaglio tecnico (per IT)**, ripiegato di default: ID correlazione copiabile e `TraceWaterfall`, una corsia per servizio con marcatori a punto di larghezza fissa su un asse in secondi, senza etichette inline; codice evento, servizio e tempo stanno nel nome accessibile e nel tooltip. Clic su un punto → servizio, `eventId`, sintesi e payload in `JsonViewer` (`insight GET /v1/events/{eventId}`).
+- **Aggiornamento**: elenco ogni 5 s, dettaglio ogni 3 s (polling); l'aggiornamento via SSE dei tracciati `IN_PROGRESS` resta da fare.
+- **Testi**: tutti in `web/lib/i18n/it.ts` (`traces`); un tipo evento dei contratti senza etichetta fa fallire `web/lib/observe/eventLabels.test.ts`.
 
 ### BO-26 — Monitor ingressi
 - **Dati**: `ingestion GET /v1/inbound-events*`, `POST …/retry`, `…/match`.

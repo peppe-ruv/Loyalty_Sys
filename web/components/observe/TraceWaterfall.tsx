@@ -1,130 +1,76 @@
 "use client";
 
-import Link from "next/link";
-import { familyColorVar, type LiveFamily } from "@/lib/realtime/sse";
-import { TopicDot } from "./TopicDot";
+import { familyColorVar } from "@/lib/realtime/sse";
+import { it } from "@/lib/i18n/it";
+import { eventLabel } from "@/lib/observe/eventLabels";
+import { formatSecondsShort } from "@/lib/format/duration";
+import type { Trace, TraceNode } from "@/lib/observe/trace";
 
-// Cascata del tracciato (docs/08 §BO-25): una corsia per servizio, nodi posizionati per offsetMs, colorati
-// per famiglia; sotto, il pannello esito. Versione M2.3: nodi e tempi; il payload per nodo arriva più avanti.
-// M7.3: i nodi DLQ (voci di insight dlq_entry) sono elencati sotto l'esito con il collegamento a BO-27.
-export interface TraceNode {
-  eventId: string;
-  family: LiveFamily;
-  shortType: string;
-  service: string;
-  time?: string | null;
-  offsetMs: number;
-  parentEventId?: string | null;
-  summary: string;
-}
+export type { Trace, TraceNode, TraceOutcome } from "@/lib/observe/trace";
 
-export interface TraceOutcome {
-  points: { currency: string; amount: number }[];
-  tierChange?: { from?: string | null; to?: string | null } | null;
-  messages: number;
-  coupons: number;
-  plays: number;
-  dlq: number;
-}
+// Cascata tecnica del tracciato (docs/08 §BO-25, «Dettaglio tecnico»): una corsia per servizio, un marcatore a punto
+// di larghezza fissa per nodo, posizionato per offsetMs su un asse in secondi. Nessuna etichetta inline (issue #204:
+// con 16 nodi in pochi secondi le etichette si coprivano): codice, servizio e tempo stanno nel nome accessibile e nel
+// tooltip; il clic seleziona il nodo e il chiamante ne mostra il contenuto.
 
-export interface Trace {
-  correlationId: string;
-  memberId?: string | null;
-  startedAt?: string | null;
-  durationMs: number;
-  status: string;
-  nodes: TraceNode[];
-  outcome: TraceOutcome;
-}
-
-const STATUS_CLASS: Record<string, string> = {
-  COMPLETE: "bg-emerald-100 text-emerald-800",
-  IN_PROGRESS: "bg-amber-100 text-amber-800",
-  FAILED: "bg-red-100 text-red-800",
-};
-
-export function TraceWaterfall({ trace }: { trace: Trace }) {
+export function TraceWaterfall({
+  trace,
+  selectedId,
+  onSelect,
+}: {
+  trace: Trace;
+  selectedId?: string | null;
+  onSelect?: (node: TraceNode) => void;
+}) {
   const lanes = Array.from(new Set(trace.nodes.map((n) => n.service)));
-  const maxOffset = Math.max(1, ...trace.nodes.map((n) => n.offsetMs));
-  // Nodi DLQ (M7.3): una voce per consumer che non ha elaborato un evento del giro → link a BO-27.
-  const dlqNodes = trace.nodes.filter((n) => n.family === "DLQ");
+  const maxOffset = Math.max(1, trace.durationMs, ...trace.nodes.map((n) => n.offsetMs));
+  const seconds = Math.max(1, Math.ceil(maxOffset / 1000));
+  const ticks = Array.from({ length: seconds + 1 }, (_, i) => i);
+  const pct = (offsetMs: number) => Math.min(100, Math.max(0, (offsetMs / (seconds * 1000)) * 100));
 
   return (
-    <div className="rounded-md border border-[var(--color-bo-border)] bg-white p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_CLASS[trace.status] ?? "bg-slate-200"}`}>
-          {trace.status}
-        </span>
-        <span className="text-xs text-[var(--color-bo-ink-2)]">durata {trace.durationMs} ms</span>
-        {trace.memberId ? <span className="font-mono text-xs">{trace.memberId}</span> : null}
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {lanes.map((lane) => {
-          const laneNodes = trace.nodes.filter((n) => n.service === lane);
-          return (
-            <div key={lane} className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-right text-[11px] font-medium text-[var(--color-bo-ink-2)]">
-                {lane}
-              </span>
-              <div className="relative h-8 flex-1 rounded bg-[var(--color-bo-bg)]">
-                {laneNodes.map((n) => (
-                  <span
+    <div className="space-y-1.5" role="group" aria-label={it.traces.tech.title}>
+      {lanes.map((lane) => (
+        <div key={lane} className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-2">
+          <span className="truncate text-right font-mono text-[11px] text-[var(--color-bo-ink-2)]" title={lane}>
+            {lane}
+          </span>
+          <div className="relative h-7 rounded bg-[var(--color-bo-bg)]">
+            {trace.nodes
+              .filter((n) => n.service === lane)
+              .map((n) => {
+                const label = it.traces.tech.marker(eventLabel(n.family, n.shortType), n.shortType, formatSecondsShort(n.offsetMs));
+                const selected = selectedId === n.eventId;
+                return (
+                  <button
                     key={n.eventId}
-                    title={`${n.shortType} · ${n.offsetMs} ms\n${n.summary}`}
-                    className="absolute top-1 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded border border-[var(--color-bo-border)] bg-white px-1.5 py-0.5 text-[10px] shadow-sm"
-                    style={{ left: `${Math.min(96, (n.offsetMs / maxOffset) * 92 + 2)}%` }}
-                  >
-                    <TopicDot family={n.family} />
-                    {n.shortType}
-                  </span>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-4 border-t border-[var(--color-bo-border)] pt-3">
-        <p className="text-xs font-semibold text-[var(--color-bo-ink)]">Esito</p>
-        <div className="mt-1 flex flex-wrap gap-2 text-xs">
-          {trace.outcome.points.length === 0 && !trace.outcome.tierChange && trace.outcome.dlq === 0 ? (
-            <span className="text-[var(--color-bo-ink-2)]">nessun effetto registrato</span>
-          ) : (
-            <>
-              {trace.outcome.points.map((p) => (
-                <span key={p.currency} className="rounded bg-emerald-50 px-2 py-0.5 font-medium text-emerald-800">
-                  +{p.amount} {p.currency}
-                </span>
-              ))}
-              {trace.outcome.tierChange?.to ? (
-                <span className="rounded bg-indigo-50 px-2 py-0.5 font-medium text-indigo-800">
-                  livello → {trace.outcome.tierChange.to}
-                </span>
-              ) : null}
-              {trace.outcome.dlq > 0 ? (
-                <span className="rounded bg-red-50 px-2 py-0.5 font-medium text-red-800">{trace.outcome.dlq} DLQ</span>
-              ) : null}
-            </>
-          )}
-        </div>
-        {dlqNodes.length > 0 ? (
-          <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900" role="note">
-            <p className="font-semibold">
-              {trace.status === "FAILED" ? "Il giro si è fermato in DLQ" : "Il giro è passato dalla DLQ"}
-            </p>
-            <ul className="mt-1 space-y-0.5">
-              {dlqNodes.map((n) => (
-                <li key={n.eventId}>
-                  <Link href={`/backoffice/observe/dlq?status=ALL&e=${n.eventId}`} className="hover:underline">
-                    {n.service} · {n.summary} →
-                  </Link>
-                </li>
-              ))}
-            </ul>
+                    type="button"
+                    data-testid="trace-marker"
+                    aria-label={label}
+                    aria-pressed={selected}
+                    title={label}
+                    onClick={() => onSelect?.(n)}
+                    className={`absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 p-0 ${
+                      selected ? "border-[var(--color-bo-ink)] ring-2 ring-[var(--color-bo-ink)]" : n.family === "DLQ" ? "border-red-700" : "border-white"
+                    }`}
+                    style={{ left: `${pct(n.offsetMs)}%`, backgroundColor: familyColorVar(n.family) }}
+                  />
+                );
+              })}
           </div>
-        ) : null}
+        </div>
+      ))}
+      <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2" aria-hidden>
+        <span />
+        <div className="relative h-4 font-mono text-[10px] text-[var(--color-bo-ink-2)]">
+          {ticks.map((s) => (
+            <span key={s} className="absolute -translate-x-1/2" style={{ left: `${pct(s * 1000)}%` }}>
+              {s} s
+            </span>
+          ))}
+        </div>
       </div>
+      <p className="sr-only">{it.traces.tech.axis}</p>
     </div>
   );
 }
