@@ -153,7 +153,7 @@ Consegna le password fuori banda e cancella il file. Nella vetrina enterprise no
 
 ## Vetrina enterprise (F2-DIST-09, ADR-049)
 
-La vetrina è una seconda installazione ospitata in `LH_PROFILE=enterprise` (`docs/11 §17`, `concetti/vetrina-enterprise.mdx`). Usa gli stessi `realm.json` e `realm-members.json` e applica al realm degli operatori, a realm avviato, l'overlay `vetrina/realm-vetrina-overlay.json` (`--import-realm` salta un realm già esistente): il realm base e l'overlay di prova (`test-idp/`) non cambiano. Il realm dei membri non ha overlay: nella vetrina la sua registrazione resta aperta finché il web non apre il portale ai membri (V8; ADR-051 decisione 2 la vuole chiusa nel primo passo, da decidere con il proprietario).
+La vetrina è una seconda installazione ospitata in `LH_PROFILE=enterprise` (`docs/11 §17`, `concetti/vetrina-enterprise.mdx`). Usa gli stessi `realm.json` e `realm-members.json` e applica al realm degli operatori, a realm avviato, l'overlay `vetrina/realm-vetrina-overlay.json` (`--import-realm` salta un realm già esistente): il realm base e l'overlay di prova (`test-idp/`) non cambiano. Nel realm dei membri lo script chiude la sola registrazione libera di account (`registrationAllowed: false`, ADR-051 e Q-673): Keycloak torna alla configurazione del repo a ogni avvio e gli account creati sparirebbero.
 
 ```bash
 KC_BOOTSTRAP_ADMIN_PASSWORD="$LH_IDP_ADMIN_PASSWORD" KEYCLOAK_URL=https://idp.example.org ./deploy/idp/vetrina/apply-overlay.sh

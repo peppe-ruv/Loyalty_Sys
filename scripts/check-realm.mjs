@@ -760,6 +760,7 @@ function mockKeycloak({ operators }) {
   const state = {
     realm: { realm: 'loyaltyhub', registrationAllowed: true, browserFlow: 'browser-mfa', bruteForceProtected: true, otpPolicyType: 'totp',
       sslRequired: 'external', verifyEmail: false, passwordPolicy: 'length(12)' },
+    members: { realm: 'loyaltyhub-members', registrationAllowed: true, browserFlow: 'browser', bruteForceProtected: true, sslRequired: 'external' },
     clients: [], scope: [], puts: 0, loginBody: '',
   };
   const roleUsers = (role) => operators.filter(u => (u.realmRoles ?? []).includes(role)).map(u => ({ id: `id-${u.username}`, username: u.username }))
@@ -774,6 +775,8 @@ function mockKeycloak({ operators }) {
       if (p === '/realms/master/protocol/openid-connect/token') { state.loginBody = body; return json(200, { access_token: 'mock-token' }); }
       if (req.headers.authorization !== 'Bearer mock-token') return json(401, {});
       const base = '/admin/realms/loyaltyhub';
+      if (p === `${base}-members` && req.method === 'GET') return json(200, state.members);
+      if (p === `${base}-members` && req.method === 'PUT') { state.puts++; state.members = JSON.parse(body); return json(204); }
       if (p === base && req.method === 'GET') return json(200, state.realm);
       if (p === base && req.method === 'PUT') { state.puts++; state.realm = JSON.parse(body); return json(204); }
       if (p === `${base}/partialImport`) {
@@ -831,6 +834,9 @@ test('apply-overlay.sh di vetrina contro un Keycloak simulato: applica, rilegge,
     assert.equal(r.code, 0, `apply-overlay.sh è fallito: ${r.err}${r.out}`);
     assert.equal(kc.state.realm.registrationAllowed, false);
     assert.deepEqual({ ...kc.state.realm, registrationAllowed: true }, before, 'il PUT non cambia altre impostazioni del realm');
+    // Realm dei membri: nella vetrina si chiude la sola registrazione libera di account (ADR-051, Q-673).
+    assert.equal(kc.state.members.registrationAllowed, false, 'registrazione libera chiusa nel realm dei membri della vetrina');
+    assert.equal(kc.state.members.browserFlow, 'browser', 'il PUT non cambia altre impostazioni del realm dei membri');
     const c = kc.state.clients.find(x => x.clientId === 'lh-cli');
     assert.ok(c && c.publicClient && c.consentRequired && c.fullScopeAllowed === false);
     assert.deepEqual(kc.state.scope.map(x => x.name).sort(), [...OPERATOR_ROLES].sort());
