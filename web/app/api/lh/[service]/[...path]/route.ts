@@ -11,6 +11,7 @@ import { problem, resolveBff } from "@/lib/auth/bff";
 import { checkPortalBody } from "@/lib/auth/memberScope";
 import { demoSourceActor } from "@/lib/api/demoSource";
 import { authorizeProxy } from "@/lib/auth/proxyAuth";
+import { realmForApi } from "@/lib/auth/realm";
 
 // Proxy verso i microservizi (docs/07 §3): il browser chiama SEMPRE /api/lh/<service>/v1/...
 // Copiamo metodo/query/corpo e aggiungiamo l'identità e X-Correlation-Id (elenco chiuso: lib/api/proxyHeaders.ts).
@@ -35,7 +36,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ service: string
     return NextResponse.json({ type: "UNKNOWN_SERVICE", service }, { status: 404 });
   }
 
-  const resolved = resolveBff();
+  // Due realm (ADR-051): le API del portale con la sessione del membro, le altre con quella dell'operatore.
+  const resolved = resolveBff(realmForApi(path ?? []));
   if (resolved.mode === "error") return resolved.response;
 
   // Percorso a valle identico a quello chiesto, in ENTRAMBI i profili: niente `..`, `%2F`, `;` o segmenti vuoti

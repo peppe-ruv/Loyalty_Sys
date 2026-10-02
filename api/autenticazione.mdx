@@ -188,6 +188,8 @@ Con due emittenti ogni token va verificato con il JWKS del suo realm, e ogni rea
 
 L'emittente dei membri deve essere diverso da quello degli operatori: se coincidono, i servizi non partono (`INSECURE_CONFIG`).
 
+Nel web imposta anche `LH_OIDC_MEMBER_ISSUER`, il client del portale `LH_WEB_MEMBER_CLIENT_ID` (predefinito `portal`) e il suo segreto `LH_WEB_MEMBER_CLIENT_SECRET` (o `_FILE`). Il BFF tiene allora due sessioni separate: il portale fa login nel realm dei membri e usa i cookie `__Host-lh_msession` e `__Host-lh_mcsrf`, il backoffice resta nel realm degli operatori. Le API `/v1/portal/**` partono con la sessione del membro, tutte le altre con quella dell'operatore. Un account del tipo sbagliato per il realm è rifiutato già al login.
+
 ```mermaid
 flowchart LR
   accTitle: Verifica dei token con due emittenti

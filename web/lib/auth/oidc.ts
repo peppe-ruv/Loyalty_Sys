@@ -57,11 +57,12 @@ export interface OidcClient {
   logoutVerification(): Promise<{ issuer: string; keys: JWTVerifyGetKey }>;
 }
 
-export function redirectUri(cfg: EnterpriseAuthConfig): string {
-  return new URL(CALLBACK_PATH, cfg.publicUrl).href;
+/** Redirect URI del client: `CALLBACK_PATH` per il realm degli operatori, il percorso del realm per gli altri. */
+export function redirectUri(cfg: EnterpriseAuthConfig, callbackPath: string = CALLBACK_PATH): string {
+  return new URL(callbackPath, cfg.publicUrl).href;
 }
 
-export function createOidcClient(cfg: EnterpriseAuthConfig): OidcClient {
+export function createOidcClient(cfg: EnterpriseAuthConfig, callbackPath: string = CALLBACK_PATH): OidcClient {
   let discovered: Promise<client.Configuration> | null = null;
   let jwks: JWTVerifyGetKey | null = null;
 
@@ -89,7 +90,7 @@ export function createOidcClient(cfg: EnterpriseAuthConfig): OidcClient {
     async authorizationUrl(checks) {
       const config = await configuration();
       return client.buildAuthorizationUrl(config, {
-        redirect_uri: redirectUri(cfg),
+        redirect_uri: redirectUri(cfg, callbackPath),
         scope: SCOPE,
         state: checks.state,
         nonce: checks.nonce,

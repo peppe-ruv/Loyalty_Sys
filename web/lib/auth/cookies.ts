@@ -1,3 +1,5 @@
+import { REALM_COOKIES } from "./realm";
+
 // Cookie del BFF (docs/18 §3.2, CLAUDE.md regola 20). Prefisso `__Host-`: il browser li accetta solo con `Secure`,
 // `Path=/` e senza `Domain`, quindi nessun sottodominio può impostarli o sovrascriverli.
 // - `__Host-lh_session`: id opaco della sessione; `HttpOnly` (mai leggibile dal JavaScript), `SameSite=Lax` (arriva
@@ -9,9 +11,12 @@
 // - `__Host-lh_auth`: stato del login in corso (state, nonce, code_verifier, ritorno), cifrato; `HttpOnly`,
 //   `SameSite=Lax`, 10 minuti.
 
-export const SESSION_COOKIE = "__Host-lh_session";
-export const CSRF_COOKIE = "__Host-lh_csrf";
-export const AUTH_FLOW_COOKIE = "__Host-lh_auth";
+// Con il realm dei membri (ADR-051) il portale ha gli stessi tre cookie con il prefisso `lh_m` (lib/auth/realm.ts):
+// le due sessioni non si toccano.
+
+export const SESSION_COOKIE = REALM_COOKIES.operators.session;
+export const CSRF_COOKIE = REALM_COOKIES.operators.csrf;
+export const AUTH_FLOW_COOKIE = REALM_COOKIES.operators.flow;
 export const AUTH_FLOW_MAX_AGE = 10 * 60;
 
 export interface CookieOptions {

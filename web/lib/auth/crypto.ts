@@ -5,7 +5,8 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, ran
 // compromessa in un uso non vale negli altri. Cifratura AES-256-GCM con IV casuale da 12 byte e dati associati (AAD)
 // che legano il testo cifrato al suo contesto (es. l'id della sessione): un blob copiato altrove non si apre.
 
-export type KeyPurpose = "session" | "auth-flow" | "csrf";
+// `:members`: chiavi del realm dei membri (ADR-051), distinte da quelle degli operatori.
+export type KeyPurpose = "session" | "auth-flow" | "csrf" | "auth-flow:members" | "csrf:members";
 
 const IV_BYTES = 12;
 const TAG_BYTES = 16;

@@ -37,6 +37,19 @@ export interface EnterpriseAuthConfig {
   maxSessions: number;
   /** HTTP in chiaro verso l'emittente ammesso solo se l'emittente è su loopback (sviluppo locale). */
   allowInsecureIssuer: boolean;
+  /**
+   * Realm dei membri (ADR-051 decisione 6), facoltativo: con `LH_OIDC_MEMBER_ISSUER` il portale fa login lì, con il
+   * suo client e una sessione separata da quella del backoffice. `null` ⇒ un solo realm per tutti, come prima.
+   */
+  members: MemberRealmConfig | null;
+}
+
+/** Emittente e client del BFF nel realm dei membri. */
+export interface MemberRealmConfig {
+  issuer: URL;
+  clientId: string;
+  clientSecret: string;
+  allowInsecureIssuer: boolean;
 }
 
 export type AuthConfig = DemoAuthConfig | EnterpriseAuthConfig;
@@ -71,6 +84,10 @@ const WATCHED = [
   "LH_WEB_SESSION_IDLE_SECONDS",
   "LH_WEB_SESSION_MAX_SECONDS",
   "LH_WEB_SESSION_MAX_COUNT",
+  "LH_OIDC_MEMBER_ISSUER",
+  "LH_WEB_MEMBER_CLIENT_ID",
+  "LH_WEB_MEMBER_CLIENT_SECRET",
+  "LH_WEB_MEMBER_CLIENT_SECRET_FILE",
 ] as const;
 
 /** Profilo richiesto; un valore sconosciuto è un errore (mai un ripiego silenzioso sul demo). */
@@ -122,11 +139,25 @@ export function parseAuthConfig(env: Env, readFile: (path: string) => string = r
     problems.push("LH_WEB_URL deve usare https (http solo per localhost)");
   }
 
+  const members = memberRealm(env, readFile, issuer, problems);
+
   if (problems.length || !issuer || !publicUrl || clientSecret === null || sessionKey === null) {
     throw new InsecureConfigError(problems.length ? problems : ["configurazione OIDC incompleta"]);
   }
   const fingerprint = createHash("sha256")
-    .update(JSON.stringify([issuer.href, clientId, clientSecret, publicUrl.href, sessionKey.toString("base64"), idleSeconds, maxSeconds, maxSessions]))
+    .update(
+      JSON.stringify([
+        issuer.href,
+        clientId,
+        clientSecret,
+        publicUrl.href,
+        sessionKey.toString("base64"),
+        idleSeconds,
+        maxSeconds,
+        maxSessions,
+        members ? [members.issuer.href, members.clientId, members.clientSecret] : null,
+      ]),
+    )
     .digest("base64url");
   return {
     mode: "enterprise",
@@ -140,7 +171,33 @@ export function parseAuthConfig(env: Env, readFile: (path: string) => string = r
     maxSeconds,
     maxSessions,
     allowInsecureIssuer: issuer.protocol === "http:",
+    members,
   };
+}
+
+/**
+ * Realm dei membri (ADR-051): assente se `LH_OIDC_MEMBER_ISSUER` è vuota. Se c'è, servono il client e il suo segreto,
+ * https (http solo su loopback) e un emittente diverso da quello degli operatori: un solo realm con due nomi
+ * annullerebbe la separazione delle sessioni e dei ruoli.
+ */
+function memberRealm(env: Env, readFile: (path: string) => string, operators: URL | null, problems: string[]): MemberRealmConfig | null {
+  if (!(env.LH_OIDC_MEMBER_ISSUER ?? "").trim()) return null;
+  const issuer = parseUrl(env.LH_OIDC_MEMBER_ISSUER, "LH_OIDC_MEMBER_ISSUER", problems);
+  const clientId = (env.LH_WEB_MEMBER_CLIENT_ID ?? "portal").trim();
+  if (!clientId) problems.push("LH_WEB_MEMBER_CLIENT_ID vuoto");
+  const clientSecret = secret(env, "LH_WEB_MEMBER_CLIENT_SECRET", readFile, problems);
+  if (clientSecret !== null) {
+    if (clientSecret.length < 16) problems.push("LH_WEB_MEMBER_CLIENT_SECRET troppo corto (almeno 16 caratteri)");
+    else if (isWeak(clientSecret)) problems.push("LH_WEB_MEMBER_CLIENT_SECRET è un valore d'esempio o un segnaposto");
+  }
+  if (issuer && issuer.protocol !== "https:" && !isLoopback(issuer)) {
+    problems.push("LH_OIDC_MEMBER_ISSUER deve usare https (http solo verso localhost)");
+  }
+  if (issuer && operators && issuer.href === operators.href) {
+    problems.push("LH_OIDC_MEMBER_ISSUER deve essere un realm diverso da LH_OIDC_ISSUER");
+  }
+  if (!issuer || !clientId || clientSecret === null) return null;
+  return { issuer, clientId, clientSecret, allowInsecureIssuer: issuer.protocol === "http:" };
 }
 
 type Cached = { key: string; value: AuthConfig } | { key: string; error: InsecureConfigError };

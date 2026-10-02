@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { getAuthConfig } from "./config";
 import { bffFor, currentSession } from "./bff";
 import type { SessionUser } from "./sessionStore";
+import type { Realm } from "./realm";
 
 // Chi sta guardando la pagina, per i layout server di backoffice e portale. SOLO LATO SERVER.
 // Demo: identità simulata dal cookie persona (gestita dai layout come prima). Enterprise: utente della sessione del
@@ -10,9 +11,10 @@ import type { SessionUser } from "./sessionStore";
 
 export type Viewer = { mode: "demo" } | { mode: "enterprise"; user: SessionUser | null };
 
-export async function getViewer(): Promise<Viewer> {
+/** `realm`: il portale guarda la sessione del membro, backoffice e hub quella dell'operatore (ADR-051). */
+export async function getViewer(realm: Realm = "operators"): Promise<Viewer> {
   const cfg = getAuthConfig();
   if (cfg.mode === "demo") return { mode: "demo" };
-  const current = await currentSession(await cookies(), bffFor(cfg));
+  const current = await currentSession(await cookies(), bffFor(cfg, realm));
   return { mode: "enterprise", user: current?.session.user ?? null };
 }
