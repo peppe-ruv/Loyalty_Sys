@@ -35,3 +35,6 @@ Thumbs.db
 # Esecuzioni locali di Schemathesis (M8.11c, docs/security/dast.md): esempi e cache, non fanno parte del repo
 .hypothesis/
 .schemathesis/
+
+# jqwik: database dei fallimenti (ADR-053); la configurazione lo sposta sotto target/, qui per sicurezza
+.jqwik-database

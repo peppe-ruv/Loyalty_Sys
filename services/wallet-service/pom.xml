@@ -27,6 +27,12 @@
     </dependency>
 
     <!-- ==================== TEST ==================== -->
+    <!-- Proprietà generative (ADR-053, Q-690): classi *Properties, versione gestita dal pom padre. -->
+    <dependency>
+      <groupId>net.jqwik</groupId>
+      <artifactId>jqwik</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
