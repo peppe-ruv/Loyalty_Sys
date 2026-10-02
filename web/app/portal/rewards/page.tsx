@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Check, Lock } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalCatalog, PortalReward, RewardCategory, WalletView } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { RewardArt } from "@/components/portal/RewardArt";
 import { ContentSlot } from "@/components/portal/ContentSlot";
@@ -17,10 +17,10 @@ import { cn } from "@/lib/cn";
 // al saldo (raggiunta ✓ oppure "ti mancano N punti"); griglia 2 colonne; filtro per categoria; "solo richiedibili".
 // In testa il banner CATALOG_TOP (engagement, M6.1).
 export default function PortalRewardsPage() {
-  const memberId = useActiveMember();
-  const catalog = useLhQuery<PortalCatalog>("reward", "/v1/portal/catalog", { memberId });
-  const wallet = useLhQuery<WalletView>("wallet", `/v1/portal/wallets/${memberId}`);
-  const categories = useLhQuery<RewardCategory[]>("reward", "/v1/reward-categories");
+  const api = usePortalApi();
+  const catalog = useLhQuery<PortalCatalog>("reward", "/v1/portal/catalog", api.query());
+  const wallet = useLhQuery<WalletView>("wallet", api.wallet);
+  const categories = useLhQuery<RewardCategory[]>("reward", api.rewardCategories);
   const [category, setCategory] = useState("");
   const [onlyRedeemable, setOnlyRedeemable] = useState(false);
 

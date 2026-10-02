@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useLhMutation, useLhQuery } from "@/lib/api/client";
 import type { PortalCampaign, PortalProfile, ProfileField } from "@/lib/api/types";
 import { usePending } from "@/components/portal/PendingContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { completenessPct, missingFieldsSentence } from "@/lib/member/profile";
 import { cn } from "@/lib/cn";
@@ -24,40 +25,40 @@ const FIELDS: { key: ProfileField; label: string; type?: string; autoComplete?: 
   { key: "city", label: "Città", autoComplete: "address-level2" },
 ];
 
-export function ProfileSection({ memberId }: { memberId: string }) {
-  const profile = useLhQuery<PortalProfile>("member", `/v1/portal/members/${memberId}`);
+export function ProfileSection() {
+  const api = usePortalApi();
+  const profile = useLhQuery<PortalProfile>("member", api.profile);
   // Il messaggio vive qui: il form si rimonta a ogni nuova versione del profilo (dopo il salvataggio).
   const [message, setMessage] = useState<string | null>(null);
   return (
     <section>
       <h2 className="mb-2 text-sm font-semibold text-[var(--color-pt-night)]">I tuoi dati</h2>
       <QueryState query={profile} service="member">
-        {(p) => <ProfileForm key={p.version} memberId={memberId} profile={p} message={message} onMessage={setMessage} />}
+        {(p) => <ProfileForm key={p.version} profile={p} message={message} onMessage={setMessage} />}
       </QueryState>
     </section>
   );
 }
 
 function ProfileForm({
-  memberId,
   profile,
   message,
   onMessage: setMessage,
 }: {
-  memberId: string;
   profile: PortalProfile;
   message: string | null;
   onMessage: (m: string | null) => void;
 }) {
   const { markPending } = usePending();
-  const campaigns = useLhQuery<PortalCampaign[]>("campaign", "/v1/portal/campaigns", { memberId, codes: PROFILE_CAMPAIGN }, {
+  const api = usePortalApi();
+  const campaigns = useLhQuery<PortalCampaign[]>("campaign", "/v1/portal/campaigns", api.query({ codes: PROFILE_CAMPAIGN }), {
     enabled: !profile.completeness.completed,
   });
   const reward = campaigns.data?.[0]?.rewardSummary;
   const [draft, setDraft] = useState<Draft>(() => toDraft(profile));
   const [editing, setEditing] = useState(false);
 
-  const save = useLhMutation<PortalProfile, Record<string, unknown>>("member", "PATCH", () => `/v1/portal/members/${memberId}`, {
+  const save = useLhMutation<PortalProfile, Record<string, unknown>>("member", "PATCH", () => api.profile, {
     onSuccess: (saved) => {
       setEditing(false);
       if (!profile.completeness.completed && saved.completeness.completed) {

@@ -3,7 +3,7 @@
 import { useLhQuery } from "@/lib/api/client";
 import type { ContentDisplay, ContentPlacement } from "@/lib/content/types";
 import { ContentCard, type ContentVariant } from "@/components/shared/content/ContentCard";
-import { useActiveMember } from "./MemberContext";
+import { usePortalApi } from "./MemberContext";
 
 // Contenuti di un posizionamento (docs/09 PT-01/PT-03/PT-05, docs/03 §9): li sceglie engagement (pubblico, calendario,
 // priorità). I contenuti non sono essenziali: se il servizio dorme o risponde male lo slot sparisce e la pagina resta
@@ -17,8 +17,8 @@ const VARIANT: Record<ContentPlacement, ContentVariant> = {
 };
 
 export function ContentSlot({ placement }: { placement: Exclude<ContentPlacement, "WIN"> }) {
-  const memberId = useActiveMember();
-  const query = useLhQuery<ContentDisplay[]>("engagement", "/v1/portal/content", { memberId, placement });
+  const api = usePortalApi();
+  const query = useLhQuery<ContentDisplay[]>("engagement", "/v1/portal/content", api.query({ placement }));
   const variant = VARIANT[placement];
 
   if (query.isLoading) {

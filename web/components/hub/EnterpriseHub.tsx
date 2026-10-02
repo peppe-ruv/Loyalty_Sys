@@ -269,11 +269,14 @@ export function EnterpriseEntrances({ user }: { user: Pick<SessionUser, "usernam
 export function EnterpriseHub({
   demoUrl,
   user,
+  memberUser = null,
   load,
   testMode = null,
 }: {
   demoUrl: string | null;
   user: Pick<SessionUser, "username" | "name"> | null;
+  /** Sessione del membro (realm dei membri, ADR-051), per le schede dei membri di HUB-02. */
+  memberUser?: Pick<SessionUser, "username" | "name"> | null;
   load?: () => Promise<EnterpriseStatus>;
   testMode?: TestMode | null;
 }) {
@@ -287,7 +290,7 @@ export function EnterpriseHub({
           <EnterpriseStatusPanel load={load} />
         </Suspense>
       </div>
-      {testMode ? <TestUsers mode={testMode} user={user} /> : <EnterpriseEntrances user={user} />}
+      {testMode ? <TestUsers mode={testMode} user={user} memberUser={memberUser} /> : <EnterpriseEntrances user={user} />}
     </div>
   );
 }

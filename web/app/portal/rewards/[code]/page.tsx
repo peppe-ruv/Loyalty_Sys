@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Lock } from "lucide-react";
 import { lhFetch, useLhQuery, type LhError } from "@/lib/api/client";
 import type { PortalCoupon, PortalRewardDetail, Redemption, RedemptionAccepted, RewardCategory, WalletView } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { RewardArt } from "@/components/portal/RewardArt";
 import { CountUp } from "@/components/portal/CountUp";
@@ -29,10 +29,10 @@ type Phase =
 
 export default function PortalRewardPage() {
   const code = String(useParams().code);
-  const memberId = useActiveMember();
-  const detail = useLhQuery<PortalRewardDetail>("reward", `/v1/portal/rewards/${code}`, { memberId });
-  const wallet = useLhQuery<WalletView>("wallet", `/v1/portal/wallets/${memberId}`);
-  const categories = useLhQuery<RewardCategory[]>("reward", "/v1/reward-categories");
+  const api = usePortalApi();
+  const detail = useLhQuery<PortalRewardDetail>("reward", `/v1/portal/rewards/${code}`, api.query());
+  const wallet = useLhQuery<WalletView>("wallet", api.wallet);
+  const categories = useLhQuery<RewardCategory[]>("reward", api.rewardCategories);
   const [phase, setPhase] = useState<Phase>({ kind: "view" });
   const balance = wallet.data?.balances.PTS?.active ?? 0;
 
@@ -48,9 +48,9 @@ export default function PortalRewardPage() {
           return (
             <>
               {phase.kind === "waiting" ? (
-                <Waiting phase={phase} isCoupon={r.type === "COUPON"} memberId={memberId} onDone={setPhase} />
+                <Waiting phase={phase} isCoupon={r.type === "COUPON"} onDone={setPhase} />
               ) : phase.kind === "done" ? (
-                <Outcome redemption={phase.redemption} memberId={memberId} balance={balance} />
+                <Outcome redemption={phase.redemption} balance={balance} />
               ) : phase.kind === "slow" ? (
                 <Slow />
               ) : (
@@ -93,7 +93,6 @@ export default function PortalRewardPage() {
               {phase.kind === "confirm" ? (
                 <ConfirmSheet
                   reward={r}
-                  memberId={memberId}
                   balance={balance}
                   onClose={() => setPhase({ kind: "view" })}
                   onAccepted={(a) => setPhase({ kind: "waiting", redemptionId: a.redemptionId, since: Date.now() })}
@@ -118,17 +117,16 @@ function Availability({ detail }: { detail: PortalRewardDetail }) {
 
 function ConfirmSheet({
   reward,
-  memberId,
   balance,
   onClose,
   onAccepted,
 }: {
   reward: PortalRewardDetail;
-  memberId: string;
   balance: number;
   onClose: () => void;
   onAccepted: (a: RedemptionAccepted) => void;
 }) {
+  const api = usePortalApi();
   const physical = reward.type === "PHYSICAL";
   const [shipping, setShipping] = useState({ name: "", street: "", zip: "", city: "" });
   const [busy, setBusy] = useState(false);
@@ -141,7 +139,7 @@ function ConfirmSheet({
     try {
       const accepted = await lhFetch<RedemptionAccepted>("reward", "/v1/portal/redemptions", {
         method: "POST",
-        body: JSON.stringify({ memberId, rewardCode: reward.code, shipping: physical ? shipping : undefined }),
+        body: JSON.stringify(api.body({ rewardCode: reward.code, shipping: physical ? shipping : undefined })),
       });
       onAccepted(accepted);
     } catch (e) {
@@ -227,16 +225,15 @@ function messageFor(e: LhError): string {
 function Waiting({
   phase,
   isCoupon,
-  memberId,
   onDone,
 }: {
   phase: { kind: "waiting"; redemptionId: string; since: number };
   isCoupon: boolean;
-  memberId: string;
   onDone: (p: Phase) => void;
 }) {
   const qc = useQueryClient();
-  const r = useLhQuery<Redemption>("reward", `/v1/portal/redemptions/${phase.redemptionId}`, { memberId }, { refetchInterval: 1000 });
+  const api = usePortalApi();
+  const r = useLhQuery<Redemption>("reward", `/v1/portal/redemptions/${phase.redemptionId}`, api.query(), { refetchInterval: 1000 });
 
   useEffect(() => {
     if (r.data && isSettled(r.data, isCoupon)) {
@@ -260,8 +257,9 @@ function Waiting({
   );
 }
 
-function Outcome({ redemption: r, memberId, balance }: { redemption: Redemption; memberId: string; balance: number }) {
-  const coupons = useLhQuery<PortalCoupon[]>("reward", "/v1/portal/coupons", { memberId }, { enabled: !!r.couponCode });
+function Outcome({ redemption: r, balance }: { redemption: Redemption; balance: number }) {
+  const api = usePortalApi();
+  const coupons = useLhQuery<PortalCoupon[]>("reward", "/v1/portal/coupons", api.query(), { enabled: !!r.couponCode });
   const coupon = coupons.data?.find((c) => c.code === r.couponCode);
   const [copied, setCopied] = useState(false);
 

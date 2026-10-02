@@ -81,7 +81,7 @@ flowchart TD
   D -->|Membro| F[Login nel realm loyaltyhub-members<br/>login_hint dall'utente scelto]
   D -->|Amministratore di test| G[Console del realm<br/>vetrina.admin o membri.admin]
   E --> H[Backoffice<br/>per il ruolo dell'operatore]
-  F --> I[Portale dei membri<br/>attivo con V9b]
+  F --> I[Portale dei membri<br/>il membro viene dal token]
   G --> J[Utenti, ruoli, sessioni, eventi]
   P[Console del realm master<br/>porta 8180 privata] -.->|solo il proprietario| K[Configurazione di Keycloak]
 ```
@@ -89,7 +89,7 @@ flowchart TD
 1. **Accendi.** Sulla demo, il riquadro **Modalità Enterprise** (HUB-01) mostra lo stato della vetrina: *spenta*, *in accensione*, *accesa*. Con **Accendi la modalità Enterprise** il server della demo chiede a GitHub di avviare il codespace (Q-674); l'avvio richiede 3–5 minuti e il pulsante diventa **Apri la vetrina** da solo. Il codespace si spegne dopo circa 30 minuti senza uso del terminale: riaccendilo dallo stesso pulsante. Il pulsante ammette al più un avvio ogni 60 secondi (lo stato è letto da GitHub al più ogni 5 secondi), controlla l'origine della richiesta e consuma le ore gratuite di Codespaces del proprietario.
 2. **Scegli un utente di test.** HUB-02 mostra le schede degli utenti di test (tabella in «Utenti di test»): cinque operatori per il backoffice, quattro membri per il portale. Ogni scheda ha nome utente e password da copiare e un pulsante **Entra come…** che porta al login del **realm giusto** con `login_hint`: il nome utente arriva già compilato e resta da scrivere la password.
 3. **Codice OTP.** Gli operatori hanno la MFA: la scheda mostra il **codice OTP del momento**, calcolato dal seme documentato più sotto, con il conto alla rovescia dei 30 secondi. Il codice è visibile solo in questo ambiente di test dichiarato (Q-676) e non in una installazione `enterprise` vera.
-4. **Entra.** Dopo il login l'operatore apre il backoffice con il ruolo della scheda (`ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST`). Il membro apre il portale dopo la fetta V9b: finché non c'è, le schede dei membri sono visibili ma **non attive** e dicono che il portale arriva con il prossimo aggiornamento.
+4. **Entra.** Dopo il login l'operatore apre il backoffice con il ruolo della scheda (`ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST`). Il membro apre il portale (fetta V9b): il membro viene solo dal token. Con una sessione da membro già aperta, la scheda del suo utente dice «Sei dentro come…» con **Apri il portale** e le altre schede di membro offrono **Esci per entrare come…** (chiude la sola sessione del membro). **Laura** non è registrata: dopo il login il portale la porta alla registrazione (PT-16) con nome ed e-mail dell'account in sola lettura; si accetta il regolamento e si invia, poi si attende la tessera e si apre la Home.
 5. **Utenti membri.** Nel backoffice, `ADMIN` e `CARE` hanno la voce **Utenti membri**: apre la console del realm `loyaltyhub-members` (password, sessioni e blocchi degli account di accesso dei membri).
 
 ### Console di Keycloak

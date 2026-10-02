@@ -1,7 +1,7 @@
 "use client";
 
 import { useLhQuery } from "@/lib/api/client";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import Link from "next/link";
 import type { PortalCampaign } from "@/lib/api/types";
 import { QueryState } from "@/components/shared/QueryState";
@@ -9,8 +9,8 @@ import { QueryState } from "@/components/shared/QueryState";
 // PT-02 Guadagna (docs/09 §PT-02): campagne attive in forma leggibile, con riepilogo premio; collegamento a PT-11.
 
 export default function EarnPage() {
-  const memberId = useActiveMember();
-  const query = useLhQuery<PortalCampaign[]>("campaign", "/v1/portal/campaigns", { memberId });
+  const api = usePortalApi();
+  const query = useLhQuery<PortalCampaign[]>("campaign", "/v1/portal/campaigns", api.query());
 
   return (
     <div className="space-y-4">

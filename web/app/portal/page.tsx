@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
-import type { Edition, WalletView, MemberView } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import type { Edition, WalletView, MemberSummary } from "@/lib/api/types";
+import { useActiveMember, usePortalApi } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
 import { MemberCard } from "@/components/shared/content/MemberCard";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
@@ -14,6 +14,7 @@ import { PopupHost } from "@/components/portal/PopupHost";
 import { usePortalTheme } from "@/components/shared/ThemeContext";
 import { formatPoints } from "@/lib/format/points";
 import { formatDate, formatDayMonth } from "@/lib/format/dates";
+import { it } from "@/lib/i18n/it";
 import { isAnonymized, memberDisplayName } from "@/lib/member/anonymized";
 
 // PT-01 Home (docs/09 §PT-01): tessera, saldo, avanzamento livello, card hero (HOME_HERO), azioni rapide, griglia di
@@ -21,19 +22,20 @@ import { isAnonymized, memberDisplayName } from "@/lib/member/anonymized";
 // (/portal/join → ?welcome=1), se i punti di benvenuto non sono ancora sul saldo, "in arrivo…".
 export default function PortalHome() {
   const memberId = useActiveMember();
+  const api = usePortalApi();
   const theme = usePortalTheme();
   const { pending, markPending } = usePending();
-  const wallet = useLhQuery<WalletView>("wallet", `/v1/portal/wallets/${memberId}`, undefined, {
+  const wallet = useLhQuery<WalletView>("wallet", api.wallet, undefined, {
     refetchInterval: pending ? 5000 : undefined,
   });
-  const member = useLhQuery<MemberView>("member", `/v1/members/${memberId}`);
-  const activity = useLhQuery<ActivityItem[]>("wallet", `/v1/portal/wallets/${memberId}/activity`, { size: 3 }, {
+  const member = useLhQuery<MemberSummary>("member", api.summary);
+  const activity = useLhQuery<ActivityItem[]>("wallet", api.walletActivity, { size: 3 }, {
     refetchInterval: pending ? 5000 : undefined,
   });
 
   // Avviso di mantenimento (docs/09 §PT-01, wallet §2 `keepWarning`): la scadenza è la fine dell'edizione attiva.
   const keepWarning = wallet.data?.tier.keepWarning ?? null;
-  const editions = useLhQuery<Edition[]>("wallet", "/v1/editions", undefined, { enabled: keepWarning != null });
+  const editions = useLhQuery<Edition[]>("wallet", api.editions, undefined, { enabled: keepWarning != null });
   const editionEnd = editions.data?.find((e) => e.status === "ACTIVE")?.endDate ?? null;
 
   // Un membro anonimizzato (F-MBR-05) non ha più un nome: saluto senza nome, tessera col segnaposto.
@@ -42,9 +44,13 @@ export default function PortalHome() {
   const suspended = member.data?.status === "BLOCKED" || member.data?.status === "INACTIVE";
   const name = anonymized ? "" : (member.data?.firstName ?? "");
   const [welcome, setWelcome] = useState(false);
+  // `pending=1`: la registrazione ha atteso il saldo per 20 s senza vederlo (EnterpriseJoin): nota «Il saldo arriva a breve».
+  const [balanceSoon, setBalanceSoon] = useState(false);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("welcome") === "1") {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("welcome") === "1") {
       setWelcome(true);
+      setBalanceSoon(q.get("pending") === "1");
       window.history.replaceState(null, "", "/portal");
     }
   }, []);
@@ -59,6 +65,11 @@ export default function PortalHome() {
         <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Ciao{name ? ` ${name}` : ""} 👋</h1>
         {theme.heroTitle ? <p className="text-sm text-[var(--color-pt-night)]/70">{theme.heroTitle}</p> : null}
       </div>
+      {balanceSoon ? (
+        <p role="status" className="rounded-xl bg-slate-100 p-3 text-sm text-[var(--color-pt-night)]">
+          {it.portalMember.balanceSoon}
+        </p>
+      ) : null}
       {suspended ? (
         <p role="status" className="rounded-xl bg-amber-100 p-3 text-sm text-amber-900">
           Il tuo profilo è sospeso: puoi consultare ma non accumulare o richiedere premi.

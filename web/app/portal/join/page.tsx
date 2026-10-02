@@ -8,19 +8,25 @@ import type { MemberView } from "@/lib/api/types";
 import { joinErrorFromApi, normalizeCode, validateJoin, type JoinErrors, type JoinForm } from "@/lib/member/profile";
 import { cn } from "@/lib/cn";
 import { usePortalTheme } from "@/components/shared/ThemeContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
+import { EnterpriseJoin } from "@/components/portal/EnterpriseJoin";
+import { inputCls, JoinField, Preparing, waitForWallet } from "@/components/portal/joinParts";
 
 // PT-08 Registrazione (docs/09 §PT-08, F-MBR-06, F-REF-01): nome, cognome, e-mail, codice amico opzionale (da ?ref=),
 // consenso. Invio → member POST /v1/members → il nuovo membro diventa la persona attiva → PT-01 col benvenuto.
 // Prima di aprire la Home si attende che il wallet esista (i 100 punti di benvenuto arrivano via campagna).
+// Profilo enterprise (PT-16, F2-SEC-09, ADR-051): variante `EnterpriseJoin`, con nome ed e-mail dal token e senza memberId.
 export default function JoinPage() {
   return (
     <Suspense fallback={null}>
-      <JoinForm />
+      <JoinGate />
     </Suspense>
   );
 }
 
-const WALLET_WAIT_MS = 20_000;
+function JoinGate() {
+  return usePortalApi().enterprise ? <EnterpriseJoin /> : <JoinForm />;
+}
 
 function JoinForm() {
   const params = useSearchParams();
@@ -71,27 +77,11 @@ function JoinForm() {
       body: JSON.stringify({ kind: "MEMBER", memberId: created.id }),
     });
     setPhase("preparing");
-    const deadline = Date.now() + WALLET_WAIT_MS;
-    while (Date.now() < deadline) {
-      try {
-        await lhFetch("wallet", `/v1/portal/wallets/${created.id}`);
-        break;
-      } catch {
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-    }
+    await waitForWallet(`/v1/portal/wallets/${created.id}`);
     window.location.href = "/portal?welcome=1";
   }
 
-  if (phase === "preparing") {
-    return (
-      <div className="space-y-3 py-10 text-center">
-        <div className="mx-auto size-10 animate-spin rounded-full border-4 border-[var(--color-pt-primary)]/20 border-t-[var(--color-pt-primary)]" />
-        <p className="font-medium text-[var(--color-pt-night)]">Stiamo preparando la tua tessera…</p>
-        <p className="text-sm text-[var(--color-pt-night)]/60">I 100 punti di benvenuto sono in arrivo.</p>
-      </div>
-    );
-  }
+  if (phase === "preparing") return <Preparing />;
 
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
@@ -140,22 +130,5 @@ function JoinForm() {
         Sei già iscritto? <Link href="/portal" className="underline">Torna alla Home</Link>
       </p>
     </form>
-  );
-}
-
-function JoinField({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block font-medium text-[var(--color-pt-night)]">{label}</span>
-      {children}
-      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : hint ? <span className="mt-1 block text-xs text-[var(--color-pt-night)]/60">{hint}</span> : null}
-    </label>
-  );
-}
-
-function inputCls(error?: string): string {
-  return cn(
-    "w-full rounded-lg border px-3 py-2 text-sm text-[var(--color-pt-night)] outline-none focus:ring-2 focus:ring-[var(--color-pt-primary)]/30",
-    error ? "border-red-400" : "border-[var(--color-bo-border)]",
   );
 }

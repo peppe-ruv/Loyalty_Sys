@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
-import type { WalletView, MemberView, Tier } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import type { WalletView, MemberSummary, Tier } from "@/lib/api/types";
+import { useActiveMember, usePortalApi } from "@/components/portal/MemberContext";
 import { MemberCard } from "@/components/shared/content/MemberCard";
 import { QueryState } from "@/components/shared/QueryState";
 import { formatPoints } from "@/lib/format/points";
@@ -14,9 +14,10 @@ import { isAnonymized, memberDisplayName } from "@/lib/member/anonymized";
 // punti status, regola di permanenza), "I tuoi dati" modificabili con completezza (M5.6), collegamenti a PT-09/11/13.
 export default function PortalProfile() {
   const memberId = useActiveMember();
-  const wallet = useLhQuery<WalletView>("wallet", `/v1/portal/wallets/${memberId}`);
+  const api = usePortalApi();
+  const wallet = useLhQuery<WalletView>("wallet", api.wallet);
   const tiers = useLhQuery<Tier[]>("wallet", "/v1/portal/tiers");
-  const member = useLhQuery<MemberView>("member", `/v1/members/${memberId}`);
+  const member = useLhQuery<MemberSummary>("member", api.summary);
 
   const fullName = member.data ? memberDisplayName(member.data, memberId) : memberId;
 
@@ -81,7 +82,7 @@ export default function PortalProfile() {
                 Profilo anonimizzato: i dati personali sono stati rimossi e non sono più modificabili.
               </section>
             ) : (
-              <ProfileSection memberId={memberId} />
+              <ProfileSection />
             )}
 
             <section>

@@ -2,7 +2,7 @@
 
 Area `/portal` dell'app `web/`. Fondamenta: `docs/07` (tema "Aurora", tessera membro, stati, asincronia). Qui: shell, regole trasversali e le schermate `PT-01…PT-14`. Il portale è **ciò che il cliente finale vedrebbe**: niente gergo tecnico, niente ID di sistema, niente stati interni. Tutto ciò che mostra (card, pop-up, premi, concorsi, testi, colori) è **configurato dal backoffice**.
 
-Notazione endpoint come in `docs/08`. Ogni chiamata porta il `memberId` della persona attiva (`docs/07 §4`).
+Notazione endpoint come in `docs/08`. Nel profilo `demo` ogni chiamata porta il `memberId` della persona attiva (`docs/07 §4`). Nel profilo `enterprise` (M8.14 V9b, F2-SEC-09, ADR-048, ADR-051) **il membro viene solo dal token** della sessione del BFF: nessuna schermata scrive un `memberId` né nel percorso, né in query, né nel corpo (§2-bis).
 
 ## 1. Shell
 
@@ -52,6 +52,45 @@ Una voce non ancora realizzata non compare (stessa regola del backoffice).
 - **Vuoti utili**: ogni stato vuoto invita a un'azione (es. "Nessun movimento ancora. Scopri come guadagnare punti").
 - **Movimento**: coriandoli solo per vincita e salita di livello; tutto disattivato con `prefers-reduced-motion` (rivelazione diretta).
 - **Componenti condivisi col backoffice**: `ContentCard`, `PopupModal`, `WinCard`, `MemberCard` (tessera) vivono in `components/shared/content` così l'anteprima di BO-18/BO-20 è fedele.
+
+## 2-bis. Portale dal token (profilo `enterprise`, M8.14 V9b)
+
+Le schermate non cambiano: cambia come dicono «chi sono» ai servizi. Un solo punto, `lib/portal/memberApi.ts` (`portalApi`, letto con `usePortalApi()`), restituisce percorsi, parametri di query e corpi per i due profili; nessuna schermata scrive un `memberId` a mano. In `demo` i percorsi sono quelli di sempre (persona del cookie, `memberId` esplicito). In `enterprise`:
+
+| Vista | `demo` | `enterprise` (membro dal token) |
+|---|---|---|
+| Identità del membro (id solo per mostrare, mai rinviato) | cookie `lh_persona` | `GET /v1/portal/me/profile` |
+| Saldo, livello (PT-01, PT-03, PT-04, PT-08) | `GET /v1/portal/wallets/{id}` | `GET /v1/portal/me/wallet` |
+| Movimenti (PT-01, PT-07) | `GET /v1/portal/wallets/{id}/activity` | `GET /v1/portal/me/wallet/activity` |
+| Nome e stato per tessera e saluto | `GET /v1/members/{id}` | `GET /v1/portal/me/profile` |
+| Profilo (PT-08) e modifica | `GET`/`PATCH /v1/portal/members/{id}` | `GET`/`PATCH /v1/portal/me/profile` |
+| Codice amico e invitati (PT-11) | `GET /v1/portal/members/{id}/referral` | `GET /v1/portal/me/referral` |
+| Campagne, contenuti, catalogo, premio, concorsi, giocate, classifiche, traguardi, badge, coupon, richieste premio, notifiche, pop-up | stessi percorsi `/v1/portal/**` con `memberId` in query o nel corpo | gli stessi percorsi **senza** `memberId` |
+| Annullamento di una richiesta premio (PT-13) | `POST /v1/portal/redemptions/{id}/cancel?memberId=` | `POST /v1/portal/redemptions/{id}/cancel` |
+| Categorie premio (PT-03, PT-04) | `GET /v1/reward-categories` | `GET /v1/portal/reward-categories` (la variante del backoffice è del realm operatori) |
+| Edizioni per l'avviso di mantenimento (PT-01) | `GET /v1/editions` | `GET /v1/portal/editions` |
+
+- **Ingresso** (`EnterpriseMemberGate`, nel layout del portale): senza sessione del membro il layout porta al login del realm dei membri (`/api/auth/login?returnTo=/portal…`, il portale è sempre del realm `members`); un account di operatore vede «Il portale è riservato ai membri». Con la sessione, il portale chiede `GET /v1/portal/me/profile`: *loading* («Sto aprendo il tuo portale…»), *degraded* se member-service dorme (riprova ogni 5 s), *error* con «Riprova», e `404 MEMBER_NOT_REGISTERED` → `/portal/join` (PT-16). Un membro già registrato che apre `/portal/join` va alla Home.
+```mermaid
+flowchart TD
+  accTitle: Ingresso del portale dei membri in enterprise
+  accDescr: Senza sessione del membro il portale porta al login del realm dei membri; con un account di operatore mostra un rifiuto. Con la sessione chiede il profilo dal token: se il membro esiste apre la Home, se risponde 404 MEMBER_NOT_REGISTERED porta alla registrazione PT-16, dove nome ed e-mail dell'account sono in sola lettura; l'invio crea il membro dal token, si attende la tessera e si apre la Home.
+  A[Apertura di /portal] --> B{Sessione del membro?}
+  B -->|no| C[Login del realm members<br/>poi di nuovo qui]
+  B -->|account di operatore| D[Rifiuto con uscita]
+  B -->|sì| E[GET /v1/portal/me/profile]
+  E -->|200| F[Home e schermate<br/>percorsi senza memberId]
+  E -->|404 MEMBER_NOT_REGISTERED| G[Registrazione PT-16<br/>nome ed e-mail dal token, sola lettura]
+  G --> H[POST /v1/portal/members<br/>senza memberId]
+  H --> I[Attesa del wallet<br/>GET /v1/portal/me/wallet]
+  I --> F
+```
+
+- **Senza membro** (solo la pagina di registrazione) shell e campanella non chiamano nessun servizio e la tab bar non compare.
+- **Tempo reale**: l'`EventSource` di `insight` non ha un token (il proxy SSE del BFF è rinviato, BO-24, Q-622): in `enterprise` l'attesa «in arrivo…» usa solo il polling del wallet ogni 5 s.
+- **Tema**: il layout legge `GET /v1/portal/theme` lato server senza token; in `enterprise` può rispondere `401` e allora vale il tema Aurora (stato *degraded* innocuo). Con V9b la parte web di Q-410 è chiusa: nessun percorso del web invia un `memberId` in `enterprise` (verificato dai test del portale intero).
+- **Subito dopo la registrazione** i servizi rispondono `409 MEMBER_NOT_LINKED` (`Retry-After: 2`, Q-553) finché non hanno consumato `member.registered`: la regola di nuovo tentativo di TanStack Query (`lib/api/retry.ts`) lo riprova ogni 2 s fino a 5 volte. Un aggiornamento in secondo piano fallito di `GET /v1/portal/me/profile` (per esempio dopo il salvataggio del profilo) non sostituisce il portale con un riquadro d'errore: gli stati *degraded* ed *error* dell'ingresso compaiono solo senza un dato già noto.
+- **Classifica** (PT-10): senza `memberId` il BFF non può evidenziare la riga del membro né, con un token di solo membro, risolvere i soprannomi (`Giocatore <posizione>`, stato *degraded*; SPEC-GAP: Q-411). Resta la riga «la tua posizione» che il servizio calcola dal token.
 
 ## 3. Schermate
 
@@ -105,7 +144,8 @@ Una voce non ancora realizzata non compare (stessa regola del backoffice).
 ### PT-08 — Profilo e livello
 - **Dati**: `member GET/PATCH /v1/portal/members/{id}` · `wallet GET /v1/portal/wallets/{id}` · `wallet GET /v1/portal/tiers` (scala, vantaggi, soglie).
 - **Layout**: tessera grande · sezione **Il tuo livello**: scala dei 4 livelli col materiale, livello attuale evidenziato, vantaggi per livello, moltiplicatore ("Guadagni ×1,25 punti"), punti status dell'edizione, regola di permanenza spiegata in una frase ("A fine anno puoi scendere al massimo di un livello") · sezione **I tuoi dati**: nome, e-mail, telefono, data di nascita, città, consensi; **indicatore di completezza** con i campi mancanti e il premio previsto ("Completa il profilo: +150 punti") — al salvataggio dell'ultimo campo parte `member.profile.completed` · collegamenti: obiettivi (PT-09), i miei premi (PT-13), porta un amico (PT-11), notifiche (PT-12).
-- **Registrazione** (`/portal/join`, `F-MBR-06`): form minimo — nome, cognome, e-mail, codice amico opzionale (precompilato da `?ref=`), consenso. Invio → `member POST /v1/members` → il nuovo membro diventa la persona attiva → PT-01 con pop-up di benvenuto e "+100 punti in arrivo…". Codice amico non valido → errore sul campo.
+- **Registrazione** (`/portal/join`, `F-MBR-06`; profilo `demo`): form minimo — nome, cognome, e-mail, codice amico opzionale (precompilato da `?ref=`), consenso. Invio → `member POST /v1/members` → il nuovo membro diventa la persona attiva → PT-01 con pop-up di benvenuto e "+100 punti in arrivo…". Codice amico non valido → errore sul campo.
+- **Registrazione da zero in `enterprise`** (PT-16, F2-SEC-09, ADR-048, ADR-051, Q-673; la schermata di Laura): l'account esiste nel realm dei membri ma `GET /v1/portal/me/profile` risponde `404 MEMBER_NOT_REGISTERED`, e il portale porta a `/portal/join`. Titolo «Ciao <Nome>, completa l'iscrizione»; **nome e cognome** ed **e-mail** vengono dall'ID token (claim `given_name`, `family_name`, `email`, altrimenti `name`, letti lato server dal BFF: al browser arrivano solo questi tre valori, mai i token, regola 20) e sono **in sola lettura nell'interfaccia**: nessun campo per scegliere un altro membro. Il servizio però accetta il corpo così com'è (non confronta nome ed e-mail con i claim del token): rischio accettato con Q-557, l'e-mail non è verificata. Si compilano solo il codice amico (facoltativo, da `?ref=`), il consenso a regolamento e informativa (**obbligatorio**) e il marketing (facoltativo). Invio → `member POST /v1/portal/members` con `{firstName, lastName, email, referralCode?, consents}` (senza `memberId`, canale né stato: il membro nasce dal `sub` del token, idempotente) → «Benvenuta, <Nome>» con «Stiamo preparando il tuo saldo…» finché `GET /v1/portal/me/wallet` risponde (al più 20 s; una sessione scaduta, `401`, ferma l'attesa e porta al login) → PT-01 con «+100 punti in arrivo…»; se il saldo non arriva entro 20 s la Home si apre comunque (`/portal?welcome=1&pending=1`) con la nota «Il saldo arriva a breve». Stati: *loading* (ingresso), *error* (codice amico non valido sul campo, rifiuto del servizio in un riquadro in testa), *degraded* (token senza nome o e-mail: «Non disponibile…» e invio spento). SPEC-GAP: Q-557.
 
 ### PT-09 — Obiettivi e badge
 - **Dati**: `gamification GET /v1/portal/achievements`, `/v1/portal/badges`.

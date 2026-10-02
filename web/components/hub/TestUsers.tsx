@@ -24,8 +24,10 @@ import { OtpCard } from "./OtpCard";
 // Sessione aperta: Keycloak rifiuta di autenticare un altro utente sopra una sessione SSO esistente, quindi con una
 // sessione da operatore la scheda dell'utente collegato offre «Apri il backoffice» e ogni ALTRA scheda offre l'uscita
 // («Esci per entrare come <Nome>») al posto del collegamento di ingresso; `prompt=login` resta, innocuo.
-// SPEC-GAP: Q-673 — finché `MEMBER_PORTAL_READY` è false (portale dal token: fetta V9b) i pulsanti dei membri sono
-// disabilitati e la scheda lo dice.
+// Membri (V9b, F2-SEC-09, ADR-051): il portale funziona dal token, quindi le schede dei membri sono attive. Le sessioni
+// dei due realm sono indipendenti: con una sessione da membro la scheda del membro collegato offre «Apri il portale» e
+// ogni ALTRA scheda di membro offre l'uscita dalla sola sessione del MEMBRO («Esci per entrare come <Nome>»).
+// SPEC-GAP: Q-673 — se `MEMBER_PORTAL_READY` è false i pulsanti dei membri tornano disabilitati e la scheda lo dice.
 
 const t = it.testUsers;
 
@@ -136,7 +138,7 @@ function OperatorCard({ op, user }: { op: (typeof TEST_OPERATORS)[number]; user:
   );
 }
 
-function MemberCard({ m }: { m: (typeof TEST_MEMBERS)[number] }) {
+function MemberCard({ m, user }: { m: (typeof TEST_MEMBERS)[number]; user: Pick<SessionUser, "username" | "name"> | null }) {
   const first = m.name.split(" ")[0];
   const label = m.registered ? t.enterAs(first) : t.registerAs(first);
   return (
@@ -147,7 +149,19 @@ function MemberCard({ m }: { m: (typeof TEST_MEMBERS)[number] }) {
         pill={m.registered ? <Pill tone="ok">{t.registered[m.gender]}</Pill> : <Pill tone="warn">{t.toRegister}</Pill>}
       />
       <p className="flex-1 text-sm text-[var(--color-bo-ink-2)]">{m.story}</p>
-      {MEMBER_PORTAL_READY ? (
+      {MEMBER_PORTAL_READY && user !== null && user.username === m.username ? (
+        <>
+          <p className="text-xs font-medium text-[var(--color-state-up)]">{t.signedInAs(user.name ?? user.username)}</p>
+          <a href="/portal" className={cardBtn}>
+            {t.openPortal} <ArrowRight className="h-4 w-4" aria-hidden />
+          </a>
+        </>
+      ) : MEMBER_PORTAL_READY && user !== null ? (
+        <>
+          <p className="text-xs font-medium text-[var(--color-bo-ink-2)]">{t.signedInAs(user.name ?? user.username)}</p>
+          <LogoutButton realm="members" label={t.logoutToEnterAs(first)} className={cn(ghostBtn, "w-full text-sm")} />
+        </>
+      ) : MEMBER_PORTAL_READY ? (
         <a href={loginHref("members", "/portal", m.username)} className={cardBtn}>
           <LogIn className="h-4 w-4" aria-hidden /> {label}
         </a>
@@ -201,7 +215,17 @@ function ConsoleCard({
 }
 
 /** I tre gruppi di schede di HUB-02 nell'ambiente di test: operatori, membri, console di Keycloak. */
-export function TestUsers({ mode, user }: { mode: TestMode; user: Pick<SessionUser, "username" | "name"> | null }) {
+export function TestUsers({
+  mode,
+  user,
+  memberUser = null,
+}: {
+  mode: TestMode;
+  /** Sessione dell'operatore (realm operatori), se c'è. */
+  user: Pick<SessionUser, "username" | "name"> | null;
+  /** Sessione del membro (realm membri), se c'è: indipendente da quella dell'operatore. */
+  memberUser?: Pick<SessionUser, "username" | "name"> | null;
+}) {
   const seedHint = `${OPERATORS_TOTP_SEED.slice(0, 8)}…${OPERATORS_TOTP_SEED.slice(-8)}`;
   return (
     <div className="space-y-8" data-testid="test-users">
@@ -221,7 +245,7 @@ export function TestUsers({ mode, user }: { mode: TestMode; user: Pick<SessionUs
         <GroupHeader id="tu-members" title={t.members} passwordWhat={t.membersPassword} password={MEMBERS_PASSWORD} />
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {TEST_MEMBERS.map((m) => (
-            <MemberCard key={m.username} m={m} />
+            <MemberCard key={m.username} m={m} user={memberUser} />
           ))}
         </div>
         <p className="mt-2 text-xs text-[var(--color-bo-ink-2)]">{t.membersNote}</p>

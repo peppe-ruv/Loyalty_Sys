@@ -16,7 +16,12 @@ vi.mock("@/lib/api/client", () => ({
     return { isLoading: false, isError: false, error: null, isFetched: true, refetch: vi.fn(), ...q };
   },
 }));
-vi.mock("@/components/portal/MemberContext", () => ({ useActiveMember: () => "MBR-000002" }));
+// Profilo demo: stessi percorsi di sempre, dal seam del portale (lib/portal/memberApi.ts).
+vi.mock("@/components/portal/MemberContext", async () => {
+  const { portalApi } = await import("@/lib/portal/memberApi");
+  const api = portalApi(false, "MBR-000002");
+  return { useActiveMember: () => "MBR-000002", usePortalApi: () => api };
+});
 const markPending = vi.fn();
 vi.mock("@/components/portal/PendingContext", () => ({ usePending: () => ({ pending: false, markPending }) }));
 vi.mock("@/components/portal/ContentSlot", () => ({ ContentSlot: () => null }));
@@ -159,4 +164,16 @@ it("[TB-WEB-HOME-021] dopo l'iscrizione con i punti di benvenuto già sul saldo 
   window.history.replaceState(null, "", "/portal?welcome=1");
   setup({ data: wallet() });
   expect(markPending).not.toHaveBeenCalled();
+});
+
+it("registrazione enterprise: ?welcome=1&pending=1 (saldo non arrivato in 20 s) → nota «Il saldo arriva a breve»", () => {
+  window.history.replaceState(null, "", "/portal?welcome=1&pending=1");
+  setup({ data: wallet() });
+  expect(document.body.textContent).toContain("Il saldo arriva a breve");
+});
+
+it("senza pending=1 nessuna nota sul saldo", () => {
+  window.history.replaceState(null, "", "/portal?welcome=1");
+  setup({ data: wallet() });
+  expect(document.body.textContent).not.toContain("Il saldo arriva a breve");
 });

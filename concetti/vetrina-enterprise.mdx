@@ -15,7 +15,7 @@ La vetrina è una prova da guardare, non un servizio di produzione: non è ad al
 </Note>
 
 <Warning>
-**Ambiente di test (ADR-051, 2026-10-02).** La vetrina diventa un ambiente di test da usare tutto dal browser: gli utenti di test hanno credenziali fisse e pubbliche, documentate in questa pagina, e Keycloak torna alla configurazione del repository a ogni avvio. Non inserire mai dati personali veri. Utenti di test, reset e membri di prova sono della fetta V8; gli ingressi dal browser (riquadro di accensione, schede degli utenti, console dei realm) sono della fetta V9; il portale dei membri dal token, della fetta V9b; le altre parti arrivano con le fette V10–V12 di M8.14.
+**Ambiente di test (ADR-051, 2026-10-02).** La vetrina diventa un ambiente di test da usare tutto dal browser: gli utenti di test hanno credenziali fisse e pubbliche, documentate in questa pagina, e Keycloak torna alla configurazione del repository a ogni avvio. Non inserire mai dati personali veri. Utenti di test, reset e membri di prova sono della fetta V8; gli ingressi dal browser (riquadro di accensione, schede degli utenti, console dei realm) sono della fetta V9; il portale dei membri dal token, con la registrazione di Laura, della fetta V9b; le altre parti arrivano con le fette V10–V12 di M8.14.
 </Warning>
 
 ## Come sono collegate le due istanze
@@ -127,7 +127,7 @@ flowchart TD
   D -->|Membro| F[Login nel realm loyaltyhub-members<br/>login_hint dall'utente scelto]
   D -->|Amministratore di test| G[Console del realm<br/>vetrina.admin o membri.admin]
   E --> H[Backoffice<br/>per il ruolo dell'operatore]
-  F --> I[Portale dei membri<br/>attivo con V9b]
+  F --> I[Portale dei membri<br/>il membro viene dal token]
   G --> J[Utenti, ruoli, sessioni, eventi]
   P[Console del realm master<br/>porta 8180 privata] -.->|solo il proprietario| K[Configurazione di Keycloak]
 ```
@@ -135,7 +135,7 @@ flowchart TD
 1. **Accendi.** Sulla demo, il riquadro **Modalità Enterprise** mostra lo stato della vetrina (*spenta*, *in accensione*, *accesa*). Il pulsante **Accendi la modalità Enterprise** chiede a GitHub di avviare il codespace: l'avvio richiede 3–5 minuti e il pulsante diventa **Apri la vetrina** da solo. Il codespace si spegne dopo circa 30 minuti senza uso del terminale: lo riaccendi dallo stesso pulsante. Il pulsante usa le ore gratuite di Codespaces del proprietario, controlla l'origine della richiesta, ammette al più un avvio ogni 60 secondi e legge lo stato da GitHub al più ogni 5 secondi.
 2. **Scegli un utente di test.** HUB-02 mostra una scheda per ogni utente di test: cinque operatori per il backoffice e quattro membri per il portale. Ogni scheda ha nome utente e password da copiare. **Entra come…** apre il login del realm giusto con `login_hint`: il nome utente arriva già compilato e resta da scrivere la password.
 3. **Inserisci il codice OTP.** Gli operatori hanno la MFA. La scheda mostra il **codice OTP del momento**, calcolato dal seme documentato in «Utenti di test», con il conto alla rovescia dei 30 secondi. Il codice compare solo in questo ambiente di test dichiarato (Q-676).
-4. **Entra.** L'operatore apre il backoffice con il ruolo della scheda. Il membro apre il portale dopo la fetta V9b: finché non c'è, le schede dei membri sono visibili ma **inattive**.
+4. **Entra.** L'operatore apre il backoffice con il ruolo della scheda. Il membro apre il portale: il membro viene solo dal token, senza scegliere un `memberId`. Se hai già una sessione da membro, la scheda del tuo utente dice «Sei dentro come…» con **Apri il portale** e le altre offrono **Esci per entrare come…** (chiude la sola sessione del membro). **Laura** non è registrata: dopo il login il portale la porta alla registrazione, con nome ed e-mail dell'account già compilati e in sola lettura; resta da accettare il regolamento (il codice amico e il marketing sono facoltativi).
 5. **Gestisci gli utenti membri.** Nel backoffice, `ADMIN` e `CARE` hanno la voce **Utenti membri**, che apre la console del realm `loyaltyhub-members`.
 
 <Note>
@@ -171,7 +171,7 @@ Le modifiche fatte nelle console non arrivano ancora nell'audit del backoffice: 
 - **Alta disponibilità**: un solo host, un broker, un Postgres e una replica del web. Gli obiettivi di livello del servizio di ADR-036 non valgono per la vetrina.
 - **Dati reali**: solo dati fittizi, nessun backup e nessuna garanzia di conservazione. La vetrina parte vuota a ogni codespace nuovo e lo dice nel banner di HUB-02 (Q-624, Q-663).
 - **Persone demo**: al posto del selettore di persona c'è il login, e i membri `MBR-*` del seed non esistono in questa istanza.
-- **Portale membri**: la registrazione libera di account resta chiusa. Il portale è aperto ai soli membri di test (ADR-051 decisione 2), ma le loro schede in HUB-02 restano inattive finché non arriva la fetta V9b, che porta le schermate del portale al token del membro.
+- **Portale membri**: la registrazione libera di account resta chiusa. Il portale è aperto ai soli membri di test (ADR-051 decisione 2) e funziona dal token del membro (fetta V9b): le schede dei membri in HUB-02 sono attive.
 - **Scenari che accreditano punti**: in `enterprise` l'ingresso degli eventi accetta solo il ruolo `SOURCE` (un client `private_key_jwt` per fonte) o un `ADMIN`; le fonti di prova non hanno chiavi pubblicate e gli scenari demo (`/v1/demo/**`) non esistono in questa istanza.
 - **Tempo reale in BO-24**: la schermata resta in stato *degraded* finché non c'è un proxy per gli eventi in tempo reale (Q-622).
 - **Assistente e CMS**: spenti o non installati in questa istanza.

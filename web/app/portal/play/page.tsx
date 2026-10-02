@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Gift, Sparkles, Ticket, Trophy } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalContest } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { ContentSlot } from "@/components/portal/ContentSlot";
 import { endsIn, freePlayLine, shortPrize } from "@/lib/gamification/play";
@@ -14,8 +14,8 @@ import { endsIn, freePlayLine, shortPrize } from "@/lib/gamification/play";
 const MECHANIC_WORD: Record<string, string> = { WHEEL: "Gira la ruota", SCRATCH: "Gratta e scopri", BOX: "Scegli un pacco" };
 
 export default function PlayPage() {
-  const memberId = useActiveMember();
-  const contests = useLhQuery<PortalContest[]>("gamification", "/v1/portal/contests", { memberId });
+  const api = usePortalApi();
+  const contests = useLhQuery<PortalContest[]>("gamification", "/v1/portal/contests", api.query());
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold text-[var(--color-pt-night)]">Gioca</h1>

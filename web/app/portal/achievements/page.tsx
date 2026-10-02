@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Check, Lock } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalAchievement, PortalBadge } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { useActiveMember, usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { gameIcon, periodPhrase, streakDots } from "@/lib/gamification/achievements";
 import { formatDate } from "@/lib/format/dates";
@@ -17,8 +17,9 @@ import { cn } from "@/lib/cn";
 // arriva mentre la pagina è aperta fa pulsare la scheda e mostra "Badge sbloccato".
 export default function AchievementsPage() {
   const memberId = useActiveMember();
-  const achievements = useLhQuery<PortalAchievement[]>("gamification", "/v1/portal/achievements", { memberId }, { refetchInterval: 8_000 });
-  const badges = useLhQuery<PortalBadge[]>("gamification", "/v1/portal/badges", { memberId }, { refetchInterval: 8_000 });
+  const api = usePortalApi();
+  const achievements = useLhQuery<PortalAchievement[]>("gamification", "/v1/portal/achievements", api.query(), { refetchInterval: 8_000 });
+  const badges = useLhQuery<PortalBadge[]>("gamification", "/v1/portal/badges", api.query(), { refetchInterval: 8_000 });
   const fresh = useFreshCompletions(achievements.data, memberId);
 
   return (

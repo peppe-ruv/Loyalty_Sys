@@ -7,7 +7,7 @@ import { useLhQuery } from "@/lib/api/client";
 import { UNREAD_POLL_MS, unreadBadge } from "@/lib/messages/inbox";
 import type { UnreadCount } from "@/lib/messages/types";
 import { cn } from "@/lib/cn";
-import { useActiveMember } from "./MemberContext";
+import { usePortalApi, useUnregistered } from "./MemberContext";
 
 // Campanella della shell (docs/09 §1): contatore dei non letti da engagement, ogni 30 s e a ogni fatto ricevuto
 // (PendingContext invalida la query all'arrivo dei fatti del giro). Tocco → PT-12. Engagement che dorme o risponde
@@ -17,13 +17,16 @@ import { useActiveMember } from "./MemberContext";
 export const UNREAD_PATH = "/v1/portal/inbox/unread-count";
 
 export function useUnreadCount() {
-  const memberId = useActiveMember();
-  return useLhQuery<UnreadCount>("engagement", UNREAD_PATH, { memberId }, { refetchInterval: UNREAD_POLL_MS });
+  const api = usePortalApi();
+  // Enterprise senza membro (registrazione PT-16): nessuna chiamata finché non c'è il membro.
+  const enabled = !useUnregistered();
+  return useLhQuery<UnreadCount>("engagement", UNREAD_PATH, api.query(), { refetchInterval: UNREAD_POLL_MS, enabled });
 }
 
 export function InboxBell() {
   const pathname = usePathname();
   const unread = useUnreadCount();
+  if (useUnregistered()) return null;
   const badge = unread.isError ? null : unreadBadge(unread.data?.unread);
   const active = pathname === "/portal/inbox";
   return (
