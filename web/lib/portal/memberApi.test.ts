@@ -50,7 +50,7 @@ describe("portalApi in enterprise: il membro viene solo dal token", () => {
     expect(checkPortalBody("application/json", bytes(ent.body({ rewardCode: "RWD-1", shipping: { city: "Torino" } })))).toBeNull();
   });
 
-  it("l'id resta disponibile solo per mostrare e per le chiavi di cache", () => {
+  it("l'id resta disponibile solo per mostrare", () => {
     expect(ent.memberId).toBe(ID);
     expect(ent.enterprise).toBe(true);
   });

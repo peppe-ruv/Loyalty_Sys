@@ -165,3 +165,15 @@ it("[TB-WEB-HOME-021] dopo l'iscrizione con i punti di benvenuto già sul saldo 
   setup({ data: wallet() });
   expect(markPending).not.toHaveBeenCalled();
 });
+
+it("registrazione enterprise: ?welcome=1&pending=1 (saldo non arrivato in 20 s) → nota «Il saldo arriva a breve»", () => {
+  window.history.replaceState(null, "", "/portal?welcome=1&pending=1");
+  setup({ data: wallet() });
+  expect(document.body.textContent).toContain("Il saldo arriva a breve");
+});
+
+it("senza pending=1 nessuna nota sul saldo", () => {
+  window.history.replaceState(null, "", "/portal?welcome=1");
+  setup({ data: wallet() });
+  expect(document.body.textContent).not.toContain("Il saldo arriva a breve");
+});

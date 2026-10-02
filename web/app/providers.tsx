@@ -4,6 +4,7 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@ta
 import { useState } from "react";
 import { LhError } from "@/lib/api/client";
 import { redirectToLogin } from "@/lib/auth/browser";
+import { retryDelay, shouldRetry } from "@/lib/api/retry";
 
 /** Sessione del BFF scaduta (solo profilo enterprise, 401 `UNAUTHENTICATED`): si torna al login e poi qui. */
 function onError(error: unknown) {
@@ -20,8 +21,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 15_000,
-            // Una sessione scaduta non si ripara riprovando.
-            retry: (failures, error) => !(error instanceof LhError && error.unauthenticated) && failures < 1,
+            // Una sessione scaduta non si ripara riprovando; 409 MEMBER_NOT_LINKED subito dopo la registrazione sì (Q-553).
+            retry: shouldRetry,
+            retryDelay,
             refetchOnWindowFocus: false,
           },
         },

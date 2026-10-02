@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
-import type { WalletView, MemberView, Tier } from "@/lib/api/types";
+import type { WalletView, MemberSummary, Tier } from "@/lib/api/types";
 import { useActiveMember, usePortalApi } from "@/components/portal/MemberContext";
 import { MemberCard } from "@/components/shared/content/MemberCard";
 import { QueryState } from "@/components/shared/QueryState";
@@ -17,7 +17,7 @@ export default function PortalProfile() {
   const api = usePortalApi();
   const wallet = useLhQuery<WalletView>("wallet", api.wallet);
   const tiers = useLhQuery<Tier[]>("wallet", "/v1/portal/tiers");
-  const member = useLhQuery<MemberView>("member", api.summary);
+  const member = useLhQuery<MemberSummary>("member", api.summary);
 
   const fullName = member.data ? memberDisplayName(member.data, memberId) : memberId;
 

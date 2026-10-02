@@ -3,17 +3,16 @@
 // parametri e corpi a `portalApi(...)`.
 // - profilo `enterprise`: il membro viene SOLO dal token della sessione del BFF. Percorsi `/v1/portal/me/**` o senza id,
 //   nessun `memberId` in percorso, query o corpo (il BFF rifiuterebbe la richiesta, lib/auth/memberScope.ts). L'id che
-//   `GET /v1/portal/me/profile` restituisce serve solo a mostrare e a chiavare le cache: non torna mai indietro.
+//   `GET /v1/portal/me/profile` restituisce serve solo a mostrare: non torna mai indietro.
 // - profilo `demo`: invariato (regola 6-bis), persona del cookie e `memberId` esplicito come prima.
 // Funzioni pure: i test verificano che in enterprise l'id non compaia da nessuna parte.
-// SPEC-GAP: Q-410 (BFF e servizi: un solo contratto per i due profili).
 
 type Scalar = string | number | undefined;
 
 export interface PortalApi {
   /** `true` nel profilo enterprise (membro dal token). */
   readonly enterprise: boolean;
-  /** Id del membro: in enterprise solo per mostrare e per le chiavi di cache, mai da inviare. */
+  /** Id del membro: in enterprise solo per mostrare (tessera), mai da inviare. */
   readonly memberId: string;
   /** Saldi e livello (wallet). */
   readonly wallet: string;

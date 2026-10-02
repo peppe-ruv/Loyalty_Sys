@@ -14,6 +14,14 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(search),
 }));
+const { redirectToLogin, waitSpy } = vi.hoisted(() => ({ redirectToLogin: vi.fn(), waitSpy: vi.fn() }));
+vi.mock("@/lib/auth/browser", async (orig) => ({ ...(await orig<typeof import("@/lib/auth/browser")>()), redirectToLogin: () => redirectToLogin() }));
+// L'attesa vera resta, ma si può sostituire per provare lo scadere dei 20 s senza aspettarli.
+vi.mock("./joinParts", async (orig) => {
+  const actual = await orig<typeof import("./joinParts")>();
+  waitSpy.mockImplementation(actual.waitForWallet);
+  return { ...actual, waitForWallet: (...a: Parameters<typeof actual.waitForWallet>) => waitSpy(...a) };
+});
 vi.mock("@/components/shared/ThemeContext", () => ({ usePortalTheme: () => ({ programName: "Club Aurora" }) }));
 
 const ACCOUNT: AccountIdentity = { givenName: "Laura", familyName: "Conti", name: "Laura Conti", email: "laura.conti@example.org" };
@@ -38,6 +46,7 @@ function renderJoin(account: AccountIdentity = ACCOUNT) {
 let post: (init?: RequestInit) => Response;
 
 beforeEach(() => {
+  redirectToLogin.mockReset();
   search = "";
   calls = [];
   walletReady = true;
@@ -126,6 +135,46 @@ describe("PT-16 registrazione in enterprise", () => {
     fireEvent.click(screen.getByLabelText(/Accetto il regolamento/));
     fireEvent.click(screen.getByRole("button", { name: "Iscriviti" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Serve un account di un membro");
+  });
+
+  it("attesa del saldo: «Benvenuta, Laura» e «Stiamo preparando il tuo saldo…»; allo scadere la Home si apre con pending=1", async () => {
+    waitSpy.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+      return "timeout";
+    });
+    renderJoin();
+    await screen.findByTestId("join-enterprise");
+    fireEvent.click(screen.getByLabelText(/Accetto il regolamento/));
+    fireEvent.click(screen.getByRole("button", { name: "Iscriviti" }));
+    expect(await screen.findByText("Benvenuta, Laura")).toBeInTheDocument();
+    expect(screen.getByText(t.portalMember.preparingBalance)).toBeInTheDocument();
+    await waitFor(() => expect(window.location.href).toBe("/portal?welcome=1&pending=1"));
+  });
+
+  it("sessione scaduta (401) durante l'invio: login, nessuna attesa del wallet", async () => {
+    post = () => problem(401, "UNAUTHENTICATED");
+    renderJoin();
+    await screen.findByTestId("join-enterprise");
+    fireEvent.click(screen.getByLabelText(/Accetto il regolamento/));
+    fireEvent.click(screen.getByRole("button", { name: "Iscriviti" }));
+    await waitFor(() => expect(redirectToLogin).toHaveBeenCalledTimes(1));
+    expect(calls.some((c) => c.url.endsWith("/v1/portal/me/wallet"))).toBe(false);
+    expect(window.location.href).toBe("/portal/join");
+  });
+
+  it("sessione scaduta (401) durante l'attesa del wallet: login e si ferma, niente Home", async () => {
+    // L'attesa vera (un test precedente l'ha sostituita).
+    waitSpy.mockImplementation((await vi.importActual<typeof import("./joinParts")>("./joinParts")).waitForWallet);
+    const base = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) =>
+      url.endsWith("/v1/portal/me/wallet") ? problem(401, "UNAUTHENTICATED") : base(url, init)));
+    renderJoin();
+    await screen.findByTestId("join-enterprise");
+    fireEvent.click(screen.getByLabelText(/Accetto il regolamento/));
+    fireEvent.click(screen.getByRole("button", { name: "Iscriviti" }));
+    await waitFor(() => expect(redirectToLogin).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(window.location.href).toBe("/portal/join");
   });
 
   it("account senza e-mail nel token: lo dice e l'invio resta spento (Degraded)", async () => {

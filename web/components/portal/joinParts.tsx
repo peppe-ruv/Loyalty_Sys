@@ -1,31 +1,53 @@
 "use client";
 
-import { lhFetch } from "@/lib/api/client";
+import { lhFetch, LhError } from "@/lib/api/client";
+import { redirectToLogin } from "@/lib/auth/browser";
+import { it } from "@/lib/i18n/it";
 import { cn } from "@/lib/cn";
 
 // Parti comuni alle due varianti di PT-08 (demo: app/portal/join/page.tsx; enterprise: EnterpriseJoin).
 
 const WALLET_WAIT_MS = 20_000;
 
-/** Attende che il wallet del nuovo membro esista (i punti di benvenuto arrivano via evento); allo scadere si procede. */
-export async function waitForWallet(path: string, waitMs: number = WALLET_WAIT_MS, pollMs: number = 1000): Promise<void> {
+export type WalletWait = "ready" | "timeout" | "unauthenticated";
+
+/**
+ * Attende che il wallet del nuovo membro esista (i punti di benvenuto arrivano via evento). Allo scadere `timeout`: la
+ * Home si apre comunque. Una sessione scaduta (401) ferma l'attesa e porta al login (`unauthenticated`).
+ */
+export async function waitForWallet(path: string, waitMs: number = WALLET_WAIT_MS, pollMs: number = 1000): Promise<WalletWait> {
   const deadline = Date.now() + waitMs;
   while (Date.now() < deadline) {
     try {
       await lhFetch("wallet", path);
-      return;
-    } catch {
+      return "ready";
+    } catch (err) {
+      if (err instanceof LhError && err.unauthenticated) {
+        redirectToLogin();
+        return "unauthenticated";
+      }
       await new Promise((r) => setTimeout(r, pollMs));
     }
   }
+  return "timeout";
 }
 
-export function Preparing() {
+export function Preparing({ name }: { name?: string }) {
+  const pt = it.portalMember;
   return (
     <div className="space-y-3 py-10 text-center" role="status">
       <div className="mx-auto size-10 animate-spin rounded-full border-4 border-[var(--color-pt-primary)]/20 border-t-[var(--color-pt-primary)]" />
-      <p className="font-medium text-[var(--color-pt-night)]">Stiamo preparando la tua tessera…</p>
-      <p className="text-sm text-[var(--color-pt-night)]/60">I 100 punti di benvenuto sono in arrivo.</p>
+      {name !== undefined ? (
+        <>
+          <p className="text-lg font-semibold text-[var(--color-pt-night)]">{pt.welcomeTitle(name)}</p>
+          <p className="text-sm text-[var(--color-pt-night)]/70">{pt.preparingBalance}</p>
+        </>
+      ) : (
+        <>
+          <p className="font-medium text-[var(--color-pt-night)]">Stiamo preparando la tua tessera…</p>
+          <p className="text-sm text-[var(--color-pt-night)]/60">I 100 punti di benvenuto sono in arrivo.</p>
+        </>
+      )}
     </div>
   );
 }

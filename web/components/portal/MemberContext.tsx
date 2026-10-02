@@ -5,7 +5,7 @@ import { portalApi, type PortalApi } from "@/lib/portal/memberApi";
 
 // Membro attivo del portale, disponibile ai componenti client. Demo: alimentato dal layout server (cookie lh_persona).
 // Enterprise (F2-SEC-09, ADR-051): l'id arriva da `GET /v1/portal/me/profile` (EnterpriseMemberGate) e vale solo per
-// mostrare e chiavare le cache; le chiamate ai servizi passano da `usePortalApi()` e non lo inviano mai.
+// mostrare (tessera); le chiamate ai servizi passano da `usePortalApi()` e non lo inviano mai.
 interface MemberState {
   memberId: string;
   enterprise: boolean;

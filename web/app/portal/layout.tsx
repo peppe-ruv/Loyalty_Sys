@@ -19,9 +19,9 @@ import { themeStyle } from "@/lib/theme/theme";
 // Profilo demo: il membro attivo viene dal cookie lh_persona, con il tray demo. Profilo enterprise (docs/07 §4-bis,
 // F2-SEC-09, ADR-051): serve la sessione OIDC di un membro (altrimenti il login del realm dei membri); il BFF non
 // inoltra mai un memberId scelto dal browser e il membro viene solo dal token: `EnterpriseMemberGate` chiede
-// `GET /v1/portal/me/profile` (id per mostrare e chiavare le cache; 404 MEMBER_NOT_REGISTERED → registrazione PT-16).
+// `GET /v1/portal/me/profile` (id solo per mostrare; 404 MEMBER_NOT_REGISTERED → registrazione PT-16).
 // Nome ed e-mail dell'account passano come prop alla sola pagina di registrazione; i token non lasciano mai il server
-// (regola 20). SPEC-GAP: Q-410.
+// (regola 20).
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const viewer = await getViewer("members");
   let memberId = "";

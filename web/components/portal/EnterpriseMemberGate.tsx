@@ -12,13 +12,13 @@ import { MemberProvider } from "./MemberContext";
 
 // Ingresso del portale nel profilo enterprise (PT-08, PT-16, F2-SEC-09, ADR-048, ADR-051; regole 6-bis e 18).
 // Chiede `GET /v1/portal/me/profile`: il membro è quello del token, mai scelto dal browser.
-// - 200: l'id restituito alimenta il contesto (solo per mostrare e chiavare le cache, non si rimanda mai ai servizi);
+// - 200: l'id restituito alimenta il contesto (solo per mostrare, non si rimanda mai ai servizi);
 //   su /portal/join un membro già iscritto va alla Home.
 // - 404 MEMBER_NOT_REGISTERED: l'account esiste ma non ha un membro → /portal/join (registrazione, PT-16).
 // - altro errore: riquadro d'errore con «Riprova» (docs/07 §6); 401 lo gestisce già app/providers.tsx (login).
 // Nome ed e-mail dell'account (claim dell'ID token, letti dal server: mai i token) arrivano come prop e li legge
 // solo la pagina di registrazione.
-// SPEC-GAP: Q-410, Q-557.
+// SPEC-GAP: Q-557.
 
 export const JOIN_PATH = "/portal/join";
 export const ME_PROFILE_PATH = "/v1/portal/me/profile";
@@ -42,6 +42,7 @@ export function EnterpriseMemberGate({ account, children }: { account: AccountId
   const pathname = usePathname();
   const router = useRouter();
   // Stessa chiave di useLhQuery("member", ME_PROFILE_PATH): la Home e il profilo riusano la risposta già in cache.
+  // L'id restituito serve solo a mostrare (tessera): non si rimanda mai ai servizi.
   const me = useQuery<PortalProfile, LhError>({
     queryKey: ["member", ME_PROFILE_PATH, {}],
     queryFn: () => lhFetch<PortalProfile>("member", ME_PROFILE_PATH),
@@ -50,8 +51,11 @@ export function EnterpriseMemberGate({ account, children }: { account: AccountId
   });
 
   const onJoin = pathname === JOIN_PATH;
-  const unregistered = me.error instanceof LhError && me.error.status === 404 && me.error.code === MEMBER_NOT_REGISTERED;
-  const registered = me.isSuccess;
+  // Un dato già noto vale più di un errore di un aggiornamento in secondo piano (es. dopo il salvataggio del profilo,
+  // che invalida ["member"]): il portale resta in piedi, gli stati d'errore compaiono solo senza dato.
+  const data = me.data;
+  const unregistered = !data && me.error instanceof LhError && me.error.status === 404 && me.error.code === MEMBER_NOT_REGISTERED;
+  const registered = data !== undefined;
 
   useEffect(() => {
     if (unregistered && !onJoin) router.replace(JOIN_PATH);
@@ -72,7 +76,7 @@ export function EnterpriseMemberGate({ account, children }: { account: AccountId
     );
   }
 
-  if (me.isError && me.error.asleep) {
+  if (!data && me.isError && me.error.asleep) {
     // Degraded (docs/07 §6): member-service dorme sul piano gratuito; riprova ogni 5 s.
     return (
       <div className="mx-auto max-w-md p-6">
@@ -81,7 +85,7 @@ export function EnterpriseMemberGate({ account, children }: { account: AccountId
     );
   }
 
-  if (me.isError) {
+  if (!data && me.isError) {
     return (
       <div role="alert" className="mx-auto max-w-md space-y-2 p-6 text-center text-sm text-red-800">
         <p className="font-medium">{it.portalMember.errorTitle}</p>
@@ -93,12 +97,12 @@ export function EnterpriseMemberGate({ account, children }: { account: AccountId
     );
   }
 
-  if (!me.isSuccess) return null;
+  if (!data) return null;
   if (onJoin) return <GateMessage text={it.portalMember.toHome} />;
 
   return (
     <AccountContext.Provider value={account}>
-      <MemberProvider memberId={me.data.memberId} enterprise>
+      <MemberProvider memberId={data.memberId} enterprise>
         {children}
       </MemberProvider>
     </AccountContext.Provider>

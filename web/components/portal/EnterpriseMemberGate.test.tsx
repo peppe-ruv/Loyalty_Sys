@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { it as t } from "@/lib/i18n/it";
 import { EnterpriseMemberGate, useAccountIdentity } from "./EnterpriseMemberGate";
@@ -61,6 +61,33 @@ describe("EnterpriseMemberGate", () => {
     fetchSpy.mockResolvedValue(Response.json({ memberId: "MBR-000042", status: "ACTIVE" }));
     renderGate();
     expect(await screen.findByTestId("probe")).toHaveTextContent("ent|MBR-000042|false|laura.conti@example.org|/v1/portal/me/wallet");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("aggiornamento in secondo piano fallito dopo un dato noto (es. dopo il salvataggio del profilo): il portale resta", async () => {
+    fetchSpy.mockResolvedValue(Response.json({ memberId: "MBR-000042", status: "ACTIVE" }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <EnterpriseMemberGate account={ACCOUNT}>
+          <Probe />
+        </EnterpriseMemberGate>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId("probe")).toHaveTextContent("MBR-000042");
+    fetchSpy.mockResolvedValue(problem(500, "BOOM", "errore"));
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["member"] });
+    });
+    expect(screen.getByTestId("probe")).toHaveTextContent("MBR-000042");
+    expect(screen.queryByRole("alert")).toBeNull();
+    // Un 503 «dorme» in secondo piano non fa comparire il degraded.
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ type: "SERVICE_ASLEEP" }), { status: 503 }));
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["member"] });
+    });
+    expect(screen.getByTestId("probe")).toBeInTheDocument();
+    expect(screen.queryByText(/si sta svegliando/)).toBeNull();
     expect(replace).not.toHaveBeenCalled();
   });
 

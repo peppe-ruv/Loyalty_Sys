@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { lhFetch, LhError } from "@/lib/api/client";
 import { joinErrorFromApi, normalizeCode, validateJoin, type JoinErrors } from "@/lib/member/profile";
+import { redirectToLogin } from "@/lib/auth/browser";
 import { accountNames } from "@/lib/portal/account";
 import { cn } from "@/lib/cn";
 import { it } from "@/lib/i18n/it";
@@ -48,16 +49,23 @@ export function EnterpriseJoin() {
         }),
       });
     } catch (err) {
+      if (err instanceof LhError && err.unauthenticated) {
+        // Sessione scaduta durante l'invio: al login e poi di nuovo qui (l'invio è idempotente sul `sub`).
+        redirectToLogin();
+        return;
+      }
       setPhase("form");
       setErrors(err instanceof LhError ? joinErrorFromApi(err.code, err.detail) : { firstName: "Iscrizione non riuscita, riprova" });
       return;
     }
     setPhase("preparing");
-    await waitForWallet("/v1/portal/me/wallet");
-    window.location.href = "/portal?welcome=1";
+    const wait = await waitForWallet("/v1/portal/me/wallet");
+    if (wait === "unauthenticated") return;
+    // Saldo non arrivato entro 20 s: la Home si apre comunque con la nota «Il saldo arriva a breve».
+    window.location.href = wait === "timeout" ? "/portal?welcome=1&pending=1" : "/portal?welcome=1";
   }
 
-  if (phase === "preparing") return <Preparing />;
+  if (phase === "preparing") return <Preparing name={firstName} />;
 
   // Gli errori su nome o e-mail (dell'account, non modificabili qui) stanno in un riquadro in testa.
   const general = errors.firstName ?? errors.lastName ?? errors.email;

@@ -17,6 +17,12 @@ export interface MemberView {
   referredBy?: string | null;
 }
 
+/**
+ * Nome e stato del membro per saluto e tessera del portale: solo i campi presenti in entrambi i profili
+ * (`GET /v1/members/{id}` in demo, `GET /v1/portal/me/profile` in enterprise, F2-SEC-09).
+ */
+export type MemberSummary = Pick<MemberView, "firstName" | "lastName" | "nickname" | "status">;
+
 export interface CampaignBudget {
   maxPoints: number | null;
   remainingPoints: number | null;
@@ -776,6 +782,8 @@ export type ProfileField = "firstName" | "lastName" | "email" | "phone" | "birth
 
 export interface PortalProfile {
   memberId: string;
+  /** ACTIVE, BLOCKED, INACTIVE, ANONYMIZED… (PT-16, M8.2): il portale non fa una seconda chiamata per lo stato. */
+  status: string;
   firstName: string | null;
   lastName: string | null;
   nickname: string | null;
