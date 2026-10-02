@@ -1,0 +1,112 @@
+name: cypress-demo
+
+# Cypress sulla demo pubblica (profilo `demo`), con registrazione su Cypress Cloud (ADR-054, Q-710…Q-713, M9.8a, F2-QA-08).
+# Accanto a Playwright, che verifica il profilo `enterprise` nelle PR (job e2e-pr, ADR-052): qui nessuna PR, perché la demo
+# pubblica è quella in produzione su Vercel e non la build della PR. Una corsa ogni cinque giorni (giorni 1, 6, 11, 16,
+# 21, 26 e 31 del mese: al più 7 corse programmate al mese, circa 350 risultati sui 500 del piano gratuito, Q-711) e a
+# richiesta. Le prove scrivono dati fittizi nella demo e chiudono con il reset della Console demo.
+#
+# Record key (Q-712, regola 20): solo il segreto del repository `CYPRESS_RECORD_KEY`, mai in un file o in un log. Senza il
+# segreto la corsa avviene lo stesso, senza registrazione, e il riepilogo lo dice. Lo imposta il proprietario da
+# Settings → Secrets and variables → Actions.
+on:
+  schedule:
+    - cron: "0 3 */5 * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Indirizzo della demo da provare (facoltativo; predefinito: https://loyalty-hub-web.vercel.app)"
+        required: false
+        default: ""
+
+# Minimo privilegio per il GITHUB_TOKEN: serve solo il checkout.
+permissions:
+  contents: read
+
+# Una corsa alla volta: due corse insieme si pesterebbero i dati della stessa demo.
+concurrency:
+  group: cypress-demo
+  cancel-in-progress: false
+
+jobs:
+  cypress:
+    name: Cypress sulla demo pubblica
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Vuoto = il valore predefinito di e2e/cypress.config.ts.
+      LH_DEMO_URL: ${{ inputs.base_url || vars.LH_DEMO_URL || '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: e2e/pnpm-lock.yaml
+      - name: Dipendenze dell'harness
+        working-directory: e2e
+        run: pnpm install --frozen-lockfile
+      - name: Binario di Cypress
+        working-directory: e2e
+        run: pnpm exec cypress install
+      - name: Typecheck dell'harness
+        working-directory: e2e
+        run: pnpm typecheck
+      - name: Cypress
+        id: cypress
+        working-directory: e2e
+        shell: bash
+        env:
+          # Il segreto passa solo da qui, mai da un argomento della riga di comando né da un echo (regola 20).
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+          NO_COLOR: "1"
+        run: |
+          set -o pipefail
+          args=(--browser chrome --tag "demo,${{ github.event_name }}")
+          if [ -n "${CYPRESS_RECORD_KEY:-}" ]; then
+            args+=(--record)
+            echo "record=yes" >> "$GITHUB_OUTPUT"
+          else
+            unset CYPRESS_RECORD_KEY
+            echo "record=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::CYPRESS_RECORD_KEY non impostato: la corsa avviene senza registrazione su Cypress Cloud."
+          fi
+          status=0
+          pnpm exec cypress run "${args[@]}" 2>&1 | tee cypress-run.log || status=$?
+          echo "exit=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+      - name: Riepilogo
+        if: ${{ always() }}
+        working-directory: e2e
+        shell: bash
+        run: |
+          total=0; passing=0; failing=0
+          if [ -f cypress-run.log ]; then
+            # Ogni spec stampa un riquadro «(Results)» con Tests / Passing / Failing: si sommano.
+            total=$(grep -E '^\s*│?\s*Tests:\s+[0-9]+' cypress-run.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+            passing=$(grep -E '^\s*│?\s*Passing:\s+[0-9]+' cypress-run.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+            failing=$(grep -E '^\s*│?\s*Failing:\s+[0-9]+' cypress-run.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          fi
+          {
+            echo "### Cypress sulla demo pubblica"
+            echo
+            echo "- Indirizzo: \`${LH_DEMO_URL:-https://loyalty-hub-web.vercel.app}\`"
+            echo "- Test eseguiti: **${total}** (superati ${passing}, falliti ${failing}); tetto di una corsa: 50 (Q-710)"
+            if [ "${{ steps.cypress.outputs.record }}" = "yes" ]; then
+              echo "- Registrazione su Cypress Cloud (progetto \`v1g3bz\`): **sì**, ${total} risultati registrati in questa corsa. Il piano gratuito ne conta 500 al mese: le corse programmate ne usano circa 350."
+            else
+              echo "- Registrazione su Cypress Cloud: **no**. Il segreto \`CYPRESS_RECORD_KEY\` non è impostato: la corsa è avvenuta senza registrare. Lo imposta il proprietario da Settings → Secrets and variables → Actions."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Schermate dei test falliti (il video è spento di default).
+      - name: Schermate dei test falliti
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: cypress-demo-screenshots
+          path: e2e/cypress/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14

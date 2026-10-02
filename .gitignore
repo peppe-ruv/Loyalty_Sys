@@ -38,3 +38,9 @@ Thumbs.db
 
 # jqwik: database dei fallimenti (ADR-053); la configurazione lo sposta sotto target/, qui per sicurezza
 .jqwik-database
+
+# Cypress sulla demo pubblica (M9.8a, ADR-054): artefatti locali di e2e/, non fanno parte del repo
+e2e/cypress/screenshots/
+e2e/cypress/videos/
+e2e/cypress/downloads/
+e2e/cypress-run.log
