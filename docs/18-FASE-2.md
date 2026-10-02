@@ -815,7 +815,7 @@ ID `F2-<DOM>-nn`; priorità P0 = necessaria al minimo enterprise (M8–M12), P1 
 | F2-QA-05 | Gate di sicurezza (ZAP baseline, scansioni) e chaos notturno | P1 | M9.5, M15 |
 | F2-QA-06 | Collaudo di release con un agente nel browser e log dei servizi (ADR-052) | P1 | M9.6 |
 | F2-QA-07 | Test per i bug non noti: proprietà generative, mutation testing sul diff, fuzz delle API nelle PR, journey casuali (ADR-053) | P0 | M9.7 |
-| F2-QA-08 | Controllo notturno della demo pubblica con Cypress e Cypress Cloud (ADR-054) | P2 | M9.8 |
+| F2-QA-08 | Controllo periodico (ogni 5 giorni) della demo pubblica con Cypress e Cypress Cloud (ADR-054) | P2 | M9.8 |
 | F2-EXP-01 | Element Registry con generazione e drift check | P0 | M10.1 |
 | F2-EXP-02 | Directus nell'immagine: schema generato, SSO, ruoli, `ref_*`, estensioni | P0 | M10.2 |
 | F2-EXP-03 | `experience-service`: composizione versionata, notify-and-pull, validatore, rollback | P0 | M10.3 |
@@ -926,7 +926,7 @@ Con ADR-052 (strategia di test a tre livelli, Q-680…Q-685), in quest'ordine: *
 
 Con ADR-053 (test per i bug non noti, Q-690…Q-694): **U1** `fase2/M9.7a-proprieta` — `test(wallet): proprietà generative con jqwik e fast-check [F2-QA-07, ADR-053, Q-690]`: dipendenze di test, prime proprietà del wallet, dei livelli e dei limiti di campagna, regola in `docs/06 §9` · **U2** `fase2/M9.7b-mutation` — `ci(test): mutation testing sul diff [F2-QA-07, ADR-053, Q-691, Q-694]`: job `mutation` consultivo con PIT e Stryker · **U3** `fase2/M9.7c-fuzz-pr` — `ci(security): fuzz breve delle API nelle PR [F2-QA-07, F2-QA-05, ADR-053, Q-692]` · **U4** `fase2/M9.7d-journey-casuali` — `test(e2e): journey casuali con invarianti [F2-QA-01, F2-QA-07, ADR-053, Q-693]` (dipende da T1). U1 ∥ T1; U2 e U3 dopo U1.
 
-Con ADR-054 (Cypress sulla demo pubblica, Q-710…Q-713): **C1** `fase2/M9.8a-cypress-demo` — `test(e2e): Cypress sulla demo pubblica con Cypress Cloud [F2-QA-08, ADR-054, Q-710…Q-713]`: Cypress in `e2e/`, `projectId`, primi test della demo, workflow `cypress-demo` notturno e a richiesta (dipende da T1).
+Con ADR-054 (Cypress sulla demo pubblica, Q-710…Q-713): **C1** `fase2/M9.8a-cypress-demo` — `test(e2e): Cypress sulla demo pubblica con Cypress Cloud [F2-QA-08, ADR-054, Q-710…Q-713]`: Cypress in `e2e/`, `projectId`, primi test della demo, workflow `cypress-demo` ogni 5 giorni e a richiesta (dipende da T1).
 
 **Accettazione**: invarianti verdi dopo ogni ciclo di ogni journey (Σ lotti = saldo, Σ mesi liability = in circolazione, stock ≤ totale, ogni `contest.won` con tracciato completo senza DLQ, nessun doppione in inbox, una voce audit per scrittura BO); nessuna violazione axe di livello *serious/critical* nella matrice; k6 entro SLO sul profilo 100k; `e2e-pr` < 15 min.
 
