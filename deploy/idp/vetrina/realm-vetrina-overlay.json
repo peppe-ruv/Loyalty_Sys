@@ -18,7 +18,7 @@
     {
       "clientId": "lh-cli",
       "name": "CLI operatore (vetrina, Device Authorization Grant)",
-      "description": "Client pubblico per la sola CLI dell'operatore della vetrina: Device Authorization Grant (RFC 8628) con PKCE S256. L'operatore si autentica nel browser con il flusso del realm (password e MFA); nessun direct access grant, nessun service account, nessun segreto, nessuna redirect URI. Consenso obbligatorio: dopo il login l'operatore vede il nome del client che chiede l'accesso. I ruoli del token sono solo quelli operatore dell'utente (fullScopeAllowed false). Q-626 decisa il 2026-09-30.",
+      "description": "Client pubblico per la sola CLI dell'operatore della vetrina: Device Authorization Grant (RFC 8628) con PKCE S256.",
       "enabled": true,
       "publicClient": true,
       "bearerOnly": false,

@@ -314,7 +314,7 @@ archs = set()
 for it in items:
     plat = (it.get("Descriptor") or {}).get("platform") or {}
     archs.add(plat.get("architecture"))
-    for m in (it.get("Raw") or {}).get("manifests", []) or []:
+    for m in ((lambda r: r if isinstance(r, dict) else {})(it.get("Raw"))).get("manifests", []) or []:
         archs.add((m.get("platform") or {}).get("architecture"))
 sys.exit(0 if os.environ["LH_WANT_ARCH"] in archs else 1)'; then
       info "$want: $img"
