@@ -7,6 +7,7 @@ import { lhFetch, useLhQuery } from "@/lib/api/client";
 import { ulid } from "@/lib/ids";
 import type { PortalContest, PortalProfile } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
+import { buildDemoEvent } from "./demoEvent";
 import { PendingProvider, usePending } from "./PendingContext";
 import { useActiveMember, usePortalApi, useUnregistered, switchMember } from "./MemberContext";
 
@@ -98,15 +99,7 @@ function DemoTray() {
       // Azione reale del membro dalla fonte esterna: /v1/events come fonte (SOURCE), non il simulatore admin.
       const res = await lhFetch<{ correlationId?: string }>("ingestion", "/v1/events", {
         method: "POST",
-        body: JSON.stringify({
-          specversion: "1.0",
-          id: ulid(),
-          source,
-          type,
-          subject: "member:" + memberId,
-          time: new Date().toISOString(),
-          data,
-        }),
+        body: JSON.stringify(buildDemoEvent(memberId, type, source, data, ulid())),
       });
       // Il correlationId dell'azione: l'attesa si chiude via SSE al fatto del wallet (usePendingTrace, M2.3).
       markPending(["Punti in arrivo…"], res?.correlationId);
