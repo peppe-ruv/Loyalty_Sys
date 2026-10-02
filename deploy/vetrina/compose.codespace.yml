@@ -1,0 +1,27 @@
+# Overlay della vetrina enterprise in un GitHub Codespace acceso su richiesta (F2-DIST-09, ADR-050, M8.14 V7, Q-661).
+#
+# Si usa SOLO dopo deploy/compose/reference.yml e deploy/vetrina/compose.vetrina.yml e SOLO tramite
+# `deploy/vetrina/vetrina.sh` con LH_VETRINA_MODE=codespace (lo scrive `vetrina.sh codespace`, avviato dal dev container
+# .devcontainer/vetrina). Runbook: deploy/vetrina/README.md, sezione «Vetrina in un codespace».
+#
+# Cosa cambia rispetto all'host fisso (ADR-049):
+# - niente IP pubblico né ACME: il TLS lo termina l'inoltro delle porte di GitHub su
+#   https://<codespace>-<porta>.<dominio di inoltro>. Il proxy resta, ma in HTTP su due porte di loopback, 8000 (web) e
+#   8001 (Keycloak), rese pubbliche nel codespace: tiene la console /admin e il realm `master` fuori portata (404) e le
+#   intestazioni di sicurezza, come sull'host fisso;
+# - niente alias di rete: i nomi pubblici puntano a GitHub, non al proxy. Web e hub raggiungono l'emittente con lo
+#   stesso URL del browser, passando dall'inoltro delle porte (Q-420), con un certificato pubblico verificato;
+# - tutto il resto (TLS verso bus e database con la CA locale, segreti da file, profilo fisso) resta identico.
+services:
+  proxy:
+    # HTTP in chiaro solo verso l'inoltro delle porte del codespace: nessuna porta privilegiata, nessuna capability.
+    cap_add: !reset []
+    ports: !override
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8001:8001"
+    volumes: !override
+      - ../vetrina/caddy/Caddyfile.codespace:/etc/caddy/Caddyfile:ro
+      - lh-vetrina-caddy-data:/data
+      - lh-vetrina-caddy-config:/config
+    networks: !override
+      default: {}

@@ -155,6 +155,17 @@ Ogni voce ha un identificativo `TOBE-nnn` e questi campi:
 | Quando farla | Con M8.5 (mTLS di mesh e principal per modulo), o prima di ospitare nella vetrina altri container non nostri. |
 | Riferimenti | Q-392, Q-420, Q-621, ADR-049, ADR-042, F2-DIST-09, M8.5, M8.14 |
 
+### TOBE-012 — Host sempre acceso per la vetrina enterprise
+
+| Campo | Contenuto |
+|---|---|
+| Cosa | Tenere la vetrina enterprise raggiungibile 24 ore su 24, su un host con almeno 8 GB di memoria, senza che il proprietario la accenda prima di ogni demo. |
+| Perché non ora | Nessun piano gratuito disponibile al proprietario regge lo stack (circa 6,3 GB a regime): Oracle Cloud A1 non risulta utilizzabile a costo zero dal suo account, Render e Vercel gratuiti sono a 512 MB, e un host a pagamento rompe la regola 8 (ADR-050). |
+| Workaround attivo | Vetrina in un GitHub Codespace accesa su richiesta dal browser, con lo stesso compose e lo stesso overlay, TLS pubblico dall'inoltro delle porte di GitHub e uso bloccato a fine quota (ADR-050, Q-660…Q-663, fetta M8.14 V7). Limite residuo: spenta fuori dalle demo, URL legato al nome del codespace. |
+| Già predisposto | `deploy/vetrina/` (overlay, `vetrina.sh`, runbook, timer di azzeramento) funziona su qualunque host Linux con Docker: il passaggio a un host fisso è una nuova installazione, senza cambiare il codice. |
+| Quando farla | Quando il proprietario accetta un costo con un'ADR di deroga alla regola 8, oppure quando un piano gratuito con almeno 8 GB diventa disponibile al suo account. |
+| Riferimenti | ADR-049, ADR-050, Q-615, Q-660, Q-662, F2-DIST-09, M8.14 |
+
 ## Voci chiuse
 
 Nessuna.

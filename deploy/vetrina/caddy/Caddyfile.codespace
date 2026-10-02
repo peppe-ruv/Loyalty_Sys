@@ -1,0 +1,45 @@
+# Proxy della vetrina enterprise nel codespace (F2-DIST-09, ADR-050, Q-661). Letto dal servizio `proxy` con
+# deploy/vetrina/compose.codespace.yml. Niente ACME: il TLS lo termina l'inoltro delle porte di GitHub, che porta qui il
+# traffico di https://<codespace>-8000.<dominio> e https://<codespace>-8001.<dominio>. Il proxy instrada per porta,
+# qualunque sia l'intestazione Host, e parla solo con `web` e `idp` sulla rete interna.
+{
+	# API di amministrazione spenta: niente configurazione a runtime da localhost:2019.
+	admin off
+	# Nessun certificato da ottenere: solo HTTP dietro l'inoltro delle porte.
+	auto_https off
+	servers {
+		protocols h1
+	}
+}
+
+(intestazioni) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Web (BFF, backoffice, Demo Hub HUB-02). Dall'esterno si arriva solo in https: lo schema inoltrato è sempre https.
+:8000 {
+	import intestazioni
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-Proto https
+	}
+}
+
+# Keycloak: solo il realm `loyaltyhub` e le risorse statiche, come sull'host fisso. La console /admin e il realm
+# `master` restano su 127.0.0.1:8180 del codespace, con l'inoltro privato (solo il proprietario, deploy/vetrina/README.md).
+:8001 {
+	import intestazioni
+	@realm path /realms/loyaltyhub /realms/loyaltyhub/* /resources/*
+	handle @realm {
+		reverse_proxy idp:8080 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle {
+		respond 404
+	}
+}

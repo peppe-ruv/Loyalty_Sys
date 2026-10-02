@@ -35,7 +35,7 @@ export const it = {
     enterError: "Non è stato possibile impostare la persona. Riprova.",
     pathTitle: "Percorso consigliato",
     enterpriseCta: "Prova la modalità Enterprise",
-    enterpriseNote: "istanza separata · login reale · dati fittizi · non HA",
+    enterpriseNote: "istanza separata · login reale · dati fittizi · non HA · disponibile su richiesta",
     enterpriseExternal: "(porta a un altro sito)",
   },
   // HUB-02 — Demo Hub nel profilo enterprise (docs/18 §5, ADR-049, F2-DIST-09, M8.14 V5).
@@ -43,7 +43,7 @@ export const it = {
     subtitle: "Vetrina enterprise",
     pitch: "Il profilo enterprise di Loyalty Hub: login reale con MFA, attori dal token e audit di ogni scrittura.",
     banner:
-      "Vetrina enterprise: non è ad alta disponibilità (HA), usa solo dati fittizi e si azzera ogni settimana, senza backup.",
+      "Vetrina enterprise: non è ad alta disponibilità (HA), usa solo dati fittizi, si accende su richiesta e si spegne dopo un periodo di inattività; può essere azzerata in qualunque momento, senza backup.",
     backToDemo: "Torna alla demo",
     backToDemoNote: "(porta a un altro sito)",
     statusTitle: "Stato della vetrina",

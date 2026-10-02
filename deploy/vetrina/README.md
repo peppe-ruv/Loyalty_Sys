@@ -1,6 +1,6 @@
-# Vetrina enterprise: runbook dell'host Oracle Cloud A1
+# Vetrina enterprise: runbook
 
-Questa cartella installa e mantiene la **vetrina enterprise** (F2-DIST-09, ADR-049): una seconda installazione di Loyalty Hub in `LH_PROFILE=enterprise`, separata dalla demo, su un host Oracle Cloud Always Free A1 (Q-615). Usa il compose di riferimento (`deploy/compose/reference.yml`, F2-DIST-03) più l'overlay di questa cartella.
+Questa cartella installa e mantiene la **vetrina enterprise** (F2-DIST-09, ADR-049): una seconda installazione di Loyalty Hub in `LH_PROFILE=enterprise`, separata dalla demo, in un GitHub Codespace acceso su richiesta (ADR-050) oppure su un host fisso (ADR-049). Usa il compose di riferimento (`deploy/compose/reference.yml`, F2-DIST-03) più l'overlay di questa cartella.
 
 La vetrina serve a far vedere online login reale, MFA e audit con l'attore del token. Non è ad alta disponibilità, contiene solo dati fittizi e si azzera ogni settimana, senza backup (Q-624). Il contesto per chi legge la documentazione è nella pagina «Vetrina enterprise» del sito (`concetti/vetrina-enterprise.mdx`).
 
@@ -12,10 +12,14 @@ La vetrina serve a far vedere online login reale, MFA e audit con l'attore del t
 | `caddy/Caddyfile` | Reverse proxy con certificati ACME per i due nomi `web` e `idp` (Q-620). |
 | `postgres/pg_hba.conf` | Postgres accetta dalla rete solo connessioni TLS (Q-621). |
 | `kafka/client-ssl.properties` | Client TLS del controllo di salute di Kafka. |
-| `vetrina.sh` | Comandi dell'host: `provision`, `preflight`, `up`, `down`, `reset`, `operators`, `programma`, `compose`. |
+| `compose.codespace.yml` | Overlay aggiuntivo per il codespace: proxy in HTTP su `127.0.0.1:8000` e `8001`, niente ACME né alias (Q-661). |
+| `caddy/Caddyfile.codespace` | Proxy del codespace: instrada per porta, Keycloak solo per il realm `loyaltyhub`. |
+| `vetrina.sh` | Comandi: `codespace`, `provision`, `preflight`, `up`, `down`, `reset`, `operators`, `programma`, `compose`. |
 | `operatori.py` | Crea gli account operatore nominativi con MFA (Q-618) a ogni azzeramento. |
 | `vetrina.env.example` | Modello della configurazione dell'host, senza segreti. |
-| `systemd/` | Servizio e timer dell'azzeramento settimanale. |
+| `systemd/` | Servizio e timer dell'azzeramento settimanale (solo host fisso). |
+
+Il dev container del codespace è in `.devcontainer/vetrina/` (`devcontainer.json` e `avvio.sh`).
 
 ## Come è fatta l'istanza
 
@@ -26,7 +30,41 @@ La vetrina serve a far vedere online login reale, MFA e audit con l'attore del t
 - **Segreti solo da file** (regola 20). Ogni segreto arriva al container come `<VAR>_FILE` da `/run/secrets`. La variabile in chiaro è forzata a vuoto, e il container si ferma se la trova piena.
 - **Limiti di memoria per ogni container**, per circa 6,5 GB in tutto sui 12 GB dell'host: Postgres 1 GB, Kafka 1 GB (heap 512 MB), hub 2 GB, web 768 MB, Keycloak 1,5 GB, proxy 128 MB.
 
-## Prerequisiti
+## Vetrina in un codespace
+
+È l'hosting scelto (ADR-050, Q-660…Q-663): un GitHub Codespace del repository, acceso dal proprietario prima di una demo, che si ferma da solo dopo l'inattività. Il resto di questo file vale per un host fisso.
+
+### Una volta sola
+
+1. **Quota a costo zero** (Q-660). In *Settings → Billing and licensing* dell'account GitHub verifica che Codespaces non abbia un metodo di pagamento, oppure imposta un budget a 0: a fine quota gratuita l'uso si blocca invece di addebitare.
+2. **Timeout di inattività.** In *Settings → Codespaces* alza il *Default idle timeout* (fino a 240 minuti) se una demo dura più di 30 minuti: il traffico dei visitatori non conta come attività, solo il terminale.
+3. **Segreti del codespace** (*Settings → Codespaces → Secrets*, con accesso a questo repository), tutti facoltativi:
+
+   | Segreto | Contenuto |
+   |---|---|
+   | `LH_VETRINA_OPERATORS` | Account operatore, una riga per account o separati da `;`: `<nome utente> <RUOLO> <e-mail>` (Q-618, Q-663). |
+   | `LH_IMAGE` | Immagine unica da usare; senza, `ghcr.io/<proprietario>/loyaltyhub` all'ultimo tag `v*` del repository. |
+   | `LH_HUB_DEMO_URL` | Origine https della demo per «Torna alla demo» in HUB-02. |
+
+### Prima di una demo
+
+1. Dal repository: *Code → Codespaces → … → New with options*, configurazione **Vetrina enterprise**, macchina da 4 core. Se il codespace esiste già, riaccendilo da *Code → Codespaces*.
+2. Attendi la fine di `avvio.sh` (il terminale *Creation log*, oppure `sudo cat /workspaces/.loyaltyhub-vetrina/avvio.log`). Al primo avvio servono alcuni minuti per scaricare le immagini e avviare Keycloak e Kafka.
+3. Se lo script avvisa che non riesce a rendere pubbliche le porte, nel pannello *Porte* fai clic destro su 8000 e 8001, *Visibilità della porta → Pubblica*. Le altre porte restano private.
+4. L'indirizzo della vetrina è `https://<nome del codespace>-8000.app.github.dev`. Mettilo in `LH_HUB_ENTERPRISE_URL` della demo per il pulsante di HUB-01: il nome del codespace non cambia finché non lo cancelli.
+5. Al primo avvio, o dopo un azzeramento, applica il programma dal terminale del codespace: `sudo --preserve-env=LH_VETRINA_CONFIG env "PATH=$PATH" bash deploy/vetrina/vetrina.sh programma` (`PATH` serve a trovare Node.js) (Q-630). Le password temporanee degli operatori sono in `/workspaces/.loyaltyhub-vetrina/operator-passwords.txt` (leggile con `sudo cat`): consegnale fuori banda e cancella il file.
+
+Fermare e riaccendere il codespace conserva dati e account. Un codespace nuovo parte vuoto; per azzerare quello attuale usa `sudo --preserve-env=LH_VETRINA_CONFIG bash deploy/vetrina/vetrina.sh reset`.
+
+### Come cambia rispetto all'host fisso
+
+- **Ingresso.** Niente IP pubblico né certificati ACME: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy Caddy resta, in HTTP su `127.0.0.1:8000` (web) e `127.0.0.1:8001` (Keycloak), per tenere fuori la console `/admin` e il realm `master` e per le intestazioni di sicurezza.
+- **Emittente OIDC.** Web e hub chiamano Keycloak con lo stesso indirizzo pubblico del browser, passando dall'inoltro di GitHub (Q-420): per questo la porta 8001 deve essere pubblica.
+- **Console di Keycloak.** È su `127.0.0.1:8180` del codespace, con un inoltro privato che vede solo il proprietario: aprila da VS Code o con `gh codespace ports forward 8180:8180`.
+- **Architettura.** Il codespace è amd64: `preflight` controlla le immagini per l'architettura dell'host, non più solo arm64.
+- **Azzeramento.** Niente timer settimanale (non gira a codespace fermo): vale Q-663.
+
+## Prerequisiti (host fisso)
 
 - Un account Oracle Cloud con un'istanza **Ampere A1** (arm64) del piano Always Free: 2 OCPU e 12 GB, Ubuntu 24.04 o Oracle Linux 9 per arm64, almeno 50 GB di disco.
 - Due nomi DNS su un sottodominio gratuito di un servizio DNS (Q-620), entrambi con un record A verso l'IP pubblico dell'istanza.
@@ -210,6 +248,10 @@ I certificati interni durano 397 giorni e l'azzeramento li rinnova quando ne man
 > **Nota:** l'elenco dei segreti è lo stesso in `vetrina.sh` (`SECRETS`) e in `compose.vetrina.yml` (`secrets:`); `scripts/check-vetrina.mjs` verifica che coincidano.
 
 ## Limiti noti
+
+- **Codespace acceso solo su richiesta** (ADR-050, TOBE-012): fuori dalle demo la vetrina è spenta e il pulsante di HUB-01 porta a una pagina di GitHub. L'uso si blocca a fine quota gratuita (Q-660).
+- **Segreti leggibili dall'utente del codespace.** Nel codespace l'uid 1000 dei container coincide con l'utente `vscode`: chi apre il terminale del codespace, cioè solo il proprietario, può leggere i file di `secrets/`.
+- **Pagina di avviso di GitHub.** Al primo accesso da un browser a una porta pubblica GitHub può mostrare una pagina di conferma prima della vetrina.
 
 - **Non è HA.** Un host, un broker, un Postgres e una replica del web; gli obiettivi di ADR-036 non valgono.
 - **Azzeramento non del tutto automatico** (Q-630): il programma si riapplica a mano con `vetrina.sh programma`.

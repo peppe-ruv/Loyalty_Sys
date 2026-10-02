@@ -11,7 +11,7 @@ La vetrina è una prova da guardare, non un servizio di produzione: non è ad al
 </Note>
 
 <Note>
-**Stato.** L'architettura è decisa (ADR-049) e l'overlay per installare l'istanza è pronto (`deploy/vetrina/`, fetta M8.14c); le altre parti si realizzano con le fette di M8.14 (piano in `docs/18`). Finché la vetrina non è collegata, il pulsante nel Demo Hub resta nascosto.
+**Stato.** L'architettura è decisa (ADR-049) e l'overlay per installare l'istanza è pronto (`deploy/vetrina/`, fetta M8.14c). Dal 2026-10-01 la vetrina si ospita in un GitHub Codespace acceso su richiesta (ADR-050), al posto dell'host Oracle Cloud: il dev container `.devcontainer/vetrina` la avvia e la configura da solo (fetta M8.14 V7), le altre parti arrivano con le fette di M8.14 (piano in `docs/18`). Finché la vetrina non è collegata, il pulsante nel Demo Hub resta nascosto.
 </Note>
 
 ## Come sono collegate le due istanze
@@ -21,17 +21,17 @@ Il pulsante non cambia il profilo della demo. Il profilo si fissa all'avvio, lat
 ```mermaid
 flowchart LR
   accTitle: Vetrina enterprise ospitata
-  accDescr: Il Demo Hub su Vercel collega la vetrina enterprise, che gira su un solo host arm64. Solo il reverse proxy TLS con certificati ACME è esposto; inoltra al web e al solo realm di Keycloak. Hub e Keycloak parlano con Postgres in TLS verificato e l'hub con Kafka in TLS con certificato del client, firmati da una CA locale generata sull'host.
+  accDescr: Il Demo Hub su Vercel collega la vetrina enterprise, che gira in un GitHub Codespace acceso su richiesta. Solo l'inoltro delle porte di GitHub è esposto, in https; porta al web e al solo realm di Keycloak. Hub e Keycloak parlano con Postgres in TLS verificato e l'hub con Kafka in TLS con certificato del client, firmati da una CA locale generata nel codespace.
   V[Visitatore] -->|HTTPS| DH[Demo Hub demo<br/>Vercel loyalty-hub-web]
   DH -->|link LH_HUB_ENTERPRISE_URL| RP
-  subgraph VM[Host vetrina - Oracle A1 arm64]
-    RP[Reverse proxy TLS<br/>ACME, porte 80 e 443] --> W[web LH_ROLE=web<br/>LH_PROFILE=enterprise]
+  subgraph VM[GitHub Codespace - acceso su richiesta]
+    RP[Inoltro porte di GitHub<br/>https app.github.dev] --> W[web LH_ROLE=web<br/>LH_PROFILE=enterprise]
     RP -->|solo realm loyaltyhub| K[idp Keycloak 26.7.4]
     W -->|Bearer, rete interna| H[hub LH_ROLE=hub<br/>LH_PROFILE=enterprise]
     H -->|TLS verify-full| PG[(Postgres 17<br/>DB hub + DB idp)]
     K -->|TLS verify-full| PG
     H <-->|TLS e certificato client| KF[(Kafka KRaft<br/>5 topic)]
-    CA[/CA locale e segreti 0600<br/>generati sull'host/] -.-> PG
+    CA[/CA locale e segreti 0600<br/>generati nel codespace/] -.-> PG
     CA -.-> KF
   end
   W -->|link di ritorno LH_HUB_DEMO_URL| DH
@@ -39,13 +39,48 @@ flowchart LR
 
 | Ruolo | Dove | Note |
 |---|---|---|
-| `web` | container sull'host, una replica | Le sessioni del BFF stanno in memoria: un riavvio le chiude e si rientra con l'SSO. |
-| `hub` | container sull'host, non esposto | Esegue le migrazioni all'avvio. |
+| `web` | container nel codespace, una replica | Le sessioni del BFF stanno in memoria: un riavvio le chiude e si rientra con l'SSO. |
+| `hub` | container nel codespace, non esposto | Esegue le migrazioni all'avvio. |
 | `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina: registrazione chiusa, nessuna credenziale pubblicata e un client pubblico `lh-cli` (Device Authorization Grant, con consenso esplicito e ruoli limitati a quelli operatore) per la CLI dell'operatore (Q-626, decisa il 2026-09-30). L'OTP vale per gli account con `MFA_REQUIRED_ROLE` e lo script del realm fallisce per un operatore che non lo ha (Q-618, decisa il 2026-09-30). |
-| Postgres e Kafka | sull'host, nel compose | Database e broker **propri**, mai condivisi con la demo. Il traffico verso entrambi è in TLS, con certificati di una CA locale generata sull'host (Q-621): Postgres rifiuta le connessioni in chiaro, Kafka chiede il certificato del client. |
-| Reverse proxy TLS | sull'host, porte 80 e 443 | Unico componente esposto, con certificati ACME per due nomi, `web` e `idp` (Q-620); è la parte che distingue il compose della vetrina da quello di riferimento. La console di amministrazione di Keycloak non passa dal proxy. |
+| Postgres e Kafka | nel codespace, nel compose | Database e broker **propri**, mai condivisi con la demo. Il traffico verso entrambi è in TLS, con certificati di una CA locale generata nel codespace (Q-621): Postgres rifiuta le connessioni in chiaro, Kafka chiede il certificato del client. |
+| Inoltro delle porte | GitHub, due porte pubbliche | Unico ingresso, in https su `*.app.github.dev`: termina il TLS per `web` e `idp` (Q-661). Il reverse proxy con certificati ACME dell'overlay serve solo su un host fisso (Q-620). La console di amministrazione di Keycloak non è esposta. |
 
-L'hosting è un host Oracle Cloud Always Free A1, senza costo e senza sospensione per inattività del traffico (Q-615). Il bus è un broker Kafka KRaft sullo stesso host, con gli stessi 5 topic della demo (Q-616).
+L'hosting è un GitHub Codespace del repository: il proprietario lo accende dal browser prima di una demo e si ferma da solo dopo un periodo di inattività. Resta a costo zero perché l'uso si blocca a fine quota gratuita (ADR-050, Q-660); un host sempre acceso è rimandato (TOBE-012). Il bus è un broker Kafka KRaft sullo stesso host, con gli stessi 5 topic della demo (Q-616).
+
+## Avvio nel codespace
+
+Il proprietario crea il codespace dal repository scegliendo la configurazione «Vetrina enterprise» (macchina da 4 core e 16 GB, Q-660) e lo riaccende prima di ogni demo. A ogni avvio lo script del dev container prepara tutto da solo (Q-663):
+
+1. sceglie l'immagine unica pubblicata, all'ultimo tag `v*` o quella indicata nei segreti del codespace;
+2. scrive la configurazione con i due indirizzi pubblici, `https://<codespace>-8000.app.github.dev` per il web e `-8001` per Keycloak;
+3. genera segreti, CA locale e certificati solo la prima volta, poi li riusa;
+4. avvia lo stack e, al primo avvio, applica l'overlay del realm;
+5. crea gli account operatore che mancano, dall'elenco tenuto nei segreti del codespace;
+6. rende pubbliche le due porte e controlla che la discovery OIDC risponda dall'indirizzo pubblico.
+
+Nel codespace il proxy resta, ma parla HTTP su due porte locali: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy continua a esporre di Keycloak solo il realm `loyaltyhub`; la console di amministrazione resta su una porta privata, visibile solo al proprietario (Q-661).
+
+```mermaid
+sequenceDiagram
+  accTitle: Avvio della vetrina nel codespace
+  accDescr: All'avvio del codespace lo script del dev container sceglie l'immagine, lancia vetrina.sh in modalità codespace, che scrive la configurazione, genera i segreti la prima volta, avvia lo stack e al primo avvio applica l'overlay del realm, poi crea gli operatori mancanti. Lo script rende pubbliche le porte 8000 e 8001 e verifica la discovery OIDC dall'indirizzo pubblico, passando dall'inoltro delle porte di GitHub.
+  participant P as Proprietario
+  participant G as GitHub Codespaces
+  participant A as avvio.sh
+  participant S as vetrina.sh codespace
+  participant D as Docker nel codespace
+  P->>G: crea o riaccende il codespace «Vetrina enterprise»
+  G->>A: postStartCommand
+  A->>A: immagine dal segreto LH_IMAGE o dall'ultimo tag v*
+  A->>S: sudo, ambiente del codespace
+  S->>S: configurazione con gli indirizzi pubblici
+  S->>S: segreti e certificati, solo la prima volta
+  S->>D: compose up con l'overlay del codespace
+  S->>D: overlay del realm al primo avvio, operatori mancanti
+  A->>G: porte 8000 e 8001 pubbliche
+  A->>G: discovery OIDC dall'indirizzo pubblico
+  Note over P,G: inattività oltre il timeout: il codespace si ferma, i dati restano
+```
 
 ## Cosa si ottiene
 
@@ -58,24 +93,24 @@ L'hosting è un host Oracle Cloud Always Free A1, senza costo e senza sospension
 ## Cosa non si ottiene
 
 - **Alta disponibilità**: un solo host, un broker, un Postgres e una replica del web. Gli obiettivi di livello del servizio di ADR-036 non valgono per la vetrina.
-- **Dati reali**: solo dati fittizi, nessun backup e nessuna garanzia di conservazione. La vetrina si azzera ogni settimana e lo dice nel banner di HUB-02 (Q-624).
+- **Dati reali**: solo dati fittizi, nessun backup e nessuna garanzia di conservazione. La vetrina parte vuota a ogni codespace nuovo e lo dice nel banner di HUB-02 (Q-624, Q-663).
 - **Persone demo**: al posto del selettore di persona c'è il login, e i membri `MBR-*` del seed non esistono in questa istanza.
 - **Portale membri**: nel primo passo è chiuso, con la registrazione disattivata (Q-619).
 - **Scenari che accreditano punti**: in `enterprise` l'ingresso degli eventi accetta solo il ruolo `SOURCE` (un client `private_key_jwt` per fonte) o un `ADMIN`; le fonti di prova non hanno chiavi pubblicate e gli scenari demo (`/v1/demo/**`) non esistono in questa istanza.
 - **Tempo reale in BO-24**: la schermata resta in stato *degraded* finché non c'è un proxy per gli eventi in tempo reale (Q-622).
 - **Assistente e CMS**: spenti o non installati in questa istanza.
-- **Disponibilità garantita**: dipende dal piano gratuito del fornitore, che ha capacità limitata, può recuperare un'istanza rimasta inattiva e può ridurre le risorse senza preavviso (dal 15 giugno 2026: 2 OCPU e 12 GB in tutto).
+- **Disponibilità continua**: la vetrina è accesa solo su richiesta, per le demo. La quota gratuita di Codespaces copre decine di ore al mese, non un servizio sempre acceso (TOBE-012).
 
-## Azzeramento settimanale
+## Azzeramento
 
-La vetrina si azzera ogni lunedì, senza backup (Q-624). Un timer sull'host esegue `deploy/vetrina/vetrina.sh reset`: ricrea i dati, reimporta il realm e ricrea gli account operatore. Il certificato pubblico del proxy resta, così l'azzeramento non consuma le emissioni ACME. L'ultimo passo, la configurazione del programma, chiede l'approvazione di un operatore con MFA e quindi resta manuale (Q-630).
+Nel codespace la vetrina parte vuota a ogni codespace nuovo e conserva i dati tra un arresto e un riavvio (Q-663). Lo stesso azzeramento si esegue a mano con `deploy/vetrina/vetrina.sh reset` o, su un host fisso, ogni lunedì con un timer, senza backup (Q-624): ricrea i dati, reimporta il realm e ricrea gli account operatore. Su un host fisso il certificato pubblico del proxy resta, così l'azzeramento non consuma le emissioni ACME. L'ultimo passo, la configurazione del programma, chiede l'approvazione di un operatore con MFA e quindi resta manuale (Q-630).
 
 ```mermaid
 flowchart TD
-  accTitle: Azzeramento settimanale della vetrina enterprise
-  accDescr: Ogni lunedì il timer rinnova i certificati interni in scadenza, ripete i controlli, ricrea i volumi di Postgres e Kafka, riavvia lo stack con il realm reimportato, applica l'overlay del realm e ricrea gli account operatore. La configurazione del programma la riapplica poi un operatore con il Device Authorization Grant e la MFA.
-  T[Timer di systemd<br/>lunedì 03:00 UTC] --> P[provision: certificati interni<br/>rinnovati se scadono entro 30 giorni]
-  P --> C[preflight: arm64, permessi 0600,<br/>certificati, nessun segreto nell'ambiente]
+  accTitle: Azzeramento della vetrina enterprise
+  accDescr: A ogni azzeramento, cioè un codespace nuovo, il comando a mano o il timer settimanale su un host fisso, lo script rinnova i certificati interni in scadenza, ripete i controlli, ricrea i volumi di Postgres e Kafka, riavvia lo stack con il realm reimportato, applica l'overlay del realm e ricrea gli account operatore. La configurazione del programma la riapplica poi un operatore con il Device Authorization Grant e la MFA.
+  T[Codespace nuovo, reset a mano<br/>o timer su host fisso] --> P[provision: certificati interni<br/>rinnovati se scadono entro 30 giorni]
+  P --> C[preflight: architettura, permessi 0600,<br/>certificati, nessun segreto nell'ambiente]
   C --> D[Volumi di Postgres e Kafka ricreati<br/>nessun backup]
   D --> U[Stack riavviato:<br/>Keycloak reimporta il realm]
   U --> O[Overlay del realm:<br/>registrazione chiusa, client lh-cli]
@@ -141,4 +176,4 @@ flowchart LR
 
 ## Decisione
 
-La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md). Hosting, bus, dati del programma, accesso degli operatori, portale e client `lh-cli` sono decisi (Q-615…Q-619, Q-626, Q-629); dominio e TLS, TLS verso bus e database, tempo reale, `render.yaml` e azzeramento sono decisi con il default proposto (Q-620…Q-624, il 2026-10-01). Il dettaglio è in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).
+La decisione, le alternative scartate e i limiti dichiarati sono in [ADR-049](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/13-REGISTRO-DECISIONI.md); l'hosting su Codespaces, che sostituisce Oracle Cloud, è in ADR-050, con i dettagli decisi in Q-660…Q-663 (il 2026-10-01). Hosting, bus, dati del programma, accesso degli operatori, portale e client `lh-cli` sono decisi (Q-615…Q-619, Q-626, Q-629); dominio e TLS, TLS verso bus e database, tempo reale, `render.yaml` e azzeramento sono decisi con il default proposto (Q-620…Q-624, il 2026-10-01). Il dettaglio è in [Domande aperte](https://github.com/peppe-ruv/Loyalty_Sys/blob/main/docs/15-DOMANDE-APERTE.md). Per installare lo stesso profilo sulla propria infrastruttura vedi [Installazione enterprise](/operations/installazione-enterprise).

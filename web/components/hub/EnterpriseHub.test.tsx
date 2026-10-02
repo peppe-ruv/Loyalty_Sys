@@ -88,12 +88,13 @@ describe("HUB-02 ingressi", () => {
 });
 
 describe("HUB-02 intestazione e banner", () => {
-  it("il banner dice non HA, dati fittizi e azzeramento settimanale senza backup (Q-624)", () => {
+  it("il banner dice non HA, dati fittizi, accesa su richiesta e azzeramento senza backup (Q-624, Q-662, Q-663)", () => {
     render(<ShowcaseBanner />);
     const banner = screen.getByRole("note");
     expect(banner).toHaveTextContent(/non è ad alta disponibilità \(HA\)/);
     expect(banner).toHaveTextContent(/solo dati fittizi/);
-    expect(banner).toHaveTextContent(/ogni settimana, senza backup/);
+    expect(banner).toHaveTextContent(/si accende su richiesta e si spegne dopo un periodo di inattività/);
+    expect(banner).toHaveTextContent(/azzerata in qualunque momento, senza backup/);
   });
 
   it("con LH_HUB_DEMO_URL valida c'è il ritorno alla demo, nella stessa scheda", () => {
