@@ -30,6 +30,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       helm: ${{ steps.filter.outputs.helm }}
       docs: ${{ steps.filter.outputs.docs }}
+      e2e: ${{ steps.filter.outputs.e2e }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,14 +42,14 @@ jobs:
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "backend=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"
-            echo "helm=true" >> "$GITHUB_OUTPUT"; echo "docs=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "helm=true" >> "$GITHUB_OUTPUT"; echo "docs=true" >> "$GITHUB_OUTPUT"; echo "e2e=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           files=$(git diff --name-only "origin/$BASE_REF...HEAD")
           printf '%s\n' "$files"
-          # Backend: tutto tranne documentazione (docs/, sito Mintlify, .md/.mdx) e il frontend
+          # Backend: tutto tranne documentazione (docs/, sito Mintlify, .md/.mdx), il frontend e l'harness e2e/
           # (seed/ e contracts/ li leggono i test Java). Niente `grep -q` in pipeline: con pipefail darebbe falsi negativi.
           doc='^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|docs\.json$)|\.mdx?$'
-          code=$(grep -Ev "$doc" <<< "$files" | grep -Ev '^web/' || true)
+          code=$(grep -Ev "$doc" <<< "$files" | grep -Ev '^(web|e2e)/' || true)
           if [ -n "$code" ]; then backend=true; else backend=false; fi
           # Il workflow stesso fa girare tutto.
           if grep -q '^\.github/workflows/' <<< "$files"; then backend=true; fi
@@ -61,11 +62,14 @@ jobs:
           # Documentazione (M8.9, ADR-040): pagine Mintlify e loro configurazione, sorgenti delle pagine generate
           # (schemi evento, OpenAPI), generatore e verifiche, .mintignore e il workflow stesso.
           if grep -Eq '^(docs/|site/|api/|concetti/|guide/|operations/|specifiche/|getting-started/|index\.mdx$|docs\.json$|\.mintignore$|contracts/(events|api)/|scripts/(docs-sync|check-mermaid|check-frontmatter)|scripts/package(-lock)?\.json$|\.github/workflows/)' <<< "$files"; then docs=true; else docs=false; fi
+          # Harness Playwright (M9.1, ADR-052): il job `e2e-pr` gira quando cambia `e2e/` (non il backend) e col workflow.
+          if grep -Eq '^(e2e/|\.github/workflows/)' <<< "$files"; then e2e=true; else e2e=false; fi
           echo "backend=$backend" >> "$GITHUB_OUTPUT"
           echo "web=$web" >> "$GITHUB_OUTPUT"
           echo "helm=$helm" >> "$GITHUB_OUTPUT"
           echo "docs=$docs" >> "$GITHUB_OUTPUT"
-          echo "backend=$backend web=$web helm=$helm docs=$docs"
+          echo "e2e=$e2e" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend web=$web helm=$helm docs=$docs e2e=$e2e"
 
   # Backend in gruppi paralleli: ognuno installa i moduli a monte senza test e verifica solo i propri.
   # I test usano Kafka in-JVM (EmbeddedKafka) e Postgres in-process (Zonky): niente Docker (Q-40).
@@ -665,6 +669,85 @@ jobs:
       - name: Smoke enterprise con login OIDC reale
         timeout-minutes: 10
         run: bash scripts/smoke-enterprise.sh run
+      - name: Diagnostica
+        if: ${{ !success() }}
+        run: bash scripts/smoke-enterprise.sh logs
+      - name: Smonta
+        if: always()
+        run: bash scripts/smoke-enterprise.sh down
+
+  # Cancello e2e (ADR-052 livello 1, M9.1 anticipata, F2-QA-01): harness Playwright di e2e/ contro lo stesso stack del job
+  # `smoke enterprise (compose, OIDC)` (compose di riferimento in profilo enterprise, proxy TLS di prova, overlay di test
+  # del realm), con il browser che fa il login vero di Keycloak con la MFA e le prime journey (accesso dell'operatore,
+  # 401 senza sessione, scrittura di configurazione con voce di audit, membro escluso dal backoffice). Segreti, CA e
+  # certificati li genera scripts/smoke-enterprise.sh nel job (file 0600, mascherati, mai stampati); i test leggono le
+  # credenziali da quei file e non le stampano; trace, video e screenshot sono spenti dove si digitano password o si vede
+  # il segreto OTP. Nessun retry: un test rosso non si nasconde. Controllo consultivo: NON è nel ruleset
+  # (scripts/setup-branch-protection.sh) finché non si dimostra stabile, come `smoke enterprise (compose, OIDC)`.
+  e2e-pr:
+    name: e2e (Playwright, enterprise)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.helm == 'true' || needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Spazio su disco
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: e2e/pnpm-lock.yaml
+      - uses: docker/setup-buildx-action@v4
+      # Stessa build di .github/workflows/image.yml (solo amd64, nessun push); l'immagine finisce nel Docker del runner.
+      - name: Immagine unica
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/image/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          provenance: false
+          sbom: false
+          tags: lh-image:ci
+      - name: Nomi del proxy di prova
+        run: echo "127.0.0.1 web.lh.test idp.lh.test" | sudo tee -a /etc/hosts
+      - name: Compose enterprise con l'overlay di test del realm
+        timeout-minutes: 25
+        run: bash scripts/smoke-enterprise.sh up
+      - name: Dipendenze dell'harness
+        working-directory: e2e
+        run: pnpm install --frozen-lockfile
+      - name: Chromium
+        working-directory: e2e
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Typecheck dell'harness
+        working-directory: e2e
+        run: pnpm typecheck
+      - name: Journey Playwright
+        timeout-minutes: 15
+        working-directory: e2e
+        run: pnpm test
+      # Il report HTML e le tracce dei test falliti (il progetto `setup` e la spec del membro non ne producono). La
+      # sessione dell'operatore sta fuori da queste cartelle. Lo stack è effimero e viene distrutto al termine.
+      - name: Report Playwright
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-pr-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            !e2e/test-results/**/*-setup/**
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Diagnostica
         if: ${{ !success() }}
         run: bash scripts/smoke-enterprise.sh logs

@@ -1,0 +1,17 @@
+{
+  "name": "loyalty-hub-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Harness Playwright del cancello e2e-pr (ADR-052, M9.1, F2-QA-01)",
+  "packageManager": "pnpm@10.33.0",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "22.19.1",
+    "typescript": "5.9.3"
+  }
+}

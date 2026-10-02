@@ -83,7 +83,7 @@ bash scripts/smoke.sh                 # E2E: azione -> punti entro 15 s
 node scripts/check-mermaid.mjs docs   # diagrammi Mermaid validi con accTitle/accDescr (Fase 2)
 # Fase 2, quando esistono
 pnpm registry:build                   # tipi, snapshot Directus e documentazione dal Registry (M10.1)
-pnpm --filter e2e test                # journey Playwright (M9)
+pnpm --dir e2e test                   # journey Playwright (M9; e2e/ è un pacchetto a sé, non c'è un workspace radice)
 lh doctor                             # verifica dell'installazione (M12.2)
 ```
 
