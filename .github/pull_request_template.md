@@ -5,6 +5,7 @@
 ## Definizione di fatto (CLAUDE.md §6 e §7)
 
 - [ ] Test verdi (`./mvnw verify` e/o `pnpm test`)
+- [ ] Proprietà generative per ogni regola di dominio toccata; mutanti sopravvissuti sul diff esaminati (ADR-053, `docs/06 §9`)
 - [ ] OpenAPI rigenerata dove tocca un endpoint (`contracts/api/`), `check-contracts` verde
 - [ ] `pnpm registry:build` senza drift se tocca un blocco/tipo del Registry
 - [ ] Stati loading/empty/error/degraded per le schermate toccate; axe verde sulla matrice `e2e-pr`
