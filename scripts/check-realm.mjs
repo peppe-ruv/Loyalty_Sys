@@ -880,7 +880,7 @@ test('Gitleaks: credenziali di test pubbliche ammesse solo nei percorsi esatti d
   const toml = fs.readFileSync(path.join(ROOT, '.gitleaks.toml'), 'utf8');
   assert.match(toml, /ADR-051 decisione 1/);
   for (const f of ['deploy/idp/vetrina/realm-vetrina-overlay.json', 'deploy/idp/vetrina/realm-members-vetrina-overlay.json', 'deploy/vetrina/README.md', 'concetti/vetrina-enterprise.mdx']) {
-    assert.ok(toml.includes(f.replace(/\./g, '\\.')), `.gitleaks.toml: percorso ${f}`);
+    assert.ok(toml.includes(f.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')), `.gitleaks.toml: percorso ${f}`);
   }
 });
 
