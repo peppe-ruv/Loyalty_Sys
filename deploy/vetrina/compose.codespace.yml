@@ -11,11 +11,13 @@
 #   intestazioni di sicurezza, come sull'host fisso;
 # - niente alias di rete: i nomi pubblici puntano a GitHub, non al proxy. Web e hub raggiungono l'emittente con lo
 #   stesso URL del browser, passando dall'inoltro delle porte (Q-420), con un certificato pubblico verificato;
+# - la console di Keycloak ha un indirizzo proprio sulla porta 8180 privata (solo il proprietario del codespace);
 # - tutto il resto (TLS verso bus e database con la CA locale, segreti da file, profilo fisso) resta identico.
 services:
   proxy:
-    # HTTP in chiaro solo verso l'inoltro delle porte del codespace: nessuna porta privilegiata, nessuna capability.
-    cap_add: !reset []
+    # HTTP in chiaro solo verso l'inoltro delle porte del codespace, su porte non privilegiate. NET_BIND_SERVICE resta
+    # nell'insieme limite dell'overlay: il binario caddy ha la file capability cap_net_bind_service e senza il kernel ne
+    # rifiuta l'esecuzione ("exec /usr/bin/caddy: operation not permitted", visto nello smoke enterprise in CI).
     ports: !override
       - "127.0.0.1:8000:8000"
       - "127.0.0.1:8001:8001"
@@ -25,3 +27,11 @@ services:
       - lh-vetrina-caddy-config:/config
     networks: !override
       default: {}
+
+  # Console di Keycloak (/admin e realm `master`) sull'inoltro PRIVATO della porta 8180: solo il proprietario del
+  # codespace, autenticato da GitHub, poi con l'utente admin di Keycloak. Senza questo indirizzo la console rimanderebbe
+  # a http://127.0.0.1:8180 (quello dell'host fisso), irraggiungibile dal browser. La porta resta privata: avvio.sh
+  # rende pubbliche solo 8000 e 8001, e il proxy pubblico continua a rispondere 404 su /admin.
+  idp:
+    environment:
+      KC_HOSTNAME_ADMIN: "https://${LH_VETRINA_ADMIN_HOST:?LH_VETRINA_ADMIN_HOST obbligatoria nel codespace}"
