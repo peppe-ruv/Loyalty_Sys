@@ -48,6 +48,44 @@ class IdentityGuardTest {
                 .hasMessageStartingWith("INSECURE_CONFIG");
     }
 
+    @Test
+    @DisplayName("[ADR-051] emittente dei membri: facoltativo, distinto da quello degli operatori, solo con oidc")
+    void memberIssuer() {
+        String operators = "https://idp.example.test/realms/loyaltyhub";
+        MockEnvironment env = new MockEnvironment().withProperty("loyaltyhub.identity.mode", "oidc")
+                .withProperty("loyaltyhub.identity.issuer-uri", operators)
+                .withProperty(IdentityGuard.MEMBER_ISSUER_PROPERTY, operators + "-members");
+        env.setActiveProfiles("enterprise");
+        assertThat(IdentityGuard.check(env)).isEqualTo(IdentityMode.OIDC);
+        env.setProperty(IdentityGuard.MEMBER_ISSUER_PROPERTY, operators + "/");
+        assertThatThrownBy(() -> IdentityGuard.check(env)).hasMessageStartingWith("INSECURE_CONFIG")
+                .hasMessageContaining("coincide");
+        MockEnvironment jwksOnly = new MockEnvironment().withProperty("loyaltyhub.identity.mode", "oidc")
+                .withProperty("loyaltyhub.identity.issuer-uri", operators)
+                .withProperty("loyaltyhub.identity.member-jwk-set-uri", "http://idp:8080/certs");
+        assertThatThrownBy(() -> IdentityGuard.check(jwksOnly)).hasMessageStartingWith("INSECURE_CONFIG");
+        MockEnvironment header = new MockEnvironment().withProperty(IdentityGuard.MEMBER_ISSUER_PROPERTY, operators);
+        header.setActiveProfiles("demo");
+        assertThatThrownBy(() -> IdentityGuard.check(header)).hasMessageStartingWith("INSECURE_CONFIG");
+    }
+
+    @Test
+    @DisplayName("[Q-676] utenti di test ammessi solo in un ambiente dichiarato di test")
+    void testUsersOnlyInTestEnvironment() {
+        MockEnvironment env = new MockEnvironment().withProperty("loyaltyhub.identity.mode", "oidc")
+                .withProperty("loyaltyhub.identity.issuer-uri", "https://idp.example.test/realms/loyaltyhub")
+                .withProperty(IdentityGuard.TEST_USERS_ALLOWED_PROPERTY, "true");
+        env.setActiveProfiles("enterprise");
+        assertThatThrownBy(() -> IdentityGuard.check(env)).hasMessageStartingWith("INSECURE_CONFIG")
+                .hasMessageContaining("LH_ENVIRONMENT=test");
+        env.setProperty(IdentityGuard.ENVIRONMENT_PROPERTY, "test");
+        assertThat(IdentityGuard.check(env)).isEqualTo(IdentityMode.OIDC);
+        assertThat(IdentityGuard.testUsersAllowed(env)).isTrue();
+        assertThat(IdentityGuard.testUsersAllowed(new MockEnvironment())).isFalse();
+        assertThat(IdentityGuard.testUsersAllowed(new MockEnvironment()
+                .withProperty(IdentityGuard.TEST_USERS_ALLOWED_PROPERTY, "yes"))).isFalse();
+    }
+
     private static String b64(int bytes) {
         byte[] key = new byte[bytes];
         for (int i = 0; i < bytes; i++) {

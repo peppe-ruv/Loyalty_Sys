@@ -59,6 +59,12 @@ public class LhEnvironmentAliases implements EnvironmentPostProcessor, Ordered {
             new Alias("LH_OIDC_ISSUER", "loyaltyhub.identity.issuer-uri"),
             new Alias("LH_OIDC_JWKS_URI", "loyaltyhub.identity.jwk-set-uri"),
             new Alias("LH_OIDC_AUDIENCE", "loyaltyhub.identity.audience"),
+            // Secondo emittente, facoltativo: il realm dei membri (ADR-051 decisione 6). Senza, un solo emittente come prima.
+            new Alias("LH_OIDC_MEMBER_ISSUER", IdentityGuard.MEMBER_ISSUER_PROPERTY),
+            new Alias("LH_OIDC_MEMBER_JWKS_URI", "loyaltyhub.identity.member-jwk-set-uri"),
+            // Utenti di test (ADR-051, Q-676): ammessi solo in un ambiente dichiarato di test (la vetrina nel codespace).
+            new Alias("LH_TEST_USERS_ALLOWED", IdentityGuard.TEST_USERS_ALLOWED_PROPERTY),
+            new Alias("LH_ENVIRONMENT", IdentityGuard.ENVIRONMENT_PROPERTY),
             // Chiave dello pseudonimo subjectRef del legame account↔membro (Q-552, ADR-048): base64, almeno 32 byte.
             new Alias("LH_SUBJECT_KEY", IdentityGuard.SUBJECT_KEY_PROPERTY),
             new Alias("KAFKA_SECURITY", "loyaltyhub.kafka.security"),

@@ -174,6 +174,40 @@ sequenceDiagram
   W-->>B: risposta
 ```
 
+### Due realm: operatori e membri
+
+Puoi tenere operatori e membri in due realm separati della stessa istanza di Keycloak (ADR-051): `loyaltyhub` per operatori, fonti e job, `loyaltyhub-members` per i membri. Così login, password, MFA e sessioni dei membri non si mescolano con quelli degli operatori.
+
+Per attivarlo imposta nei servizi `LH_OIDC_MEMBER_ISSUER` con l'URL del realm dei membri e, se il JWKS si legge da un indirizzo interno, `LH_OIDC_MEMBER_JWKS_URI`. Senza queste variabili i servizi accettano un solo emittente, come prima.
+
+Con due emittenti ogni token va verificato con il JWKS del suo realm, e ogni realm porta solo i suoi ruoli:
+
+- un token del realm dei membri vale solo con `MEMBER` e solo sul portale; se porta un ruolo da operatore o `SOURCE`, o non porta `MEMBER`, la risposta è `401`;
+- un token di solo membro del realm degli operatori è rifiutato con `403 FORBIDDEN_ROLE`, anche sul portale;
+- un token di un altro emittente è rifiutato con `401`.
+
+L'emittente dei membri deve essere diverso da quello degli operatori: se coincidono, i servizi non partono (`INSECURE_CONFIG`).
+
+```mermaid
+flowchart LR
+  accTitle: Verifica dei token con due emittenti
+  accDescr: I servizi leggono l'emittente del token e lo verificano con il JWKS di quel realm. Dal realm loyaltyhub accettano operatori, fonti e job, mai un token di solo membro. Dal realm loyaltyhub-members accettano solo MEMBER sulle API del portale. Ogni altro emittente è rifiutato.
+  T[Bearer token] --> I{iss}
+  I -->|realm loyaltyhub| O[JWKS operatori]
+  I -->|realm loyaltyhub-members| M[JWKS membri]
+  I -->|altro| X[401]
+  O --> OR{ruoli}
+  OR -->|ADMIN, MARKETING, LEGAL,<br/>CARE, ANALYST, SOURCE| OK1[attore operatore o fonte]
+  OR -->|solo MEMBER| F[403 FORBIDDEN_ROLE]
+  M --> MR{ruoli}
+  MR -->|solo MEMBER| OK2[membro, solo /v1/portal/**]
+  MR -->|ruolo operatore, SOURCE<br/>o senza MEMBER| X2[401]
+```
+
+### Utenti di test
+
+Gli utenti di test della vetrina hanno credenziali pubbliche e il ruolo `LH_TEST_USER`. In ogni installazione `enterprise` i servizi rifiutano i loro token con `401`. Li accettano solo se imposti `LH_TEST_USERS_ALLOWED=true` insieme a `LH_ENVIRONMENT=test`: senza la seconda variabile i servizi non partono (`INSECURE_CONFIG`). Le due variabili servono solo all'ambiente di test della vetrina nel codespace.
+
 | Codice | Quando |
 | --- | --- |
 | `401 UNAUTHENTICATED` | sessione assente o scaduta: l'interfaccia torna al login e poi alla pagina di partenza |
