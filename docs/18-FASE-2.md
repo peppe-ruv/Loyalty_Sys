@@ -813,6 +813,7 @@ ID `F2-<DOM>-nn`; priorità P0 = necessaria al minimo enterprise (M8–M12), P1 
 | F2-QA-03 | Carico k6 con profili 100k–2M membri | P0 | M9.4 |
 | F2-QA-04 | Test di installazione (3 tagli) e di aggiornamento N−1 → N | P0 | M9.5, M12.5 |
 | F2-QA-05 | Gate di sicurezza (ZAP baseline, scansioni) e chaos notturno | P1 | M9.5, M15 |
+| F2-QA-06 | Collaudo di release con un agente nel browser e log dei servizi (ADR-052) | P1 | M9.6 |
 | F2-EXP-01 | Element Registry con generazione e drift check | P0 | M10.1 |
 | F2-EXP-02 | Directus nell'immagine: schema generato, SSO, ruoli, `ref_*`, estensioni | P0 | M10.2 |
 | F2-EXP-03 | `experience-service`: composizione versionata, notify-and-pull, validatore, rollback | P0 | M10.3 |
@@ -918,6 +919,8 @@ Fette (una fetta = un ramo = una PR con auto-merge, regola 16; nessuna tocca `do
 
 ### M9 — Qualità
 Fette: **M9.1** harness `e2e/` (Playwright, client API tipizzato da OpenAPI, personas, macchina del tempo, invarianti; stack CI = immagine `LH_ROLE=all LH_MODE=external` + Postgres e Kafka come service container) · **M9.2** percorsi di `docs/09 §4` + permessi + 4 journey lunghe (anno di un membro, concorso completo, saga premi con annulli, edizione) + fuzz journey con seme, selettori per ruolo/`data-testid` · **M9.3** matrice device (`desktop-chromium`, `desktop-firefox`, `desktop-webkit`, `bo-narrow`, `iPad Pro 11`, `iPhone 15`, `Pixel 7`), screenshot di riferimento con maschere, axe + pa11y, percorsi da tastiera · **M9.4** carico k6 (ingresso azioni, giocate concorrenti, riscatti; profili 100k e 2M membri) con soglie SLO · **M9.5** test di installazione dei tagli disponibili e gate di sicurezza (ZAP baseline); job `e2e-pr` (smoke, 2 progetti) e `e2e-nightly` (matrice completa, report come artifact).
+
+Con ADR-052 (strategia di test a tre livelli, Q-680…Q-685), in quest'ordine: **T1** `fase2/M9.1-harness-e2e` — `test(e2e): harness Playwright e job e2e-pr [F2-QA-01, ADR-052]`: M9.1 anticipata, job `e2e-pr` sul compose di riferimento in `enterprise` con l'overlay di test del realm · **T2** `fase2/M9.6a-copione-collaudo` — `test(collaudo): copione di collaudo di release [F2-QA-06, ADR-052, Q-680, Q-681, Q-682, Q-685]`: `e2e/collaudo/copione.md`, prompt di avvio, formato del rapporto, `scripts/check-collaudo.mjs` nel job `guard`, guida Mintlify · **T3** `fase2/M9.6b-collaudo-log` — `ci(collaudo): stack enterprise con i log dei container [F2-QA-06, ADR-052, Q-683]`: workflow `collaudo` con le journey e i log come artefatto (dipende da T1) · **T4** `fase2/M9.6c-correlation-id` — `feat(common): correlationId negli errori e negli stati d'errore [F2-QA-06, ADR-052, Q-684]`: solo dopo l'approvazione di mockup e flusso degli stati d'errore.
 
 **Accettazione**: invarianti verdi dopo ogni ciclo di ogni journey (Σ lotti = saldo, Σ mesi liability = in circolazione, stock ≤ totale, ogni `contest.won` con tracciato completo senza DLQ, nessun doppione in inbox, una voce audit per scrittura BO); nessuna violazione axe di livello *serious/critical* nella matrice; k6 entro SLO sul profilo 100k; `e2e-pr` < 15 min.
 

@@ -1,0 +1,55 @@
+---
+title: "Qualità e collaudo: come si verifica una major release"
+sidebarTitle: "Qualità e collaudo"
+description: "I tre livelli di test di Loyalty Hub: il cancello Playwright in CI, il collaudo di release con un agente nel browser sulla vetrina e i log dei servizi per spiegare ogni errore."
+---
+
+Una major release di Loyalty Hub passa da tre livelli di test. Ognuno copre ciò che gli altri non vedono: il cancello automatico impedisce le regressioni, il collaudo nel browser trova i difetti che nessuno ha previsto, i log dei servizi spiegano perché un errore è successo. La decisione è registrata in ADR-052.
+
+<Note>
+Il livello 1 è un cancello: se è rosso la release non parte. Il collaudo del livello 2 è consultivo: produce un rapporto e la decisione di rilascio resta al proprietario del progetto.
+</Note>
+
+## Perché tre livelli
+
+- **Playwright in CI** ripete sempre gli stessi percorsi nello stesso modo. Protegge da ciò che è già noto, ma non trova ciò che nessuno ha scritto.
+- **Un agente nel browser**, come Claude in Chrome, usa la vetrina come una persona: legge i testi, prova i flussi, nota gli errori in console e le richieste fallite. Trova difetti nuovi, ma due esecuzioni non sono mai identiche e non può fare da cancello.
+- **I log dei servizi** stanno nei container, che il browser non vede. Servono per collegare un errore visto sullo schermo alla sua causa.
+
+## Il flusso di una major release
+
+```mermaid
+flowchart TD
+  accTitle: Verifica di una major release in tre livelli
+  accDescr: Una pull request passa dal cancello Playwright e2e-pr. Prima del tag vX.0.0 la candidata gira sulla vetrina, dove l'agente nel browser esegue il copione di collaudo e scrive un rapporto, mentre il workflow collaudo alza lo stack enterprise in CI e allega i log dei container. Ogni difetto diventa una issue che si chiude solo con un test deterministico, che torna nel cancello. Con il cancello verde e il rapporto letto, il proprietario decide il tag.
+  PR[Pull request] --> L1{Livello 1<br/>Playwright e2e-pr}
+  L1 -->|rosso| FIX[Correzione]
+  FIX --> PR
+  L1 -->|verde| MAIN[main]
+  MAIN --> CAND[Candidata build-sha<br/>sulla vetrina]
+  CAND --> L2[Livello 2<br/>agente nel browser<br/>copione CL-*]
+  MAIN --> L3[Livello 3<br/>workflow collaudo<br/>log dei container]
+  L2 --> RAP[Rapporto nel repository<br/>con una PR]
+  L3 --> RAP
+  RAP -->|difetto| ISS[Issue collaudo]
+  ISS --> TEST[Test deterministico<br/>che lo riproduce]
+  TEST --> L1
+  RAP -->|nessun blocco| DEC{Decisione del<br/>proprietario}
+  DEC --> TAG[Tag vX.0.0]
+```
+
+## Cosa vede ogni livello
+
+| Livello | Dove gira | Cosa vede | Esito |
+| --- | --- | --- | --- |
+| 1. Playwright | GitHub Actions, compose `enterprise` | pagine, invarianti, accessibilità | verde o rosso, blocca il merge |
+| 2. Agente nel browser | Chrome del proprietario, vetrina | DOM, console, rete, screenshot | rapporto consultivo |
+| 3. Log dei servizi | GitHub Actions, compose `enterprise` | log di hub, web, Keycloak, Kafka, Postgres | artefatto del workflow |
+
+<Warning>
+Il collaudo usa solo le credenziali di test pubbliche della vetrina, descritte in [Vetrina enterprise](/concetti/vetrina-enterprise). Non usare mai credenziali di un'altra installazione.
+</Warning>
+
+## Stato
+
+Il cancello Playwright (M9.1), il copione di collaudo, il workflow dei log e il `correlationId` negli errori si aggiungono in fette successive. I dettagli aperti sono le domande Q-680…Q-685.
