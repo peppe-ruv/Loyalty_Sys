@@ -722,8 +722,11 @@ jobs:
       - name: Compose enterprise con l'overlay di test del realm
         timeout-minutes: 25
         run: bash scripts/smoke-enterprise.sh up
+      # Cypress (demo pubblica, ADR-054) vive nello stesso pacchetto ma non gira nelle PR: il suo binario non si scarica qui.
       - name: Dipendenze dell'harness
         working-directory: e2e
+        env:
+          CYPRESS_INSTALL_BINARY: "0"
         run: pnpm install --frozen-lockfile
       - name: Chromium
         working-directory: e2e

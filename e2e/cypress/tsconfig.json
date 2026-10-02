@@ -6,13 +6,11 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "isolatedModules": true,
-    "types": ["node"]
+    "types": ["cypress"]
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "playwright-report", "test-results", "cypress", "cypress.config.ts"]
+  "include": ["./**/*.ts", "../cypress.config.ts"]
 }
