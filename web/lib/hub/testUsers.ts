@@ -17,10 +17,11 @@ export const KEYCLOAK_ADMIN_PASSWORD = "Aurora-Admin-26!";
 export const OPERATORS_TOTP_SEED = "KZSXI4TJNZQUC5LSN5ZGCMRQGI3EY2BB";
 
 /**
- * Il portale dei membri non funziona ancora dal token (fetta V9b): finché è `false` i pulsanti dei quattro membri
- * sono disabilitati e la scheda lo dice. Si porta a `true` nella fetta V9b, insieme ai test dei percorsi del portale.
+ * Il portale dei membri funziona dal token (fetta V9b, F2-SEC-09, ADR-051): le schede dei quattro membri sono attive.
+ * Il flag resta come interruttore: a `false` i pulsanti tornano disabilitati con la scritta «arriva con il prossimo
+ * aggiornamento» (stato di V9).
  */
-export const MEMBER_PORTAL_READY = false;
+export const MEMBER_PORTAL_READY = true;
 
 export interface TestOperator {
   username: string;

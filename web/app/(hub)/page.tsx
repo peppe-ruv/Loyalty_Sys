@@ -21,7 +21,16 @@ async function EnterpriseHubPage() {
   // Utente della sessione del BFF, se c'è: solo nome e username arrivano alla pagina, mai token (regola 20).
   const viewer = await getViewer();
   const user = viewer.mode === "enterprise" ? viewer.user : null;
-  return <EnterpriseHub demoUrl={demoHubUrl(process.env)} user={user} testMode={testMode()} />;
+  // Sessione del membro (realm dei membri, V9b): solo username e nome arrivano alla pagina. Se il realm dei membri non
+  // è configurato o la sessione manca, le schede dei membri restano quelle di ingresso (mai un errore dell'Hub).
+  let memberUser: typeof user = null;
+  try {
+    const memberViewer = await getViewer("members");
+    memberUser = memberViewer.mode === "enterprise" && memberViewer.user?.kind === "member" ? memberViewer.user : null;
+  } catch {
+    memberUser = null;
+  }
+  return <EnterpriseHub demoUrl={demoHubUrl(process.env)} user={user} memberUser={memberUser} testMode={testMode()} />;
 }
 
 export default function DemoHubPage() {

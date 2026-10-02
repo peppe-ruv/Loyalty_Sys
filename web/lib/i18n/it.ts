@@ -145,6 +145,7 @@ export const it = {
     registerAs: (name: string) => `Registrati come ${name}`,
     signedInAs: (name: string) => `Sei dentro come ${name}`,
     openBackoffice: "Apri il backoffice",
+    openPortal: "Apri il portale",
     logoutToEnterAs: (name: string) => `Esci per entrare come ${name}`,
     members: "Membri · portale",
     membersPassword: "la password dei membri",
@@ -164,6 +165,22 @@ export const it = {
     adminUser: "il nome utente dell'amministratore",
     consolesNote:
       "Le modifiche fatte nelle console finiscono negli eventi di Keycloak, non ancora nell'audit del backoffice (M8.12, Q-677). La console master non è pubblica.",
+  },
+  // PT-08 / PT-16 — portale dei membri dal token (F2-SEC-09, ADR-048, ADR-051): ingresso e registrazione in enterprise.
+  portalMember: {
+    loading: "Sto aprendo il tuo portale…",
+    toJoin: "Ti porto alla registrazione…",
+    toHome: "Sei già iscritto: apro la Home…",
+    errorTitle: "Non riesco ad aprire il tuo portale.",
+    retry: "Riprova",
+    joinTitle: (first: string) => (first ? `Ciao ${first}, completa l'iscrizione` : "Completa l'iscrizione"),
+    joinLead: "Ti manca solo il profilo del programma. Riceverai 100 punti di benvenuto.",
+    fullName: "Nome e cognome",
+    email: "E-mail",
+    fromAccount: "Dal tuo account: non si modifica qui.",
+    unavailable: "Non disponibile: l'accesso non ha comunicato i tuoi dati. Esci e accedi di nuovo.",
+    notAvailableTitle: "Questa schermata non è disponibile",
+    notAvailableText: "Con l'accesso reale non c'è ancora la versione per i membri di questa funzione.",
   },
   // BO-02 — «Utenti membri»: console Keycloak del realm dei membri (ADR-051 decisione 7).
   memberUsers: {

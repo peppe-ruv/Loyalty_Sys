@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useLhQuery } from "@/lib/api/client";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
@@ -16,10 +16,10 @@ const FILTERS = [
 ];
 
 export default function ActivityPage() {
-  const memberId = useActiveMember();
+  const api = usePortalApi();
   const { pending } = usePending();
   const [currency, setCurrency] = useState("");
-  const query = useLhQuery<ActivityItem[]>("wallet", `/v1/portal/wallets/${memberId}/activity`, {
+  const query = useLhQuery<ActivityItem[]>("wallet", api.walletActivity, {
     currency,
     size: 100,
   }, { refetchInterval: pending ? 5000 : undefined });

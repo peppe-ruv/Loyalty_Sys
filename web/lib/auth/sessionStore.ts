@@ -20,6 +20,11 @@ export interface SessionUser {
   sid: string | null;
   username: string;
   name: string | null;
+  /** Claim `given_name`, `family_name` ed `email` dell'ID token: solo per precompilare la registrazione del membro
+   *  (PT-16, F2-SEC-09); mai tra i dati inviati ai servizi, che si fidano solo dell'access token. Assenti = non comunicati. */
+  givenName?: string | null;
+  familyName?: string | null;
+  email?: string | null;
   roles: string[];
   role: Role;
   kind: SessionKind;

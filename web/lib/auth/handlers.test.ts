@@ -131,6 +131,10 @@ describe("GET /api/auth/callback", () => {
       sid: "kc-sid-1",
       username: "luca.marketing",
       name: "Luca Serra",
+      // Claim di profilo per precompilare la registrazione del membro (PT-16): assenti nel token di prova.
+      givenName: null,
+      familyName: null,
+      email: null,
       roles: ["MARKETING"],
       role: "MARKETING",
       kind: "operator",

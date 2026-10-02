@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Crown } from "lucide-react";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalLeaderboard } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { myPositionLine, periodKeyLabel, scoreUnit } from "@/lib/gamification/leaderboards";
 import { formatPoints } from "@/lib/format/points";
@@ -14,8 +14,8 @@ import { cn } from "@/lib/cn";
 // PT-10 Classifica (docs/09 §PT-10): selettore (mese / edizione), podio dei primi 3, top N con nickname e punteggio,
 // riga del membro sempre visibile (fissata in basso se è fuori dalla top N). Solo nickname, mai nomi reali.
 export default function LeaderboardPage() {
-  const memberId = useActiveMember();
-  const list = useLhQuery<PortalLeaderboard[]>("gamification", "/v1/portal/leaderboards", { memberId }, { refetchInterval: 15_000 });
+  const api = usePortalApi();
+  const list = useLhQuery<PortalLeaderboard[]>("gamification", "/v1/portal/leaderboards", api.query(), { refetchInterval: 15_000 });
   const [code, setCode] = useState<string | null>(null);
   return (
     <div className="space-y-4">

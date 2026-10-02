@@ -16,7 +16,12 @@ vi.mock("@/lib/api/client", () => ({
     return { isLoading: false, isError: false, error: null, isFetched: true, refetch: vi.fn(), ...q };
   },
 }));
-vi.mock("@/components/portal/MemberContext", () => ({ useActiveMember: () => "MBR-000002" }));
+// Profilo demo: stessi percorsi di sempre, dal seam del portale (lib/portal/memberApi.ts).
+vi.mock("@/components/portal/MemberContext", async () => {
+  const { portalApi } = await import("@/lib/portal/memberApi");
+  const api = portalApi(false, "MBR-000002");
+  return { useActiveMember: () => "MBR-000002", usePortalApi: () => api };
+});
 const markPending = vi.fn();
 vi.mock("@/components/portal/PendingContext", () => ({ usePending: () => ({ pending: false, markPending }) }));
 vi.mock("@/components/portal/ContentSlot", () => ({ ContentSlot: () => null }));

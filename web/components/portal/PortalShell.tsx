@@ -8,7 +8,7 @@ import { ulid } from "@/lib/ids";
 import type { PortalContest, PortalProfile } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
 import { PendingProvider, usePending } from "./PendingContext";
-import { useActiveMember, switchMember } from "./MemberContext";
+import { useActiveMember, usePortalApi, useUnregistered, switchMember } from "./MemberContext";
 
 // Shell del portale (docs/09 §1): tab bar Home · Guadagna · Premi · Gioca · Io (pallino su Gioca se c'è una giocata
 // disponibile, su Io se il profilo è incompleto) + tray demo PT-14. L'attività resta raggiungibile dalla Home.
@@ -22,7 +22,7 @@ const TABS = [
 
 export function PortalShell({ children, demo = true }: { children: React.ReactNode; demo?: boolean }) {
   return (
-    <PendingProvider>
+    <PendingProvider live={demo}>
       <div className="pb-24">{children}</div>
       <TabBar />
       {/* Il tray demo (cambio membro, azioni simulate) esiste solo nel profilo demo (regola 6-bis). */}
@@ -33,13 +33,16 @@ export function PortalShell({ children, demo = true }: { children: React.ReactNo
 
 function TabBar() {
   const pathname = usePathname();
-  const memberId = useActiveMember();
-  const contests = useLhQuery<PortalContest[]>("gamification", "/v1/portal/contests", { memberId }, { refetchInterval: 60_000 });
-  const profile = useLhQuery<PortalProfile>("member", `/v1/portal/members/${memberId}`);
+  const api = usePortalApi();
+  // Enterprise senza membro (registrazione PT-16): niente barra né chiamate ai servizi.
+  const unregistered = useUnregistered();
+  const contests = useLhQuery<PortalContest[]>("gamification", "/v1/portal/contests", api.query(), { refetchInterval: 60_000, enabled: !unregistered });
+  const profile = useLhQuery<PortalProfile>("member", api.profile, undefined, { enabled: !unregistered });
   const dots: Record<string, { on: boolean; label: string }> = {
     play: { on: (contests.data ?? []).some((c) => c.playsAvailable > 0), label: "giocata disponibile" },
     profile: { on: profile.data != null && !profile.data.completeness.completed, label: "profilo da completare" },
   };
+  if (unregistered) return null;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-md justify-around border-t border-[var(--color-bo-border)] bg-white/95 py-2 backdrop-blur">
       {TABS.map((t) => {

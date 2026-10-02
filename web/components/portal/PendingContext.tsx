@@ -18,7 +18,9 @@ interface PendingState {
 const PENDING_WINDOW_MS = 30_000;
 const Ctx = createContext<PendingState>({ pending: false, markPending: () => {}, labels: [] });
 
-export function PendingProvider({ children }: { children: React.ReactNode }) {
+// `live`: ascolto SSE di insight. In enterprise (F2-SEC-09) l'EventSource non ha un token: il proxy SSE del BFF è una
+// fetta successiva (BO-24, Q-622), quindi il portale usa solo il polling del wallet (5 s), già previsto come ripiego.
+export function PendingProvider({ children, live = true }: { children: React.ReactNode; live?: boolean }) {
   const [until, setUntil] = useState(0);
   const [labels, setLabels] = useState<string[]>([]);
   const correlationId = useRef<string | null>(null);
@@ -51,7 +53,7 @@ export function PendingProvider({ children }: { children: React.ReactNode }) {
 
     // Via principale (M2.3): SSE filtrato per correlationId, si chiude al fatto wallet.points.earned.
     let source: EventSource | null = null;
-    if (correlationId.current && typeof window !== "undefined") {
+    if (live && correlationId.current && typeof window !== "undefined") {
       try {
         source = new EventSource(streamUrl({ correlationId: correlationId.current }));
         source.addEventListener("lh-event", (e: MessageEvent) => {
@@ -82,7 +84,7 @@ export function PendingProvider({ children }: { children: React.ReactNode }) {
       clearInterval(timer);
       clearTimeout(stop);
     };
-  }, [pending, until, qc, refreshInbox]);
+  }, [pending, until, qc, refreshInbox, live]);
 
   return <Ctx.Provider value={{ pending, markPending, labels }}>{children}</Ctx.Provider>;
 }

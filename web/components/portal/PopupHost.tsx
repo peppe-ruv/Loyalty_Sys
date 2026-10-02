@@ -6,7 +6,7 @@ import { lhFetch } from "@/lib/api/client";
 import type { PopupView } from "@/lib/content/types";
 import { isExternal } from "@/lib/content/links";
 import { PopupModal } from "@/components/shared/content/PopupModal";
-import { useActiveMember } from "./MemberContext";
+import { useActiveMember, usePortalApi } from "./MemberContext";
 
 // Pop-up all'ingresso in PT-01 (docs/09 §1): al più uno per visita (una visita = la sessione del browser per quel
 // membro). La vista si registra alla chiusura o al tocco sulla CTA (`POST …/seen`), non alla lettura: se qualcosa va
@@ -15,6 +15,7 @@ const visitKey = (memberId: string) => `lh_popup_visit_${memberId}`;
 
 export function PopupHost() {
   const memberId = useActiveMember();
+  const api = usePortalApi();
   const router = useRouter();
   const [popup, setPopup] = useState<PopupView | null>(null);
 
@@ -27,7 +28,7 @@ export function PopupHost() {
     }
     if (alreadyThisVisit) return;
     let cancelled = false;
-    lhFetch<PopupView | undefined>("engagement", "/v1/portal/popups/next", { query: { memberId } })
+    lhFetch<PopupView | undefined>("engagement", "/v1/portal/popups/next", { query: api.query() })
       .then((p) => {
         if (cancelled) return;
         try {
@@ -43,14 +44,14 @@ export function PopupHost() {
     return () => {
       cancelled = true;
     };
-  }, [memberId]);
+  }, [memberId, api]);
 
   if (!popup) return null;
 
   const record = (dismissed: boolean) =>
     lhFetch("engagement", `/v1/portal/popups/${popup.id}/seen`, {
       method: "POST",
-      body: JSON.stringify({ memberId, dismissed }),
+      body: JSON.stringify(api.body({ dismissed })),
     }).catch(() => undefined);
 
   return (

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
 import type { Edition, WalletView, MemberView } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { useActiveMember, usePortalApi } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
 import { MemberCard } from "@/components/shared/content/MemberCard";
 import { PendingBanner, ActivityRow, type ActivityItem } from "@/components/portal/parts";
@@ -21,19 +21,20 @@ import { isAnonymized, memberDisplayName } from "@/lib/member/anonymized";
 // (/portal/join → ?welcome=1), se i punti di benvenuto non sono ancora sul saldo, "in arrivo…".
 export default function PortalHome() {
   const memberId = useActiveMember();
+  const api = usePortalApi();
   const theme = usePortalTheme();
   const { pending, markPending } = usePending();
-  const wallet = useLhQuery<WalletView>("wallet", `/v1/portal/wallets/${memberId}`, undefined, {
+  const wallet = useLhQuery<WalletView>("wallet", api.wallet, undefined, {
     refetchInterval: pending ? 5000 : undefined,
   });
-  const member = useLhQuery<MemberView>("member", `/v1/members/${memberId}`);
-  const activity = useLhQuery<ActivityItem[]>("wallet", `/v1/portal/wallets/${memberId}/activity`, { size: 3 }, {
+  const member = useLhQuery<MemberView>("member", api.summary);
+  const activity = useLhQuery<ActivityItem[]>("wallet", api.walletActivity, { size: 3 }, {
     refetchInterval: pending ? 5000 : undefined,
   });
 
   // Avviso di mantenimento (docs/09 §PT-01, wallet §2 `keepWarning`): la scadenza è la fine dell'edizione attiva.
   const keepWarning = wallet.data?.tier.keepWarning ?? null;
-  const editions = useLhQuery<Edition[]>("wallet", "/v1/editions", undefined, { enabled: keepWarning != null });
+  const editions = useLhQuery<Edition[]>("wallet", api.editions, undefined, { enabled: keepWarning != null });
   const editionEnd = editions.data?.find((e) => e.status === "ACTIVE")?.endDate ?? null;
 
   // Un membro anonimizzato (F-MBR-05) non ha più un nome: saluto senza nome, tessera col segnaposto.

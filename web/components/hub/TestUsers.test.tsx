@@ -53,8 +53,8 @@ describe("modulo dei dati di test", () => {
     expect(TEST_MEMBERS.map((m) => m.username)).toEqual(["anna.rossi", "marco.bianchi", "giulia.ferri", "laura.conti"]);
   });
 
-  it("il portale dei membri non è pronto (V9b): il flag vale false", () => {
-    expect(MEMBER_PORTAL_READY).toBe(false);
+  it("il portale dei membri funziona dal token (V9b): il flag vale true", () => {
+    expect(MEMBER_PORTAL_READY).toBe(true);
   });
 
   it("nessun modulo client importa le credenziali: solo server component e route handler", () => {
@@ -126,7 +126,7 @@ describe("TestUsers", () => {
     }
   });
 
-  it("membri: tre registrati e Laura tratteggiata «da registrare»; pulsanti disabilitati finché il portale non è pronto", async () => {
+  it("membri: tre registrati e Laura tratteggiata «da registrare»; schede attive con il collegamento di ingresso al realm dei membri", async () => {
     render(<TestUsers mode={MODE} user={null} />);
     await screen.findByTestId("otp-code");
     const members = screen.getByRole("region", { name: tu.members });
@@ -139,14 +139,37 @@ describe("TestUsers", () => {
     expect(laura.className).toMatch(/border-dashed/);
     for (const m of TEST_MEMBERS) {
       const card = screen.getByTestId(`member-${m.username}`);
-      const button = within(card).getByRole("button");
-      expect(button).toBeDisabled();
-      expect(button).toHaveAccessibleDescription(tu.portalNotReady);
-      expect(within(card).queryByRole("link")).toBeNull();
+      expect(within(card).queryByRole("button")).toBeNull();
+      const first = m.name.split(" ")[0];
+      const link = within(card).getByRole("link", { name: m.registered ? tu.enterAs(first) : tu.registerAs(first) });
+      expect(link).toHaveAttribute("href", `/api/auth/login?realm=members&returnTo=%2Fportal&login_hint=${m.username}`);
+      expect(within(card).queryByText(tu.portalNotReady)).toBeNull();
       expect(within(card).getByText(m.story)).toBeInTheDocument();
     }
-    expect(within(screen.getByTestId("member-laura.conti")).getByRole("button", { name: tu.registerAs("Laura") })).toBeDisabled();
     expect(screen.getByText(/programma di esempio \(V10\)/)).toBeInTheDocument();
+  });
+
+  it("sessione da membro: la sua scheda dice «Sei dentro come…» con «Apri il portale»; le altre offrono l'uscita dalla sessione del MEMBRO", async () => {
+    render(<TestUsers mode={MODE} user={null} memberUser={{ username: "anna.rossi", name: "Anna Rossi" }} />);
+    await screen.findByTestId("otp-code");
+    const anna = screen.getByTestId("member-anna.rossi");
+    expect(within(anna).getByText(tu.signedInAs("Anna Rossi"))).toBeInTheDocument();
+    expect(within(anna).getByRole("link", { name: new RegExp(tu.openPortal) })).toHaveAttribute("href", "/portal");
+    expect(within(anna).queryByRole("link", { name: /Entra come/ })).toBeNull();
+    for (const m of TEST_MEMBERS.filter((x) => x.username !== "anna.rossi")) {
+      const card = screen.getByTestId(`member-${m.username}`);
+      expect(within(card).queryByRole("link")).toBeNull();
+      const out = within(card).getByRole("button", { name: tu.logoutToEnterAs(m.name.split(" ")[0]) });
+      const form = out.closest("form");
+      expect(form).toHaveAttribute("method", "post");
+      // Chiude la sola sessione del membro (realm=members), non quella dell'operatore.
+      expect(form).toHaveAttribute("action", "/api/auth/logout?realm=members");
+      expect(form?.querySelector('input[name="csrf"]')).not.toBeNull();
+    }
+    // Le schede degli operatori non cambiano: nessuna sessione da operatore, ingresso normale.
+    for (const op of TEST_OPERATORS) {
+      expect(within(screen.getByTestId(`op-${op.username}`)).getByRole("link", { name: tu.enterAs(op.name) })).toBeInTheDocument();
+    }
   });
 
   it("console di Keycloak: due schede con utente e password copiabili e link in nuova scheda alla console del realm", async () => {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLhQuery } from "@/lib/api/client";
 import type { PortalCampaign, PortalReferral } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { actionLabel } from "@/lib/campaign/describe";
 import { completedThisEdition, inviteLink, inviteeStatusLabel } from "@/lib/member/referral";
@@ -19,9 +19,9 @@ const REFERRER = "CMP-REFERRAL-REFERRER";
 const REFEREE = "CMP-REFERRAL-REFEREE";
 
 export default function InvitePage() {
-  const memberId = useActiveMember();
-  const referral = useLhQuery<PortalReferral>("member", `/v1/portal/members/${memberId}/referral`);
-  const campaigns = useLhQuery<PortalCampaign[]>("campaign", "/v1/portal/campaigns", { memberId, codes: `${REFERRER},${REFEREE}` });
+  const api = usePortalApi();
+  const referral = useLhQuery<PortalReferral>("member", api.referral);
+  const campaigns = useLhQuery<PortalCampaign[]>("campaign", "/v1/portal/campaigns", api.query({ codes: `${REFERRER},${REFEREE}` }));
   const forReferrer = campaigns.data?.find((c) => c.code === REFERRER);
   const forReferee = campaigns.data?.find((c) => c.code === REFEREE);
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { lhFetch, useLhQuery, type Page } from "@/lib/api/client";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { UNREAD_PATH, useUnreadCount } from "@/components/portal/InboxBell";
 import { UNREAD_POLL_MS, inboxHref, markAllReadLocally, markReadLocally, newArrivals, relativeWhen } from "@/lib/messages/inbox";
 import { messageIcon } from "@/lib/messages/icons";
@@ -22,11 +22,11 @@ const PAGE = 20;
 const MAX_SIZE = 100; // tetto del servizio (InboxService.MAX_SIZE)
 
 export default function InboxPage() {
-  const memberId = useActiveMember();
+  const api = usePortalApi();
   const router = useRouter();
   const qc = useQueryClient();
   const [size, setSize] = useState(PAGE);
-  const query = { memberId, size };
+  const query = api.query({ size });
   const inbox = useLhQuery<Page<PortalMessage>>("engagement", INBOX_PATH, query, { refetchInterval: UNREAD_POLL_MS });
   const unread = useUnreadCount();
   const [busy, setBusy] = useState(false);
@@ -65,7 +65,7 @@ export default function InboxPage() {
       try {
         await lhFetch<PortalMessage>("engagement", `${INBOX_PATH}/${encodeURIComponent(m.id)}/read`, {
           method: "POST",
-          body: JSON.stringify({ memberId }),
+          body: JSON.stringify(api.body()),
         });
       } catch {
         // Lettura non registrata (servizio che dorme): al prossimo aggiornamento la voce torna non letta.
@@ -79,7 +79,7 @@ export default function InboxPage() {
     setBusy(true);
     setLocal((list) => markAllReadLocally(list, new Date().toISOString()));
     try {
-      await lhFetch<ReadAllOutcome>("engagement", `${INBOX_PATH}/read-all`, { method: "POST", body: JSON.stringify({ memberId }) });
+      await lhFetch<ReadAllOutcome>("engagement", `${INBOX_PATH}/read-all`, { method: "POST", body: JSON.stringify(api.body()) });
     } catch {
       void inbox.refetch();
     } finally {

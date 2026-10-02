@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
 import type { MemberPlay, PlayResult, PortalContest, PortalCoupon } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { useActiveMember, usePortalApi } from "@/components/portal/MemberContext";
 import { usePending } from "@/components/portal/PendingContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { Wheel } from "@/components/portal/game/Wheel";
@@ -27,7 +27,8 @@ type Phase = "idle" | "requesting" | "revealing" | "done";
 export default function PlayContestPage() {
   const code = String(useParams().code);
   const memberId = useActiveMember();
-  const contests = useLhQuery<PortalContest[]>("gamification", "/v1/portal/contests", { memberId });
+  const api = usePortalApi();
+  const contests = useLhQuery<PortalContest[]>("gamification", "/v1/portal/contests", api.query());
   return (
     <div className="space-y-4">
       <Link href="/portal/play" className="text-xs font-medium text-[var(--color-pt-primary)]">
@@ -46,15 +47,16 @@ export default function PlayContestPage() {
               </div>
             );
           }
-          return <Game key={`${c.code}-${memberId}`} contest={c} memberId={memberId} />;
+          return <Game key={`${c.code}-${memberId}`} contest={c} />;
         }}
       </QueryState>
     </div>
   );
 }
 
-function Game({ contest, memberId }: { contest: PortalContest; memberId: string }) {
+function Game({ contest }: { contest: PortalContest }) {
   const qc = useQueryClient();
+  const api = usePortalApi();
   const { markPending } = usePending();
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<PlayResult | null>(null);
@@ -62,8 +64,8 @@ function Game({ contest, memberId }: { contest: PortalContest; memberId: string 
   const [rotation, setRotation] = useState(0);
   const [chosenBox, setChosenBox] = useState<number | null>(null);
   const segments = useMemo(() => wheelSegments(contest.prizes), [contest.prizes]);
-  const history = useLhQuery<MemberPlay[]>("gamification", `/v1/portal/contests/${contest.code}/plays`, { memberId });
-  const play = useLhMutation<PlayResult, { memberId: string }>("gamification", "POST", () => `/v1/portal/contests/${contest.code}/play`, {
+  const history = useLhQuery<MemberPlay[]>("gamification", `/v1/portal/contests/${contest.code}/plays`, api.query());
+  const play = useLhMutation<PlayResult, { memberId?: string }>("gamification", "POST", () => `/v1/portal/contests/${contest.code}/play`, {
     invalidate: false,
   });
 
@@ -84,7 +86,7 @@ function Game({ contest, memberId }: { contest: PortalContest; memberId: string 
     setResult(null);
     setPhase("requesting");
     play.mutate(
-      { memberId },
+      api.body(),
       {
         onSuccess: (r) => {
           setResult(r);
@@ -141,7 +143,7 @@ function Game({ contest, memberId }: { contest: PortalContest; memberId: string 
             setError(null);
             setResult(null);
             setPhase("requesting");
-            play.mutate({ memberId }, {
+            play.mutate(api.body(), {
               onSuccess: (r) => {
                 setResult(r);
                 finish(r);
@@ -277,9 +279,9 @@ function Outcome({ result, compact = false }: { result: PlayResult; compact?: bo
  * coupon, premio fisico).
  */
 function WinOutcome({ prize }: { prize: PlayResult["prize"] }) {
-  const memberId = useActiveMember();
+  const api = usePortalApi();
   const card = useLhQuery<ContentDisplay[]>("engagement", "/v1/portal/content",
-    { memberId, placement: "WIN", prizeCode: prize?.code }, { enabled: Boolean(prize?.code) });
+    api.query({ placement: "WIN", prizeCode: prize?.code }), { enabled: Boolean(prize?.code) });
   if (card.isLoading) {
     return <div className="h-40 animate-pulse rounded-2xl bg-[var(--color-pt-primary)]/40" aria-hidden />;
   }
@@ -295,10 +297,10 @@ function WinOutcome({ prize }: { prize: PlayResult["prize"] }) {
  * un codice nuovo di quel premio, poi si mostra con il collegamento ai coupon.
  */
 function CouponArrival({ rewardCode }: { rewardCode: string }) {
-  const memberId = useActiveMember();
+  const api = usePortalApi();
   const [since] = useState(() => Date.now() - 5_000);
   const [stopAt] = useState(() => Date.now() + 30_000);
-  const coupons = useLhQuery<PortalCoupon[]>("reward", "/v1/portal/coupons", { memberId }, { refetchInterval: 2_000 });
+  const coupons = useLhQuery<PortalCoupon[]>("reward", "/v1/portal/coupons", api.query(), { refetchInterval: 2_000 });
   const arrived = (coupons.data ?? []).find(
     (c) => c.rewardCode === rewardCode && c.issuedAt != null && new Date(c.issuedAt).getTime() >= since,
   );

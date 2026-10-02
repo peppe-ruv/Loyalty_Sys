@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Copy } from "lucide-react";
 import { useLhMutation, useLhQuery, type LhError } from "@/lib/api/client";
 import type { PortalCoupon, Redemption } from "@/lib/api/types";
-import { useActiveMember } from "@/components/portal/MemberContext";
+import { usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
 import { COUPON_WORDS, redemptionWords, sortCoupons } from "@/lib/reward/portal";
 import { formatDate } from "@/lib/format/dates";
@@ -18,7 +18,6 @@ import { cn } from "@/lib/cn";
 type Tab = "requests" | "coupons";
 
 export default function MyRewardsPage() {
-  const memberId = useActiveMember();
   const [tab, setTab] = useState<Tab>("requests");
 
   return (
@@ -42,13 +41,14 @@ export default function MyRewardsPage() {
           </button>
         ))}
       </div>
-      {tab === "requests" ? <Requests memberId={memberId} /> : <Coupons memberId={memberId} />}
+      {tab === "requests" ? <Requests /> : <Coupons />}
     </div>
   );
 }
 
-function Requests({ memberId }: { memberId: string }) {
-  const list = useLhQuery<Redemption[]>("reward", "/v1/portal/redemptions", { memberId }, { refetchInterval: 10_000 });
+function Requests() {
+  const api = usePortalApi();
+  const list = useLhQuery<Redemption[]>("reward", "/v1/portal/redemptions", api.query(), { refetchInterval: 10_000 });
   return (
     <QueryState
       query={list}
@@ -60,7 +60,7 @@ function Requests({ memberId }: { memberId: string }) {
       {(d) => (
         <ul className="space-y-3">
           {d.map((r) => (
-            <RequestCard key={r.id} redemption={r} memberId={memberId} />
+            <RequestCard key={r.id} redemption={r} />
           ))}
         </ul>
       )}
@@ -70,9 +70,10 @@ function Requests({ memberId }: { memberId: string }) {
 
 const STEPS = ["Richiesta", "Confermata", "Spedita"];
 
-function RequestCard({ redemption: r, memberId }: { redemption: Redemption; memberId: string }) {
+function RequestCard({ redemption: r }: { redemption: Redemption }) {
+  const api = usePortalApi();
   const [error, setError] = useState<LhError | null>(null);
-  const cancel = useLhMutation<Redemption, undefined>("reward", "POST", () => `/v1/portal/redemptions/${r.id}/cancel?memberId=${memberId}`);
+  const cancel = useLhMutation<Redemption, undefined>("reward", "POST", () => api.withMember(`/v1/portal/redemptions/${r.id}/cancel`));
   const physical = !!r.shipping;
   const step = r.status === "FULFILLED" ? 2 : r.status === "CONFIRMED" ? 1 : 0;
   const closedBadly = r.status === "REJECTED" || r.status === "CANCELLED";
@@ -124,8 +125,9 @@ function RequestCard({ redemption: r, memberId }: { redemption: Redemption; memb
   );
 }
 
-function Coupons({ memberId }: { memberId: string }) {
-  const list = useLhQuery<PortalCoupon[]>("reward", "/v1/portal/coupons", { memberId });
+function Coupons() {
+  const api = usePortalApi();
+  const list = useLhQuery<PortalCoupon[]>("reward", "/v1/portal/coupons", api.query());
   return (
     <QueryState
       query={list}
