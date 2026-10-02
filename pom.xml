@@ -34,6 +34,9 @@
          di prova. Non è nel BOM di Spring Boot: una sola versione, gestita qui, perché un aggiornamento di Spring Security
          o di Dependabot non allinei uno dei due moduli e non l'altro. È la versione che Boot 4.1.1 risolve oggi. -->
     <nimbus-jose-jwt.version>10.9.1</nimbus-jose-jwt.version>
+    <!-- Proprietà generative (ADR-053, Q-690, docs/06 §9): libreria di test, mai nei jar di produzione. Registra il proprio
+         motore sulla JUnit Platform accanto a Jupiter; non è nel BOM di Spring Boot, quindi la versione è fissata qui. -->
+    <jqwik.version>1.10.1</jqwik.version>
 
     <!--
       Dipendenze con advisory noti (M8.0, ADR-044). Spring Boot 4.1.1 è l'ultima 4.1.x: le versioni corrette
@@ -108,6 +111,13 @@
         <groupId>com.nimbusds</groupId>
         <artifactId>nimbus-jose-jwt</artifactId>
         <version>${nimbus-jose-jwt.version}</version>
+      </dependency>
+      <!-- Solo scope test (ADR-053 decisione 5): nessuna dipendenza nel codice di produzione. -->
+      <dependency>
+        <groupId>net.jqwik</groupId>
+        <artifactId>jqwik</artifactId>
+        <version>${jqwik.version}</version>
+        <scope>test</scope>
       </dependency>
       <!-- GHSA-9xv2-5v5q-p794, GHSA-gcx9-497g-6cp6, GHSA-h3x4-894j-xpx5: Tomcat embedded usato da spring-boot-starter-tomcat. -->
       <dependency>
@@ -194,6 +204,15 @@
             <excludes>
               <exclude>**/*IT.java</exclude>
             </excludes>
+            <!-- Le classi *Properties (jqwik, ADR-053) girano accanto agli unit test: elenco esplicito perché, dichiarando
+                 includes, i nomi predefiniti di surefire non valgono più. -->
+            <includes>
+              <include>**/Test*.java</include>
+              <include>**/*Test.java</include>
+              <include>**/*Tests.java</include>
+              <include>**/*TestCase.java</include>
+              <include>**/*Properties.java</include>
+            </includes>
             <statelessTestsetReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5Xml30StatelessReporter">
               <usePhrasedTestCaseMethodName>true</usePhrasedTestCaseMethodName>
             </statelessTestsetReporter>
