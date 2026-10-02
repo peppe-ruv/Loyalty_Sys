@@ -1178,7 +1178,7 @@
     {
       "alias": "mfa-role-config",
       "config": {
-        "default.role.name": "MFA_REQUIRED_ROLE"
+        "condUserRole": "MFA_REQUIRED_ROLE"
       }
     }
   ],
