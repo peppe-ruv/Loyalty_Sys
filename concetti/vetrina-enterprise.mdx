@@ -15,7 +15,7 @@ La vetrina è una prova da guardare, non un servizio di produzione: non è ad al
 </Note>
 
 <Warning>
-**Ambiente di test (ADR-051, 2026-10-02).** La vetrina diventa un ambiente di test da usare tutto dal browser: gli utenti di test avranno credenziali fisse e pubbliche, documentate in questa pagina, e Keycloak tornerà alla configurazione del repository a ogni avvio. Non inserire mai dati personali veri. Le parti arrivano con le fette R1, R2 e V8–V12 di M8.14; fino ad allora valgono le sezioni qui sotto.
+**Ambiente di test (ADR-051, 2026-10-02).** La vetrina diventa un ambiente di test da usare tutto dal browser: gli utenti di test hanno credenziali fisse e pubbliche, documentate in questa pagina, e Keycloak torna alla configurazione del repository a ogni avvio. Non inserire mai dati personali veri. Utenti di test, reset e membri di prova sono della fetta V8; le altre parti arrivano con le fette V9–V12 di M8.14.
 </Warning>
 
 ## Come sono collegate le due istanze
@@ -58,16 +58,16 @@ Il proprietario crea il codespace dal repository scegliendo la configurazione «
 1. sceglie l'immagine unica pubblicata, all'ultimo tag `v*` o quella indicata nei segreti del codespace;
 2. scrive la configurazione con i due indirizzi pubblici, `https://<codespace>-8000.app.github.dev` per il web e `-8001` per Keycloak;
 3. genera segreti, CA locale e certificati solo la prima volta, poi li riusa;
-4. avvia lo stack e, al primo avvio, applica l'overlay del realm;
+4. ricrea da zero il database di Keycloak, avvia lo stack e applica gli overlay dei realm con gli utenti di test, a ogni avvio (Q-672);
 5. crea gli account operatore che mancano, dall'elenco tenuto nei segreti del codespace;
-6. rende pubbliche le due porte e controlla che la discovery OIDC risponda dall'indirizzo pubblico.
+6. rende pubbliche le due porte, controlla che la discovery OIDC risponda dall'indirizzo pubblico e registra i membri di prova dal portale (Q-673).
 
 Nel codespace il proxy resta, ma parla HTTP su due porte locali: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy continua a esporre di Keycloak solo il realm `loyaltyhub`; la console di amministrazione resta su una porta privata, visibile solo al proprietario (Q-661).
 
 ```mermaid
 sequenceDiagram
   accTitle: Avvio della vetrina nel codespace
-  accDescr: All'avvio del codespace lo script del dev container sceglie l'immagine, lancia vetrina.sh in modalità codespace, che scrive la configurazione, genera i segreti la prima volta, avvia lo stack e al primo avvio applica l'overlay del realm, poi crea gli operatori mancanti. Lo script rende pubbliche le porte 8000 e 8001 e verifica la discovery OIDC dall'indirizzo pubblico, passando dall'inoltro delle porte di GitHub.
+  accDescr: All'avvio del codespace lo script del dev container sceglie l'immagine e lancia vetrina.sh in modalità codespace. Lo script scrive la configurazione, genera i segreti la prima volta, ricrea da zero il database di Keycloak, avvia lo stack e applica gli overlay dei realm master, operatori e membri con gli utenti di test, poi crea gli operatori mancanti. Lo script del dev container rende pubbliche le porte 8000 e 8001, verifica la discovery OIDC dall'indirizzo pubblico e registra i membri di prova dal portale.
   participant P as Proprietario
   participant G as GitHub Codespaces
   participant A as avvio.sh
@@ -79,11 +79,13 @@ sequenceDiagram
   A->>S: sudo, ambiente del codespace
   S->>S: configurazione con gli indirizzi pubblici
   S->>S: segreti e certificati, solo la prima volta
+  S->>D: database idp di Keycloak ricreato da zero
   S->>D: compose up con l'overlay del codespace
-  S->>D: overlay del realm al primo avvio, operatori mancanti
+  S->>D: overlay dei realm con gli utenti di test, operatori mancanti
   A->>G: porte 8000 e 8001 pubbliche
   A->>G: discovery OIDC dall'indirizzo pubblico
-  Note over P,G: inattività oltre il timeout: il codespace si ferma, i dati restano
+  A->>G: membri di prova: Anna, Marco e Giulia registrati, Laura da zero
+  Note over P,G: inattività oltre il timeout: il codespace si ferma, i dati dell'hub restano
 ```
 
 ## Due realm: operatori e membri separati
@@ -131,7 +133,7 @@ Nella vetrina ogni realm ha un amministratore di test che gestisce utenti, ruoli
 
 ## Azzeramento
 
-Nel codespace la vetrina parte vuota a ogni codespace nuovo e conserva i dati tra un arresto e un riavvio (Q-663). Lo stesso azzeramento si esegue a mano con `deploy/vetrina/vetrina.sh reset` o, su un host fisso, ogni lunedì con un timer, senza backup (Q-624): ricrea i dati, reimporta il realm e ricrea gli account operatore. Su un host fisso il certificato pubblico del proxy resta, così l'azzeramento non consuma le emissioni ACME. L'ultimo passo, la configurazione del programma, chiede l'approvazione di un operatore con MFA e quindi resta manuale (Q-630).
+Nel codespace Keycloak riparte dalla configurazione del repository a **ogni avvio**: lo script ricrea il solo database `idp`, e ogni modifica fatta dalle console sparisce (ADR-051 decisione 10, Q-672). I dati dell'hub e i membri registrati restano, perché gli utenti di test hanno id fissi. Un codespace nuovo parte vuoto (Q-663). Lo stesso azzeramento si esegue a mano con `deploy/vetrina/vetrina.sh reset` o, su un host fisso, ogni lunedì con un timer, senza backup (Q-624): ricrea i dati, reimporta il realm e ricrea gli account operatore. Su un host fisso il certificato pubblico del proxy resta, così l'azzeramento non consuma le emissioni ACME. L'ultimo passo, la configurazione del programma, chiede l'approvazione di un operatore con MFA e quindi resta manuale (Q-630).
 
 ```mermaid
 flowchart TD
@@ -146,11 +148,58 @@ flowchart TD
   A -.->|passo manuale, Q-630| G[Programma da seed/<br/>token dell'operatore con MFA]
 ```
 
-## Accesso degli operatori
+## Utenti di test
 
-> **Nota:** questa sezione descrive la regola di Q-618, superata per la vetrina da ADR-051: con la fetta V8 gli operatori di test avranno password fisse e un seme OTP documentati qui.
+<Warning>
+Ambiente di test, dati fittizi. Le credenziali qui sotto sono pubbliche e valgono solo nel codespace: su un host fisso non esistono. Non inserire mai dati personali veri.
+</Warning>
 
-Nessuna password è pubblicata: il primo visitatore la cambierebbe e legherebbe l'OTP al proprio telefono. La regola è che la MFA resta sempre richiesta. La decisione (Q-618, 2026-09-30) è che gli account operatore siano **nominativi**, creati dal proprietario su richiesta, con password temporanea consegnata fuori banda. A ogni azzeramento gli account si ricreano dall'elenco tenuto sull'host, con una nuova password temporanea.
+Con ADR-051 la vetrina si prova da browser, senza chiedere account al proprietario. La regola di Q-618, account nominativi con password temporanea, resta valida per un host fisso. Nel codespace gli utenti di test hanno id fissi e li ricrea lo script del realm a ogni avvio. Gli operatori hanno la MFA obbligatoria: servono password e codice OTP. Hub e web accettano credenziali fisse solo per chi ha il ruolo `LH_TEST_USER`, e solo con `LH_TEST_USERS_ALLOWED=true` e `LH_ENVIRONMENT=test`.
+
+| Utente | Realm | Ruolo | Password |
+|---|---|---|---|
+| `marta.admin` | `loyaltyhub` | `ADMIN` | `Aurora-Operatori-26!` |
+| `luca.marketing` | `loyaltyhub` | `MARKETING` | `Aurora-Operatori-26!` |
+| `elena.legal` | `loyaltyhub` | `LEGAL` | `Aurora-Operatori-26!` |
+| `paolo.care` | `loyaltyhub` | `CARE` | `Aurora-Operatori-26!` |
+| `sara.analyst` | `loyaltyhub` | `ANALYST` | `Aurora-Operatori-26!` |
+| `anna.rossi` | `loyaltyhub-members` | `MEMBER` | `Aurora-Membri-26!` |
+| `marco.bianchi` | `loyaltyhub-members` | `MEMBER` | `Aurora-Membri-26!` |
+| `giulia.ferri` | `loyaltyhub-members` | `MEMBER` | `Aurora-Membri-26!` |
+| `laura.conti` | `loyaltyhub-members` | `MEMBER` | `Aurora-Membri-26!` |
+| `vetrina.admin` | `loyaltyhub` (console) | gestione utenti, senza ruoli applicativi | `Aurora-Admin-26!` |
+| `membri.admin` | `loyaltyhub-members` (console) | gestione utenti, senza ruoli applicativi | `Aurora-Admin-26!` |
+
+I cinque operatori condividono un solo seme TOTP (SHA-1, 6 cifre, 30 secondi). Aggiungilo a un'app di autenticazione inserendo la chiave a mano, oppure con questo URI.
+
+- Seme in base32: `KZSXI4TJNZQUC5LSN5ZGCMRQGI3EY2BB`
+- URI: `otpauth://totp/Vetrina%20Aurora:marta.admin?secret=KZSXI4TJNZQUC5LSN5ZGCMRQGI3EY2BB&issuer=Vetrina%20Aurora&algorithm=SHA1&digits=6&period=30`
+
+Non c'è un'immagine con il codice QR: tra le dipendenze non c'è un generatore offline e il seme non deve passare da servizi esterni. Keycloak non accetta due volte lo stesso codice nella stessa finestra di 30 secondi: se due persone accedono insieme, la seconda aspetta il codice successivo.
+
+Gli amministratori `vetrina.admin` e `membri.admin` gestiscono utenti, ruoli e sessioni del proprio realm dalla console, con i soli ruoli `view-users`, `query-users`, `query-groups`, `manage-users` e `view-events`. Con `manage-users` possono assegnare ruoli agli utenti del loro realm: è il limite accettato da Q-671.
+
+**Limite sull'audit (Q-677).** Gli eventi di amministrazione di Keycloak sono attivi con i dettagli in entrambi i realm, ma le modifiche fatte dalle console non arrivano in `audit_entry` finché non c'è il ponte di M8.12, che coprirà entrambi i realm.
+
+### Scenario dei quattro membri
+
+Lo script `scripts/vetrina-membri.mjs` fa il login vero dal BFF e usa le API del portale, quindi serve che le porte 8000 e 8001 siano pubbliche.
+
+- **Anna, Marco e Giulia** sono già registrati, con i dati del seed: hanno subito profilo e tessera.
+- **Laura** (`laura.conti`, cognome e e-mail fittizi) ha un account ma non è registrata: a ogni avvio il suo profilo, se esiste, viene anonimizzato da `marta.admin`, così al primo accesso Laura passa dalla registrazione vera (PT-16).
+
+```mermaid
+flowchart TD
+  accTitle: Avvio della vetrina con Keycloak da zero
+  accDescr: A ogni avvio del codespace lo script ricrea il solo database idp di Keycloak, avvia lo stack, applica gli overlay dei realm master, operatori e membri con gli utenti di test, crea gli account operatore mancanti e, con le porte pubbliche, registra Anna, Marco e Giulia dal portale e riporta Laura alla registrazione da zero.
+  A[Avvio del codespace] --> B[Database idp ricreato<br/>database dell'hub intatto]
+  B --> C[Stack avviato:<br/>Keycloak reimporta i realm di base]
+  C --> D[Overlay: master, operatori, membri<br/>utenti di test con id fissi]
+  D --> E[Account operatore mancanti]
+  E --> F[Porte 8000 e 8001 pubbliche]
+  F --> G[Anna, Marco e Giulia<br/>registrati dal portale]
+  G --> H[Laura anonimizzata da marta.admin:<br/>registrazione da zero]
+```
 
 ## Configurazione del programma
 

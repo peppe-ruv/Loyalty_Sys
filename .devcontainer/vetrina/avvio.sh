@@ -5,8 +5,10 @@
 # 1. sceglie l'immagine unica: il segreto del codespace LH_IMAGE, altrimenti ghcr.io/<proprietario>/loyaltyhub all'ultimo
 #    tag v* del repository;
 # 2. aspetta Docker e, se l'immagine non si scarica, accede a ghcr.io con il token del codespace;
-# 3. lancia `vetrina.sh codespace` come root: configurazione, segreti, avvio, overlay del realm al primo avvio, operatori;
-# 4. rende pubbliche le porte 8000 e 8001 (Q-661) e verifica che la discovery OIDC risponda dall'URL pubblico.
+# 3. lancia `vetrina.sh codespace` come root: configurazione, segreti, database di Keycloak ricreato da zero (ADR-051,
+#    Q-672), avvio, overlay dei realm con gli utenti di test, operatori;
+# 4. rende pubbliche le porte 8000 e 8001 (Q-661) e verifica che la discovery OIDC risponda dall'URL pubblico;
+# 5. registra i membri di test dal portale (`vetrina.sh membri`, Q-673): serve l'indirizzo pubblico, quindi dopo il passo 4.
 # Non stampa segreti: vetrina.sh mostra solo nomi e percorsi, il token del codespace passa solo da stdin.
 set -euo pipefail
 
@@ -42,8 +44,9 @@ if ! sudo docker pull --quiet "$LH_IMAGE" >/dev/null 2>&1; then
   sudo docker pull --quiet "$LH_IMAGE" >/dev/null || { echo "Errore: immagine non scaricabile: $LH_IMAGE" >&2; exit 1; }
 fi
 
+# PATH esplicito: Node.js (membri di test) non e' nel secure_path di sudo.
 sudo --preserve-env=CODESPACES,CODESPACE_NAME,GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN,LH_VETRINA_CONFIG,LH_IMAGE,LH_HUB_DEMO_URL,LH_VETRINA_OPERATORS \
-  bash deploy/vetrina/vetrina.sh codespace
+  env "PATH=$PATH" bash deploy/vetrina/vetrina.sh codespace
 
 # Q-661: porte pubbliche senza clic. Il token del codespace può non avere il permesso: allora lo dice e indica il clic.
 if gh codespace ports visibility 8000:public 8001:public -c "$CODESPACE_NAME" >/dev/null 2>&1; then
@@ -59,4 +62,13 @@ if curl -fsS -o /dev/null --max-time 20 "$idp/realms/loyaltyhub/.well-known/open
 else
   echo "Avviso: $idp non risponde dall'esterno: controlla che la porta 8001 sia pubblica." >&2
 fi
+
+# Membri di test (Q-673): Anna, Marco e Giulia registrati dal portale, Laura da zero. Idempotente: se `vetrina.sh codespace`
+# l'ha gia' fatto con le porte pubbliche, qui non cambia nulla. Un errore non lascia la vetrina a meta' in silenzio.
+membri_ok=1
+sudo --preserve-env=CODESPACES,LH_VETRINA_CONFIG env "PATH=$PATH" bash deploy/vetrina/vetrina.sh membri || membri_ok=0
 echo "vetrina pronta: $web"
+if [ "$membri_ok" = 0 ]; then
+  echo "Errore: i membri di test non sono stati registrati (messaggio sopra). Riprova: sudo --preserve-env=CODESPACES,LH_VETRINA_CONFIG env \"PATH=\$PATH\" bash deploy/vetrina/vetrina.sh membri" >&2
+  exit 1
+fi

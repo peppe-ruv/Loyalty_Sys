@@ -7,8 +7,10 @@
 # `codespace`, un GitHub Codespace acceso su richiesta (ADR-050) con l'overlay deploy/vetrina/compose.codespace.yml:
 # niente ACME, il TLS lo termina l'inoltro delle porte di GitHub. Runbook completo: deploy/vetrina/README.md.
 #
-#   vetrina.sh codespace            solo nel codespace (Q-663): scrive la configurazione dall'ambiente del codespace,
-#                                   provisioning, avvio e, al primo avvio, overlay del realm; poi account operatore
+#   vetrina.sh codespace            solo nel codespace (Q-663, ADR-051): scrive la configurazione dall'ambiente del
+#                                   codespace, provisioning, controlli, database di Keycloak RICREATO DA ZERO (Q-672),
+#                                   avvio, overlay dei realm (master, operatori, membri, utenti di test), account
+#                                   operatore e membri di test (Q-673)
 #
 #   vetrina.sh provision            segreti, CA locale e certificati di Postgres e Kafka (idempotente, regola 20)
 #   vetrina.sh preflight [--offline]
@@ -18,6 +20,11 @@
 #   vetrina.sh down                 arresto, volumi conservati
 #   vetrina.sh reset                azzeramento settimanale (Q-624): volumi di Postgres e Kafka ricreati, realm
 #                                   reimportato, overlay del realm, account operatore; nessun backup
+#   vetrina.sh idp-reset            ricrea da zero il database `idp` di Keycloak (non quello dell'hub): Keycloak
+#                                   reimporta i realm e gli overlay si riapplicano (ADR-051 decisione 10, Q-672);
+#                                   lo fa da solo `codespace` a ogni avvio
+#   vetrina.sh membri               membri di test dal portale (Anna, Marco, Giulia registrati; Laura da zero, Q-673):
+#                                   solo nel codespace, con hub e web su e le porte pubbliche
 #   vetrina.sh operators            account operatore nominativi da operators.list (Q-618), password temporanee in un
 #                                   file 0600, poi verifica della MFA (apply-overlay.sh --check-operators)
 #   vetrina.sh programma            configurazione di programma da seed/ con il token di un operatore (Q-617, Q-626):
@@ -27,6 +34,7 @@
 # Configurazione: file KEY=VALORE (LH_VETRINA_CONFIG, default /etc/loyaltyhub-vetrina/vetrina.env; modello in
 # vetrina.env.example). Solo le chiavi ammesse, nessun segreto. I segreti stanno in $LH_VETRINA_DIR/secrets e
 # $LH_VETRINA_DIR/tls, file 0600 creati da `provision`; lo script non stampa mai un valore, solo nomi e percorsi.
+# Utenti di test (ADR-051 decisione 1): solo nel codespace; sull'host fisso gli overlay si applicano senza utenti.
 # Uscita: 0 ok · 1 controllo o comando fallito · 2 uso o configurazione non validi.
 set -euo pipefail
 umask 077
@@ -460,25 +468,73 @@ cmd_codespace() {
       | write_atomic "$LH_VETRINA_DIR/operators.list"
     info "elenco degli operatori aggiornato dal segreto del codespace"
   fi
-  cmd_up
-  # Primo avvio di questo codespace (Q-663): overlay del realm sul realm appena importato. Fermare e riavviare il
-  # codespace conserva volumi e marcatore: non si ripete. `vetrina.sh reset` azzera a mano.
-  if [ ! -f "$LH_VETRINA_DIR/.realm-overlay" ]; then
-    apply_realm_overlay
-    : > "$LH_VETRINA_DIR/.realm-overlay"
-  fi
+  # Keycloak riparte da zero a ogni avvio (ADR-051 decisione 10, Q-672): il database `idp` si ricrea PRIMA che Keycloak
+  # parta, cosi' reimporta i realm di base; poi gli overlay (master, operatori, membri, utenti di test con id fissi) si
+  # riapplicano. Il database dell'hub e i suoi dati restano: il legame (iss, sub) dei membri registrati resta valido.
+  cmd_preflight
+  cmd_idp_reset
+  compose up -d --wait --wait-timeout 900
+  info "vetrina avviata: https://$LH_VETRINA_WEB_HOST (Keycloak: https://$LH_VETRINA_IDP_HOST)"
+  apply_realm_overlay
   cmd_operators
+  # Membri di test (Q-673): servono le porte pubbliche (il BFF raggiunge Keycloak dall'indirizzo pubblico); se non lo
+  # sono ancora li registra avvio.sh dopo averle pubblicate. Un errore qui non ferma l'avvio: avvio.sh lo ripete e lo dice.
+  cmd_membri --if-reachable || echo "Avviso: membri di test non registrati (messaggio sopra); li riprova avvio.sh, oppure: vetrina.sh membri" >&2
   info "web: https://$LH_VETRINA_WEB_HOST · Keycloak: https://$LH_VETRINA_IDP_HOST (porte $CODESPACE_WEB_PORT e $CODESPACE_IDP_PORT pubbliche, Q-661)"
   info "console di Keycloak: https://$LH_VETRINA_ADMIN_HOST/admin/ (porta $CODESPACE_ADMIN_PORT privata: solo il proprietario del codespace; utente admin, password in $LH_VETRINA_DIR/secrets/idp-admin-password)"
   info "passo interattivo rimasto, se il programma è vuoto: vetrina.sh programma (Q-630)"
 }
 
+# Utenti di test (ADR-051 decisione 1, Q-676): solo dentro un GitHub Codespace, lo stesso criterio che passa a hub e web
+# LH_TEST_USERS_ALLOWED (compose()). Sull'host fisso gli overlay si applicano senza account di test: l'hub li
+# rifiuterebbe comunque, ma non devono nemmeno esistere in Keycloak con una password pubblica.
+test_users_allowed() { [ "${LH_VETRINA_MODE:-host}" = codespace ] && [ "${CODESPACES:-}" = true ]; }
+
 apply_realm_overlay() {
-  local mode="${1:-}" pw
+  local mode="${1:-}" pw args=()
+  [ -n "$mode" ] && args+=("$mode")
+  test_users_allowed || args+=(--no-test-users)
   IFS= read -r pw < "$LH_VETRINA_DIR/secrets/idp-admin-password" || [ -n "$pw" ]
   # La password va solo nell'ambiente del processo figlio (mai negli argomenti, mai stampata).
   KC_BOOTSTRAP_ADMIN_PASSWORD="$pw" KEYCLOAK_URL="$KEYCLOAK_LOCAL" \
-    "$REPO_ROOT/deploy/idp/vetrina/apply-overlay.sh" ${mode:+"$mode"}
+    "$REPO_ROOT/deploy/idp/vetrina/apply-overlay.sh" ${args[@]+"${args[@]}"}
+}
+
+# Database di Keycloak da zero (ADR-051 decisione 10, Q-672): ferma Keycloak e chi dipende dal suo emittente, ricrea
+# SOLO il database `idp` (non quello dell'hub) con lo stesso proprietario e gli stessi privilegi dello script iniziale di
+# Postgres (deploy/compose/postgres-init/10-idp.sh). Alla ripartenza Keycloak reimporta i realm di base.
+cmd_idp_reset() {
+  info "database di Keycloak ricreato da zero (l'hub non si tocca)"
+  compose stop idp web hub proxy >/dev/null 2>&1 || true
+  compose up -d --wait --wait-timeout 300 postgres
+  compose exec -T postgres psql -v ON_ERROR_STOP=1 -U loyaltyhub -d loyaltyhub \
+    -c 'DROP DATABASE IF EXISTS idp WITH (FORCE)' \
+    -c 'CREATE DATABASE idp OWNER idp' \
+    -c 'REVOKE ALL ON DATABASE idp FROM PUBLIC' > /dev/null
+}
+
+# Membri di test dal portale (Q-673, scripts/vetrina-membri.mjs): Anna, Marco e Giulia registrati con i dati del seed,
+# Laura riportata alla registrazione da zero. Solo nel codespace. Con --if-reachable salta (senza errore) se l'indirizzo
+# pubblico di Keycloak non risponde ancora, cioe' se le porte 8000 e 8001 non sono ancora pubbliche.
+cmd_membri() {
+  if ! test_users_allowed; then
+    info "membri di test: solo nel codespace (gli utenti di test non esistono altrove): saltato"
+    return 0
+  fi
+  local soft=0
+  [ "${1:-}" = "--if-reachable" ] && soft=1
+  if ! command -v node >/dev/null 2>&1; then
+    if [ "$soft" = 1 ]; then
+      info "membri di test: manca node nel PATH, li registra avvio.sh"
+      return 0
+    fi
+    die "serve node (Node.js 22) per registrare i membri di test"
+  fi
+  if [ "$soft" = 1 ] && ! curl -fsS -o /dev/null --max-time 15 "https://$LH_VETRINA_IDP_HOST/realms/loyaltyhub-members/.well-known/openid-configuration"; then
+    info "membri di test: l'indirizzo pubblico di Keycloak non risponde ancora (porte 8000 e 8001 non pubbliche?): li registra avvio.sh dopo averle pubblicate"
+    return 0
+  fi
+  node "$REPO_ROOT/scripts/vetrina-membri.mjs" --web "https://$LH_VETRINA_WEB_HOST"
 }
 
 cmd_operators() {
@@ -511,6 +567,8 @@ cmd_reset() {
   compose up -d --wait --wait-timeout 900
   apply_realm_overlay
   cmd_operators
+  # Il database dell'hub e' ripartito vuoto: i membri di test si registrano di nuovo (solo nel codespace).
+  cmd_membri --if-reachable
   info "azzeramento completato $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   info "passo interattivo rimasto: vetrina.sh programma (configurazione di programma con il token di un operatore, Q-617, Q-630)"
 }
@@ -526,7 +584,7 @@ cmd_programma() {
 
 main() {
   local cmd="${1:-}"
-  [ -n "$cmd" ] || usage_error "uso: $0 codespace|provision|preflight [--offline]|up|down|reset|operators|programma|compose <argomenti>"
+  [ -n "$cmd" ] || usage_error "uso: $0 codespace|provision|preflight [--offline]|up|down|reset|idp-reset|operators|membri|programma|compose <argomenti>"
   shift
   case "$cmd" in
     codespace) cmd_codespace ;;
@@ -536,6 +594,8 @@ main() {
     down) load_config; compose down ;;
     reset) load_config; cmd_reset "$@" ;;
     operators) load_config; cmd_operators ;;
+    idp-reset) load_config; cmd_idp_reset ;;
+    membri) load_config; cmd_membri ;;
     programma) load_config; cmd_programma "$@" ;;
     compose) load_config; compose "$@" ;;
     *) usage_error "comando sconosciuto: $cmd" ;;
