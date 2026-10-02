@@ -1,5 +1,5 @@
 {
-  "_comment": "VETRINA ENTERPRISE, realm master (ADR-051 decisione 10, Q-672). Solo impostazioni del realm master, nessun utente e nessun segreto: la password dell'amministratore viene da KC_BOOTSTRAP_ADMIN_PASSWORD. Non e' importato da --import-realm: lo applica deploy/idp/vetrina/apply-overlay.sh con l'API di amministrazione (lettura, unione, PUT, verifica). Niente frontendUrl: l'indirizzo della console e' V9 (Q-670).",
+  "_comment": "VETRINA ENTERPRISE, realm master (ADR-051 decisione 10, Q-672). Solo impostazioni del realm master, nessun utente e nessun segreto: la password dell'amministratore viene da KC_BOOTSTRAP_ADMIN_PASSWORD. Non e' importato da --import-realm: lo applica deploy/idp/vetrina/apply-overlay.sh con l'API di amministrazione (lettura, unione, PUT, verifica). Niente frontendUrl: l'indirizzo e' dinamico (dipende dal codespace) e lo imposta apply-overlay.sh da MASTER_FRONTEND_URL, solo nel codespace (Q-670).",
   "realm": "master",
   "bruteForceProtected": true,
   "permanentLockout": false,

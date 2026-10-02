@@ -4,9 +4,10 @@ import { handleLogin } from "@/lib/auth/handlers";
 import { parseRealm, realmForPage } from "@/lib/auth/realm";
 import { safeReturnTo } from "@/lib/auth/returnTo";
 
-// Login OIDC del BFF (ADR-027, docs/07 §4-bis): `GET /api/auth/login?returnTo=/percorso[&realm=members|operators]`.
+// Login OIDC del BFF (ADR-027, docs/07 §4-bis): `GET /api/auth/login?returnTo=/percorso[&realm=members|operators][&login_hint=<utente di test>]`.
 // Con due realm (ADR-051) il portale (`/portal…`) entra nel realm dei membri, ogni altra pagina in quello degli
-// operatori; `realm` lo sceglie in modo esplicito. Solo profilo enterprise.
+// operatori; `realm` lo sceglie in modo esplicito. `login_hint` vale solo per gli utenti di test noti e solo
+// nell'ambiente di test dichiarato (HUB-02, Q-676), altrimenti è ignorato. Solo profilo enterprise.
 export const dynamic = "force-dynamic";
 
 export function GET(req: NextRequest) {

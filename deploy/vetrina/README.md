@@ -13,7 +13,7 @@ La vetrina serve a far vedere online login reale, MFA e audit con l'attore del t
 | `postgres/pg_hba.conf` | Postgres accetta dalla rete solo connessioni TLS (Q-621). |
 | `kafka/client-ssl.properties` | Client TLS del controllo di salute di Kafka. |
 | `compose.codespace.yml` | Overlay aggiuntivo per il codespace: proxy in HTTP su `127.0.0.1:8000` e `8001`, niente ACME né alias (Q-661). |
-| `caddy/Caddyfile.codespace` | Proxy del codespace: instrada per porta, Keycloak solo per il realm `loyaltyhub`. |
+| `caddy/Caddyfile.codespace` | Proxy del codespace: instrada per porta; Keycloak solo per i realm `loyaltyhub` e `loyaltyhub-members` con le loro console, `master` sempre `404` (Q-670). |
 | `vetrina.sh` | Comandi: `codespace`, `provision`, `preflight`, `up`, `down`, `reset`, `idp-reset`, `operators`, `membri`, `programma`, `compose`. |
 | `scripts/vetrina-membri.mjs` | Registra Anna, Marco e Giulia dal portale e riporta Laura alla registrazione da zero (Q-673). |
 | `operatori.py` | Crea gli account operatore nominativi con MFA (Q-618) a ogni azzeramento. |
@@ -26,7 +26,7 @@ Il dev container del codespace è in `.devcontainer/vetrina/` (`devcontainer.jso
 
 - **Un solo componente nuovo: il reverse proxy** (Caddy, regola 8-bis, ADR-049). Ottiene da solo i certificati ACME per `LH_VETRINA_WEB_HOST` e `LH_VETRINA_IDP_HOST` ed è l'unico servizio con porte raggiungibili da fuori: 80 e 443, pubblicate sull'indirizzo privato dell'istanza (`LH_VETRINA_PUBLIC_ADDRESS`), mai su `0.0.0.0`.
 - **Web e Keycloak solo su `127.0.0.1`** (`LH_BIND_ADDRESS=127.0.0.1`). L'hub è su `127.0.0.1:8080` solo per lo script del programma. Postgres e Kafka restano sulla rete interna.
-- **Keycloak dal proxy solo per il realm `loyaltyhub`.** La console `/admin` e il realm `master` rispondono `404` da fuori: si usano da `127.0.0.1:8180` con un tunnel SSH.
+- **Keycloak dal proxy solo per il realm `loyaltyhub` (host fisso).** Sull'host fisso la console `/admin` e il realm `master` rispondono `404` da fuori: si usano da `127.0.0.1:8180` con un tunnel SSH. Nel codespace il proxy apre anche il realm `loyaltyhub-members` e le console dei due realm: vedi «Console di Keycloak» più sotto.
 - **TLS verso bus e database con una CA locale** generata sull'host (Q-621). Kafka ha un listener SSL con certificato del client obbligatorio (l'hub usa `KAFKA_SECURITY=SSL_PEM`). Postgres rifiuta le connessioni in chiaro e hub, migrazioni e Keycloak si collegano con `sslmode=verify-full`, che controlla anche CA e nome. Se un URL del database perde `verify-full` o Kafka non è `SSL_PEM`, il container si ferma con `INSECURE_CONFIG`.
 - **Segreti solo da file** (regola 20). Ogni segreto arriva al container come `<VAR>_FILE` da `/run/secrets`. La variabile in chiaro è forzata a vuoto, e il container si ferma se la trova piena.
 - **Limiti di memoria per ogni container**, per circa 6,5 GB in tutto sui 12 GB dell'host: Postgres 1 GB, Kafka 1 GB (heap 512 MB), hub 2 GB, web 768 MB, Keycloak 1,5 GB, proxy 128 MB.
@@ -47,6 +47,15 @@ Il dev container del codespace è in `.devcontainer/vetrina/` (`devcontainer.jso
    | `LH_IMAGE` | Immagine unica da usare; senza, `ghcr.io/<proprietario>/loyaltyhub` all'ultimo tag `v*` del repository. |
    | `LH_HUB_DEMO_URL` | Origine https della demo per «Torna alla demo» in HUB-02. |
 
+4. **Pulsante di accensione sulla demo** (Q-674), solo se vuoi accendere la vetrina dal browser. Lo imposti **tu**, una volta, nelle variabili d'ambiente del progetto Vercel della demo (*Settings → Environment Variables*, ambiente Production), poi rifai il deploy:
+
+   | Variabile | Contenuto |
+   |---|---|
+   | `LH_VETRINA_CODESPACE` | Nome del codespace della vetrina (quello nell'indirizzo `https://<nome>-8000.app.github.dev`). |
+   | `LH_VETRINA_GITHUB_TOKEN` | Token *fine-grained* del tuo account GitHub (*Settings → Developer settings → Fine-grained tokens*): solo il repository Loyalty_Sys, permessi **Codespaces** in lettura (per leggere lo stato) e **Codespaces lifecycle admin** in scrittura (per avviare) e nient'altro, scadenza al massimo un anno (Q-674, Q-700). Segnalo come *Sensitive* su Vercel. |
+
+   Serve anche `LH_HUB_ENTERPRISE_URL` (l'indirizzo del punto 4 di «Prima di una demo»). Con una delle due variabili assente il riquadro «Modalità Enterprise» mostra «Disponibile su richiesta» e la route risponde `404`. Il token non finisce mai nel browser né nei log (regola 20): lo usa solo il server della demo, e solo verso `https://api.github.com`. Prima della scadenza genera un token nuovo e sostituiscilo su Vercel.
+
 ### Prima di una demo
 
 1. Dal repository: *Code → Codespaces → … → New with options*, configurazione **Vetrina enterprise**, macchina da 4 core. Se il codespace esiste già, riaccendilo da *Code → Codespaces*.
@@ -57,11 +66,60 @@ Il dev container del codespace è in `.devcontainer/vetrina/` (`devcontainer.jso
 
 Fermare e riaccendere il codespace conserva dati e account. Un codespace nuovo parte vuoto; per azzerare quello attuale usa `sudo --preserve-env=LH_VETRINA_CONFIG bash deploy/vetrina/vetrina.sh reset`.
 
+### Tutto dal browser (ADR-051)
+
+Dopo la configurazione una tantum non serve più il terminale. Il percorso parte dalla demo pubblica su Vercel (HUB-01) e arriva alle schermate della vetrina (HUB-02, backoffice, portale) e alle console di Keycloak:
+
+```mermaid
+flowchart TD
+  accTitle: Percorso dal browser verso la vetrina enterprise
+  accDescr: Il visitatore parte dalla demo pubblica, accende la modalità Enterprise con il pulsante nel riquadro, attende l'avvio del codespace e arriva a HUB-02 della vetrina. Lì sceglie la scheda di un utente di test: l'operatore entra nel realm loyaltyhub con password e codice OTP del momento e arriva al backoffice, il membro entra nel realm loyaltyhub-members e arriva al portale, gli amministratori di test aprono la console del proprio realm. La console del realm master resta solo sulla porta privata del proprietario.
+  A[Demo pubblica HUB-01<br/>riquadro Modalità Enterprise] -->|Accendi| B[GitHub avvia il codespace<br/>3–5 minuti]
+  B --> C[HUB-02 della vetrina<br/>schede degli utenti di test]
+  C --> D{Scheda scelta}
+  D -->|Operatore| E[Login nel realm loyaltyhub<br/>password e codice OTP del momento]
+  D -->|Membro| F[Login nel realm loyaltyhub-members<br/>login_hint dall'utente scelto]
+  D -->|Amministratore di test| G[Console del realm<br/>vetrina.admin o membri.admin]
+  E --> H[Backoffice<br/>per il ruolo dell'operatore]
+  F --> I[Portale dei membri<br/>attivo con V9b]
+  G --> J[Utenti, ruoli, sessioni, eventi]
+  P[Console del realm master<br/>porta 8180 privata] -.->|solo il proprietario| K[Configurazione di Keycloak]
+```
+
+1. **Accendi.** Sulla demo, il riquadro **Modalità Enterprise** (HUB-01) mostra lo stato della vetrina: *spenta*, *in accensione*, *accesa*. Con **Accendi la modalità Enterprise** il server della demo chiede a GitHub di avviare il codespace (Q-674); l'avvio richiede 3–5 minuti e il pulsante diventa **Apri la vetrina** da solo. Il codespace si spegne dopo circa 30 minuti senza uso del terminale: riaccendilo dallo stesso pulsante. Il pulsante ammette al più un avvio ogni 60 secondi (lo stato è letto da GitHub al più ogni 5 secondi), controlla l'origine della richiesta e consuma le ore gratuite di Codespaces del proprietario.
+2. **Scegli un utente di test.** HUB-02 mostra le schede degli utenti di test (tabella in «Utenti di test»): cinque operatori per il backoffice, quattro membri per il portale. Ogni scheda ha nome utente e password da copiare e un pulsante **Entra come…** che porta al login del **realm giusto** con `login_hint`: il nome utente arriva già compilato e resta da scrivere la password.
+3. **Codice OTP.** Gli operatori hanno la MFA: la scheda mostra il **codice OTP del momento**, calcolato dal seme documentato più sotto, con il conto alla rovescia dei 30 secondi. Il codice è visibile solo in questo ambiente di test dichiarato (Q-676) e non in una installazione `enterprise` vera.
+4. **Entra.** Dopo il login l'operatore apre il backoffice con il ruolo della scheda (`ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST`). Il membro apre il portale dopo la fetta V9b: finché non c'è, le schede dei membri sono visibili ma **non attive** e dicono che il portale arriva con il prossimo aggiornamento.
+5. **Utenti membri.** Nel backoffice, `ADMIN` e `CARE` hanno la voce **Utenti membri**: apre la console del realm `loyaltyhub-members` (password, sessioni e blocchi degli account di accesso dei membri).
+
+### Console di Keycloak
+
+| Console | Indirizzo | Chi entra | Visibilità |
+|---|---|---|---|
+| Realm operatori | `https://<nome>-8001.<dominio di inoltro>/admin/loyaltyhub/console/` | `vetrina.admin` | pubblica (porta 8001) |
+| Realm membri | `https://<nome>-8001.<dominio di inoltro>/admin/loyaltyhub-members/console/` | `membri.admin` | pubblica (porta 8001) |
+| Realm `master` | `https://<nome>-8180.<dominio di inoltro>/admin/master/console/` | utente `admin`, password in `/workspaces/.loyaltyhub-vetrina/secrets/idp-admin-password` (leggila con `sudo cat`) | **privata**: solo il proprietario del codespace, dopo il login di GitHub |
+
+`vetrina.sh codespace` stampa i tre indirizzi all'avvio. HUB-02 linka le due console pubbliche; la console `master` non ha un pulsante.
+
+**Cosa lascia passare il proxy sulla porta 8001** (`caddy/Caddyfile.codespace`, nell'ordine in cui lo applica):
+
+1. `404` per tutto ciò che riguarda `master`: `/admin/master*`, `/admin/realms/master*`, `/realms/master*` e `/resources/master/*`. Il confronto non distingue maiuscole e minuscole e lavora sul percorso decodificato, quindi `/admin/realms/MASTER`, `%4Daster` e `%2F` non aggirano la regola.
+2. `404` per i percorsi con trucchi di normalizzazione: `\`, `;` e `%` rimasto dopo la decodifica. I segmenti `..` non hanno una regola propria: Caddy pulisce il percorso prima del confronto, quindi `/realms/loyaltyhub/../master/` diventa `/realms/master/` e cade nel `404` di `master` (la prova con Caddy lo verifica). Limite dichiarato: un nome (utente, ruolo, gruppo) che contiene `%`, `;` o `\` non si può gestire dalla console pubblica.
+3. Solo i percorsi dell'elenco, uno per uno commentato nel Caddyfile: `/realms/loyaltyhub*` e `/realms/loyaltyhub-members*` (login, token, certificati), `/resources/*` (script e stili), la pagina `/admin/<realm>/console` di ciascun realm, le API `/admin/realms/<realm>` che la console chiama dal browser (`ui-ext` compreso) e `/admin/serverinfo`, che la console legge all'avvio. Le API le protegge il realm con i suoi token.
+4. Tutto il resto è `404`: `/admin`, l'elenco `/admin/realms`, `/js/*`, la pagina iniziale.
+
+**Come funziona l'indirizzo di `master`.** `KC_HOSTNAME_ADMIN` non è impostato nel codespace: la console dei due realm usa l'indirizzo pubblico di `KC_HOSTNAME`. Il realm `master` ha l'attributo `frontendUrl` sull'indirizzo della porta 8180, che `apply-overlay.sh` imposta a ogni avvio (l'indirizzo dipende dal codespace, quindi non sta in `master.json`) e rilegge: se Keycloak lo rifiuta o lo scarta, lo script fallisce. Con hostname v2 il `frontendUrl` del realm ha la precedenza sull'indirizzo di frontend e, senza `KC_HOSTNAME_ADMIN`, anche su quello di amministrazione (`HostnameV2Provider` di Keycloak 26.7.4): console e login di `master` stanno quindi solo sulla porta 8180.
+
+> **Ripiego dichiarato (Q-670).** Se in un codespace reale la console di `master` non si aprisse su 8180 (da verificare al primo avvio con la fetta V9), `master` resta raggiungibile solo dal terminale del codespace: `sudo --preserve-env=LH_VETRINA_CONFIG bash deploy/vetrina/vetrina.sh compose exec idp /opt/keycloak/bin/kcadm.sh …`. Il proxy pubblico continua a rispondere `404` su `master` in ogni caso.
+
+**Limiti.** Le console dei due realm sono pubbliche e, con la password documentata, chiunque ha il link può usarle: per questo gli amministratori di test hanno solo i ruoli di gestione utenti (Q-671). Le modifiche fatte nelle console restano negli eventi di amministrazione di Keycloak e non arrivano in `audit_entry` fino al ponte di M8.12 (Q-677). Ogni avvio ripristina Keycloak dal repository (Q-672).
+
 ### Come cambia rispetto all'host fisso
 
-- **Ingresso.** Niente IP pubblico né certificati ACME: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy Caddy resta, in HTTP su `127.0.0.1:8000` (web) e `127.0.0.1:8001` (Keycloak), per tenere fuori la console `/admin` e il realm `master` e per le intestazioni di sicurezza.
+- **Ingresso.** Niente IP pubblico né certificati ACME: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy Caddy resta, in HTTP su `127.0.0.1:8000` (web) e `127.0.0.1:8001` (Keycloak), per tenere fuori il realm `master`, aprire solo le console dei due realm di vetrina e aggiungere le intestazioni di sicurezza.
 - **Emittente OIDC.** Web e hub chiamano Keycloak con lo stesso indirizzo pubblico del browser, passando dall'inoltro di GitHub (Q-420): per questo la porta 8001 deve essere pubblica.
-- **Console di Keycloak.** Si apre dal browser, senza comandi sul tuo PC: nel codespace, scheda *Porte*, riga 8180 «Keycloak con console /admin (resta privata)», icona del globo, poi `/admin/`. L'indirizzo è `https://<nome>-8180.<dominio di inoltro>/admin/` e `vetrina.sh codespace` lo stampa all'avvio. La porta resta **privata**: GitHub la apre solo al proprietario del codespace, dopo il suo login; poi Keycloak chiede l'utente `admin` e la password di `/workspaces/.loyaltyhub-vetrina/secrets/idp-admin-password` (leggila con `sudo cat`). Non renderla pubblica: dal proxy pubblico (porta 8001) `/admin` e il realm `master` restano `404`.
+- **Console di Keycloak.** Quelle dei realm `loyaltyhub` e `loyaltyhub-members` sono pubbliche sulla porta 8001; quella del realm `master` è solo sulla porta 8180 privata. Indirizzi, accessi e limiti sono nella sezione «Console di Keycloak».
 - **Architettura.** Il codespace è amd64: `preflight` controlla le immagini per l'architettura dell'host, non più solo arm64.
 - **Azzeramento.** Niente timer settimanale (non gira a codespace fermo): vale Q-663.
 
@@ -92,7 +150,7 @@ Gli utenti hanno id fissi (UUID) e li ricrea `deploy/idp/vetrina/apply-overlay.s
 
 Non c'è un'immagine con il codice QR: nessun generatore offline è tra le dipendenze del repository, e non si usano servizi esterni per non far uscire il seme. Per la stessa finestra di 30 secondi Keycloak non accetta due volte lo stesso codice: se due persone accedono insieme, la seconda aspetta il codice successivo.
 
-Gli amministratori `vetrina.admin` e `membri.admin` aprono la console del proprio realm e hanno solo i cinque ruoli di `realm-management` `view-users`, `query-users`, `query-groups`, `manage-users` e `view-events`: non cambiano la configurazione del realm (Q-671). Con `manage-users` possono però assegnare ruoli agli utenti del loro realm: è il limite accettato dalla decisione. Gli eventi di amministrazione di Keycloak sono attivi con i dettagli della rappresentazione in entrambi i realm, e anche in `master`. **Limite (Q-677):** le modifiche fatte da questi amministratori nelle console restano negli eventi di Keycloak e non arrivano in `audit_entry` finché non c'è il ponte di M8.12, che coprirà entrambi i realm. La console del realm `master` resta privata (Q-670).
+Gli amministratori `vetrina.admin` e `membri.admin` aprono la console del proprio realm e hanno solo i cinque ruoli di `realm-management` `view-users`, `query-users`, `query-groups`, `manage-users` e `view-events`: non cambiano la configurazione del realm (Q-671). Con `manage-users` possono però assegnare ruoli agli utenti del loro realm: è il limite accettato dalla decisione. Gli eventi di amministrazione di Keycloak sono attivi con i dettagli della rappresentazione in entrambi i realm, e anche in `master`. **Limite (Q-677):** le modifiche fatte da questi amministratori nelle console restano negli eventi di Keycloak e non arrivano in `audit_entry` finché non c'è il ponte di M8.12, che coprirà entrambi i realm. La console del realm `master` resta privata, solo sulla porta 8180 (Q-670).
 
 ### Keycloak da zero a ogni avvio
 

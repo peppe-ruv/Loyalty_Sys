@@ -9,8 +9,8 @@ import { cn } from "@/lib/cn";
 // «Esci» (profilo enterprise, docs/07 §4-bis): modulo inviato a pagina intera a POST /api/auth/logout con il token
 // CSRF in un campo; il server chiude la sessione e risponde 303 verso il logout dell'IdP. L'ID token non passa mai dal
 // JavaScript (regola 20). Stato in corso: pulsante disabilitato; un rifiuto porta a /auth/error con il motivo.
-// `realm`: con due realm (ADR-051) il portale chiude la sola sessione del membro.
-export function LogoutButton({ className, realm = "operators" }: { className?: string; realm?: Realm }) {
+// `realm`: con due realm (ADR-051) il portale chiude la sola sessione del membro. `label`: testo del pulsante (default «Esci»).
+export function LogoutButton({ className, realm = "operators", label = "Esci" }: { className?: string; realm?: Realm; label?: string }) {
   const [pending, setPending] = useState(false);
   const [token, setToken] = useState("");
 
@@ -35,7 +35,7 @@ export function LogoutButton({ className, realm = "operators" }: { className?: s
         )}
       >
         <LogOut className="size-3.5" aria-hidden />
-        {pending ? "Uscita…" : "Esci"}
+        {pending ? "Uscita…" : label}
       </button>
     </form>
   );

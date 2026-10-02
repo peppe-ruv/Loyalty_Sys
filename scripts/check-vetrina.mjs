@@ -560,19 +560,98 @@ test('vetrina.sh: utenti di test ammessi solo nel codespace con CODESPACES=true,
   }
 });
 
-test('Caddyfile del codespace: niente ACME, instradamento per porta, Keycloak solo per i realm loyaltyhub e loyaltyhub-members (Q-661, ADR-051)', () => {
-  const c = read(path.join(DIR, 'caddy/Caddyfile.codespace'));
+const CADDYFILE_CODESPACE = path.join(DIR, 'caddy/Caddyfile.codespace');
+/** Percorsi permessi dal blocco :8001 (Q-670): ogni voce e' documentata nel Caddyfile; qui l'elenco atteso, esatto. */
+const IDP_ALLOWED = [
+  '/realms/loyaltyhub', '/realms/loyaltyhub/*', '/realms/loyaltyhub-members', '/realms/loyaltyhub-members/*', '/resources/*',
+  '/admin/loyaltyhub/console', '/admin/loyaltyhub/console/*', '/admin/loyaltyhub-members/console', '/admin/loyaltyhub-members/console/*',
+  '/admin/realms/loyaltyhub', '/admin/realms/loyaltyhub/*', '/admin/realms/loyaltyhub-members', '/admin/realms/loyaltyhub-members/*',
+  '/admin/serverinfo',
+];
+const IDP_MASTER_BLOCKED = ['/admin/master*', '/admin/realms/master*', '/realms/master*', '/resources/master', '/resources/master/*'];
+const noComments = (t) => t.replace(/^\s*#.*$/gm, '');
+
+test('Caddyfile del codespace: niente ACME, instradamento per porta; Keycloak con master 404 PRIMA di ogni permesso, trucchi di percorso 404, elenco esatto dei permessi, tutto il resto 404 (Q-661, Q-670, ADR-051)', () => {
+  const c = read(CADDYFILE_CODESPACE);
   assert.match(c, /^\s*admin off$/m);
   assert.match(c, /^\s*auto_https off$/m);
   assert.match(c, /^:8000 \{[\s\S]*?reverse_proxy web:3000/m);
-  const idp = c.split(':8001 {')[1];
+  const idp = c.split(/^:8001 \{/m)[1];
   assert.ok(idp, 'blocco della porta 8001');
-  // I due realm (ADR-051): operatori e membri; nessun altro realm, nessuna console.
-  assert.match(idp, /@realm path \/realms\/loyaltyhub \/realms\/loyaltyhub\/\* \/realms\/loyaltyhub-members \/realms\/loyaltyhub-members\/\* \/resources\/\*\n/);
-  assert.match(idp, /handle @realm \{\s*reverse_proxy idp:8080/);
-  assert.match(idp, /handle \{\s*respond 404\s*\}/);
+  const code = noComments(idp);
+  // Ordine: master, trucchi, permessi, resto. Il 404 per master viene prima di qualunque percorso che lo lascerebbe passare.
+  const at = ['@master path', 'handle @master', '@trucchi path_regexp', 'handle @trucchi', '@permessi {', 'handle @permessi', 'reverse_proxy idp:8080', '\thandle {']
+    .map((m) => code.indexOf(m));
+  assert.ok(at.every((i) => i >= 0) && at.every((v, i) => i === 0 || v > at[i - 1]), `ordine delle regole di :8001: ${at}`);
+  const masterLine = code.match(/@master path (.+)/)[1].trim().split(/\s+/);
+  assert.deepEqual(masterLine, IDP_MASTER_BLOCKED, 'tutto cio\' che riguarda master -> 404');
+  assert.match(code, /handle @master \{\s*respond 404\s*\}/);
+  assert.match(code, /@trucchi path_regexp trucchi \(\\\\\|;\|%\)/, 'barra rovesciata, ;, % residuo (i segmenti .. li pulisce Caddy: caso coperto dalla prova con Caddy)');
+  assert.match(code, /handle @trucchi \{\s*respond 404\s*\}/);
+  const permessi = code.match(/@permessi \{([\s\S]*?)\n\t\}/)[1].split('\n').map((l) => l.trim()).filter(Boolean);
+  assert.ok(permessi.every((l) => l.startsWith('path ')), 'il blocco dei permessi contiene solo `path`');
+  assert.deepEqual(permessi.flatMap((l) => l.split(/\s+/).slice(1)), IDP_ALLOWED, 'permessi esatti: i soli due realm, le risorse e le API della console');
+  assert.match(code, /handle @permessi \{\s*reverse_proxy idp:8080/);
+  assert.match(code, /handle \{\s*respond 404\s*\}\s*\}\s*$/, 'il resto -> 404');
   assert.equal((c.match(/reverse_proxy/g) ?? []).length, 2, 'solo web e idp dietro il proxy');
-  assert.doesNotMatch(c.replace(/^\s*#.*$/gm, ''), /\/admin|realms\/master/);
+  assert.equal((code.match(/reverse_proxy/g) ?? []).length, 1, 'un solo inoltro verso idp, solo nel permesso');
+  // Nessun permesso per master, per la radice di /admin o per l'elenco dei realm, e nessun prefisso senza barra che
+  // lasci passare altri realm (`/realms/loyaltyhub*`).
+  const allowed = permessi.flatMap((l) => l.split(/\s+/).slice(1));
+  assert.ok(allowed.every((x) => !/master/.test(x) && x !== '/admin' && x !== '/admin/*' && x !== '/admin/realms' && x !== '/admin/realms/*' && !/[^/]\*$/.test(x)), allowed.join(' '));
+  assert.deepEqual(code.split('\n').filter((l) => /master/.test(l)).map((l) => l.trim().split(' ')[0]), ['@master', 'handle'], 'master compare solo nella regola 404');
+  // Le intestazioni di sicurezza valgono anche per i 404 (import nel blocco).
+  assert.match(code, /^\s*import intestazioni$/m);
+});
+
+// Prova vera con Caddy (se c'e' un binario `caddy` nel PATH, come nell'immagine del proxy): il Caddyfile del codespace con
+// gli upstream puntati a un server finto che risponde "UP <percorso ricevuto>". Casi di Q-670: maiuscole, codifiche,
+// doppie barre, `..`, `;`, doppia codifica.
+test('Caddyfile del codespace con Caddy: master e trucchi di percorso 404, solo i percorsi permessi arrivano a Keycloak (Q-670)', { skip: !has('caddy') && 'caddy assente (provato a mano con Caddy 2.11.4, vedi runbook)' }, async () => {
+  const net = await import('node:net');
+  const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); }); });
+  const [upPort, webPort, idpPort] = [await freePort(), await freePort(), await freePort()];
+  const received = [];
+  const upstream = http.createServer((req, res) => { received.push(req.url); res.end(`UP ${req.url}`); });
+  await new Promise((r) => upstream.listen(upPort, '127.0.0.1', r));
+  const d = tmp();
+  const cfg = path.join(d, 'Caddyfile');
+  fs.writeFileSync(cfg, read(CADDYFILE_CODESPACE).replace('idp:8080', `127.0.0.1:${upPort}`).replace('web:3000', `127.0.0.1:${upPort}`)
+    .replace(/^:8001 \{/m, `:${idpPort} {`).replace(/^:8000 \{/m, `:${webPort} {`).replace(/^\s*admin off$/m, '\tadmin off'));
+  const caddy = spawn('caddy', ['run', '--config', cfg, '--adapter', 'caddyfile'], { stdio: 'ignore', env: { PATH: process.env.PATH, HOME: d, XDG_DATA_HOME: d, XDG_CONFIG_HOME: d } });
+  const get = (p) => new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: idpPort, path: p, method: 'GET' }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+    req.on('error', reject);
+    req.end();
+  });
+  try {
+    for (let i = 0; ; i++) {
+      try { await get('/'); break; } catch (e) { if (i > 50) throw e; await new Promise((r) => setTimeout(r, 100)); }
+    }
+    const ok = [
+      '/realms/loyaltyhub/protocol/openid-connect/auth', '/realms/loyaltyhub-members/.well-known/openid-configuration', '/resources/abc/admin/keycloak.v2/x.js',
+      '/admin/loyaltyhub/console', '/admin/loyaltyhub/console/', '/admin/loyaltyhub/console/whoami?currentRealm=loyaltyhub', '/admin/loyaltyhub-members/console/',
+      '/admin/realms/loyaltyhub', '/admin/realms/loyaltyhub/ui-ext/realms/names', '/admin/realms/loyaltyhub-members/users', '/admin/realms/loyaltyhub/roles/my%20role',
+      '/admin/serverinfo', '/resources/loyaltyhub/admin/it',
+    ];
+    const blocked = [
+      '/realms/master', '/realms/master/', '/realms/MASTER/protocol/openid-connect/token', '/Realms/Master/x', '/admin/master/console/', '/admin/Master/console/',
+      '/admin/realms/master', '/admin/realms/MASTER/users', '/admin/realms/%4DASTER/users', '/realms/%6Daster/x', '/admin/realms/master%2Fusers', '/resources/master/admin/en',
+      '//realms/master', '/realms//master', '//admin//realms//master', '/admin/realms//master/users', '/realms/./master',
+      '/realms/loyaltyhub/../master/x', '/realms/loyaltyhub/%2e%2e/master/x', '/realms/loyaltyhub/%2E%2E%2Fmaster', '/resources/../realms/master/x', '/resources/x/..;/..;/realms/master',
+      '/realms/loyaltyhub;a=b/x', '/realms/loyaltyhub%2f..%2fmaster', '/realms/loyaltyhub%5c..%5cmaster', '/realms/loyaltyhub/%252e%252e/master',
+      '/admin', '/admin/', '/admin/realms', '/js/keycloak.js', '/', '/health', '/metrics', '/realms/loyaltyhubx', '/realms/masterx', '/admin/serverinfo/x',
+    ];
+    received.length = 0;
+    for (const p of ok) assert.equal(await get(p), 200, `permesso: ${p}`);
+    assert.deepEqual(received, ok, 'Keycloak riceve il percorso originale, senza riscritture');
+    received.length = 0;
+    for (const p of blocked) assert.equal(await get(p), 404, `404 atteso: ${p}`);
+    assert.deepEqual(received, [], 'nessuna richiesta bloccata arriva a Keycloak');
+  } finally {
+    caddy.kill();
+    upstream.close();
+  }
 });
 
 test('dev container della vetrina: macchina di Q-660, avvio automatico, configurazione fuori dal repository', () => {
@@ -625,8 +704,9 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
     assert.equal(cfg.services[svc].environment.LH_ENVIRONMENT, 'test', svc);
   }
   assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://prova-vetrina-8001.app.github.dev');
-  // Console sull'inoltro privato della porta 8180 (solo il proprietario), non su 127.0.0.1 come sull'host fisso.
-  assert.equal(cfg.services.idp.environment.KC_HOSTNAME_ADMIN, 'https://prova-vetrina-8180.app.github.dev');
+  // Q-670: nel codespace KC_HOSTNAME_ADMIN non e' impostato (l'overlay dell'host fisso lo fissa a 127.0.0.1:8180 e qui lo
+  // toglie): la console dei due realm usa l'indirizzo pubblico, quella di master il frontendUrl del suo realm (8180).
+  assert.ok((cfg.services.idp.environment.KC_HOSTNAME_ADMIN ?? null) === null, `KC_HOSTNAME_ADMIN impostato: ${cfg.services.idp.environment.KC_HOSTNAME_ADMIN}`);
   assert.deepEqual(cfg.services.idp.ports.map((p) => `${p.host_ip}:${p.published}`), ['127.0.0.1:8180']);
   // TLS verso bus e database invariato.
   assert.equal(cfg.services.hub.environment.KAFKA_SECURITY, 'SSL_PEM');
@@ -762,4 +842,113 @@ test('vetrina.sh membri: solo nel codespace con CODESPACES=true; lancia vetrina-
   assert.equal(calls.trim(), `node ${script} --web https://prova-vetrina-8000.app.github.dev`);
   assert.doesNotMatch(calls, /password|secret|Aurora/i);
   assert.match(read(AVVIO), /vetrina\.sh membri/, 'avvio.sh registra i membri dopo aver reso pubbliche le porte');
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Console di Keycloak (M8.14 V9; ADR-051 decisione 8; Q-670)
+
+test('compose.codespace.yml: KC_HOSTNAME_ADMIN non impostato (valore nullo che toglie quello dell\'host fisso); la porta 8180 resta privata (Q-670)', () => {
+  const text = read(CODESPACE_OVERLAY);
+  const cs = YAML.parse(text);
+  assert.ok('KC_HOSTNAME_ADMIN' in cs.services.idp.environment && cs.services.idp.environment.KC_HOSTNAME_ADMIN === null, 'valore nullo esplicito (toglie quello dell\'overlay di base)');
+  assert.doesNotMatch(noComments(text), /KC_HOSTNAME_ADMIN:\s*["'$h]|LH_VETRINA_ADMIN_HOST/, 'nessun valore per KC_HOSTNAME_ADMIN, nessun riferimento a LH_VETRINA_ADMIN_HOST nell\'overlay');
+  assert.equal(cs.services.idp.ports, undefined, 'la porta 8180 la pubblica solo l\'overlay di base su 127.0.0.1, inoltro privato');
+  assert.match(read(AVVIO), /gh codespace ports visibility 8000:public 8001:public/);
+});
+
+test('vetrina.sh: nel codespace KC_HOSTNAME_ADMIN si toglie anche dall\'ambiente; master riceve il frontendUrl della porta privata solo nel codespace (Q-670)', () => {
+  const sh = read(VETRINA_SH);
+  const fn = sh.split('\ncompose() {')[1]?.split('\n}\n')[0] ?? '';
+  assert.match(fn, /if \[ "\$\{LH_VETRINA_MODE:-host\}" = codespace \]; then\s+files\+=\(-f "\$CODESPACE_OVERLAY"\)\s+unset_args\+=\(-u KC_HOSTNAME_ADMIN\)\s+fi/);
+  const ap = sh.split('\napply_realm_overlay() {')[1]?.split('\n}\n')[0] ?? '';
+  assert.match(ap, /\[ "\$\{LH_VETRINA_MODE:-host\}" = codespace \] && master_frontend="https:\/\/\$LH_VETRINA_ADMIN_HOST"/);
+  assert.match(ap, /MASTER_FRONTEND_URL="\$master_frontend" KC_BOOTSTRAP_ADMIN_PASSWORD="\$pw"/);
+  assert.doesNotMatch(read(path.join(ROOT, 'deploy/idp/vetrina/master.json')), /frontendUrl":/, 'master.json senza indirizzi (dinamici)');
+  // Il messaggio finale distingue le console pubbliche dei due realm da quella privata di master.
+  assert.match(fn.length ? sh : '', /console dei realm \(pubbliche[^\n]*\/admin\/loyaltyhub\/console\/[^\n]*\/admin\/loyaltyhub-members\/console\//);
+  assert.match(sh, /console del realm master \(Q-670\): https:\/\/\$LH_VETRINA_ADMIN_HOST\/admin\/master\/console\/ \(porta \$CODESPACE_ADMIN_PORT privata/);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Credenziali di test pubbliche del Demo Hub (web/lib/hub/testUsers.ts) uguali a quelle degli overlay dei realm (Q-670 non
+// c'entra: ADR-051 decisione 1, M8.14 V9). Il file e' TypeScript: si leggono i letterali con espressioni regolari.
+
+const TEST_USERS_TS = path.join(ROOT, 'web/lib/hub/testUsers.ts');
+const REALM_OVERLAYS = [path.join(ROOT, 'deploy/idp/vetrina/realm-vetrina-overlay.json'), path.join(ROOT, 'deploy/idp/vetrina/realm-members-vetrina-overlay.json')];
+
+function base32Decode(text) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = 0, value = 0;
+  const out = [];
+  for (const ch of text.replace(/=+$/, '').toUpperCase()) {
+    const i = alphabet.indexOf(ch);
+    assert.ok(i >= 0, `carattere non base32: ${ch}`);
+    value = (value << 5) | i;
+    bits += 5;
+    if (bits >= 8) { bits -= 8; out.push((value >>> bits) & 0xff); }
+  }
+  return Buffer.from(out);
+}
+
+test('web/lib/hub/testUsers.ts: nomi utente, password e seme TOTP uguali agli overlay di Keycloak della vetrina (ADR-051 decisione 1)', { skip: !fs.existsSync(TEST_USERS_TS) && 'web/lib/hub/testUsers.ts assente: lo crea la parte web della fetta V9, il controllo si attiva da solo' }, () => {
+  const ts = read(TEST_USERS_TS);
+  const overlays = REALM_OVERLAYS.map((f) => JSON.parse(read(f)));
+  const users = new Map(overlays.flatMap((o) => o.users).map((u) => [u.username, u]));
+  const passwordOf = (u) => u.credentials.find((c) => c.type === 'password').value;
+  const otpSecret = overlays[0].users.map((u) => u.credentials.find((c) => c.type === 'otp')).find(Boolean);
+  const overlaySeed = JSON.parse(otpSecret.secretData).value;
+
+  // Letterali di stringa tra apici singoli, doppi o backtick, senza interpolazioni.
+  const literals = [...ts.matchAll(/(['"`])((?:(?!\1)[^\\\n]|\\.)*)\1/g)].map((m) => m[2]);
+  const found = [...users.keys()].filter((u) => literals.includes(u));
+  assert.deepEqual(found.sort(), [...users.keys()].sort(), 'ogni utente di test degli overlay compare in testUsers.ts (e nessuno manca)');
+  // Nomi utente che sembrano utenti ma non sono negli overlay: `<nome>.<cognome o ruolo>` come stringhe isolate.
+  const extra = literals.filter((l) => /^[a-z]+\.[a-z]+$/.test(l) && !users.has(l));
+  assert.deepEqual(extra, [], `nomi utente in testUsers.ts senza corrispondenza negli overlay: ${extra}`);
+
+  // Password: ogni password degli overlay e' presente, e ogni password-letterale del file e' di un overlay.
+  const overlayPasswords = new Set([...users.values()].map(passwordOf));
+  for (const pw of overlayPasswords) assert.ok(literals.includes(pw), `password mancante in testUsers.ts: ${pw.replace(/./g, '*')}`);
+  const pwLike = literals.filter((l) => /^Aurora-[A-Za-z]+-\d+!$/.test(l));
+  assert.ok(pwLike.length > 0 && pwLike.every((l) => overlayPasswords.has(l)), 'password in testUsers.ts non presenti negli overlay');
+  // Associazione utente -> password: nello stesso oggetto/riga o nel gruppo, la password dell'utente e' quella dell'overlay.
+  // Il file e' libero nella forma; si controlla che, per ogni utente, la prima password-letterale che lo segue prima del
+  // successivo nome utente sia la sua, oppure che il file definisca una costante di gruppo con la stessa password.
+  const order = literals.map((l, i) => [l, i]).filter(([l]) => users.has(l));
+  for (const [i, [name, pos]] of order.entries()) {
+    const end = i + 1 < order.length ? order[i + 1][1] : literals.length;
+    const window = literals.slice(pos + 1, end).filter((l) => /^Aurora-[A-Za-z]+-\d+!$/.test(l));
+    if (window.length) assert.equal(window[0], passwordOf(users.get(name)), `password di ${name} diversa dall'overlay`);
+  }
+
+  // Seme TOTP: base32 che, decodificato, e' il segreto dell'overlay.
+  const seeds = literals.filter((l) => /^[A-Z2-7]{16,}$/.test(l));
+  assert.ok(seeds.length > 0, 'seme TOTP in base32 assente in testUsers.ts');
+  for (const seed of seeds) assert.equal(base32Decode(seed).toString('utf8'), overlaySeed, 'il seme base32 non decodifica al segreto OTP degli overlay');
+});
+
+// Le tre password pubbliche per NOME della costante (non solo per valore): ciascuna uguale alla password di ogni utente
+// del gruppo corrispondente negli overlay, cosi' due costanti scambiate o un utente con la password sbagliata falliscono.
+test('web/lib/hub/testUsers.ts: OPERATORS_PASSWORD, MEMBERS_PASSWORD e KEYCLOAK_ADMIN_PASSWORD uguali alle password dei rispettivi utenti degli overlay', { skip: !fs.existsSync(TEST_USERS_TS) && 'web/lib/hub/testUsers.ts assente: lo crea la parte web della fetta V9, il controllo si attiva da solo' }, () => {
+  const ts = read(TEST_USERS_TS);
+  const constant = (name) => {
+    const m = ts.match(new RegExp(`export const ${name}\\s*=\\s*(["'\`])((?:(?!\\1)[^\\\\\\n])*)\\1`));
+    assert.ok(m, `costante ${name} non trovata (stringa letterale) in testUsers.ts`);
+    return m[2];
+  };
+  const [operatorsRealm, membersRealm] = REALM_OVERLAYS.map((f) => JSON.parse(read(f)));
+  const passwordOf = (u) => u.credentials.find((c) => c.type === 'password').value;
+  const operators = operatorsRealm.users.filter((u) => u.username !== 'vetrina.admin');
+  const members = membersRealm.users.filter((u) => u.username !== 'membri.admin');
+  const admins = [operatorsRealm.users.find((u) => u.username === 'vetrina.admin'), membersRealm.users.find((u) => u.username === 'membri.admin')];
+  assert.ok(operators.length === 5 && members.length === 4 && admins.every(Boolean), 'overlay: 5 operatori, 4 membri e i due amministratori');
+  for (const [name, group] of [
+    ['OPERATORS_PASSWORD', operators],
+    ['MEMBERS_PASSWORD', members],
+    ['KEYCLOAK_ADMIN_PASSWORD', admins],
+  ]) {
+    const value = constant(name);
+    for (const u of group) assert.equal(passwordOf(u), value, `${name} diversa dalla password di ${u.username} negli overlay`);
+  }
+  assert.equal(new Set([constant('OPERATORS_PASSWORD'), constant('MEMBERS_PASSWORD'), constant('KEYCLOAK_ADMIN_PASSWORD')]).size, 3, 'le tre password sono distinte');
 });

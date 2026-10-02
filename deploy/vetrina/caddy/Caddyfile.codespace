@@ -29,16 +29,69 @@
 	}
 }
 
-# Keycloak: solo i realm `loyaltyhub` e `loyaltyhub-members` (ADR-051) e le risorse statiche, come sull'host fisso. La console /admin e il realm
-# `master` restano su 127.0.0.1:8180 del codespace, con l'inoltro privato (solo il proprietario, deploy/vetrina/README.md).
+# Keycloak (porta 8001, pubblica). ADR-051 decisione 8 e Q-670 (opzione A): l'indirizzo pubblico serve i realm
+# `loyaltyhub` e `loyaltyhub-members` con le loro console di amministrazione; il realm `master` non esiste da qui.
+# La console e il login di `master` stanno SOLO sull'inoltro privato della porta 8180 (attributo `frontendUrl` del realm
+# master, deploy/idp/vetrina/apply-overlay.sh). Ordine delle regole, che conta:
+#   1. `master` -> 404, prima di qualunque permesso;
+#   2. percorsi con trucchi di normalizzazione -> 404 (i permessi sono prefissi e Keycloak normalizza `..` dopo di noi);
+#   3. elenco dei soli percorsi permessi -> Keycloak;
+#   4. tutto il resto -> 404.
+# Verificato con Caddy 2.11.4 (`path` e `path_regexp` lavorano sul percorso decodificato, senza distinguere maiuscole e
+# minuscole nei `path`): `/Admin/Realms/MASTER/..`, `/realms/%6Daster/..` e `/admin/realms/%4DASTER` danno 404. Il
+# test statico di scripts/check-vetrina.mjs controlla l'ordine e l'elenco; i casi sono provati in quel file.
 :8001 {
 	import intestazioni
-	@realm path /realms/loyaltyhub /realms/loyaltyhub/* /realms/loyaltyhub-members /realms/loyaltyhub-members/* /resources/*
-	handle @realm {
+
+	# 1. Tutto cio' che riguarda `master`: console (/admin/master/...), API di amministrazione (/admin/realms/master/...)
+	#    e login/token/certificati (/realms/master/...). Con il prefisso senza barra copre anche `master` da solo.
+	#    /resources/master/... sono i testi della console del realm (la console li chiede per il realm corrente).
+	@master path /admin/master* /admin/realms/master* /realms/master* /resources/master /resources/master/*
+	handle @master {
+		respond 404
+	}
+
+	# 2. Trucchi di normalizzazione sul percorso gia' decodificato: barra rovesciata, parametri di percorso `;` e un `%`
+	#    rimasto dopo la decodifica (doppia codifica, per esempio %252e%252e). I segmenti `..` non servono qui: Caddy
+	#    pulisce il percorso prima di confrontarlo (anche %2e%2e, gia' decodificato), quindi `/realms/loyaltyhub/../master/x`
+	#    diventa `/realms/master/x` e cade nel 404 di `master` (regola 1); la prova con Caddy lo verifica. Nessun percorso
+	#    legittimo della console contiene questi caratteri. Limite dichiarato: un nome (utente, ruolo, gruppo) con `%`,
+	#    `;` o `\` non si puo' gestire dalla console pubblica; resta la console privata `master` sulla porta 8180.
+	@trucchi path_regexp trucchi (\\|;|%)
+	handle @trucchi {
+		respond 404
+	}
+
+	# 3. Permessi. Nessun carattere jolly oltre ai prefissi con barra: `/realms/loyaltyhub*` lascerebbe passare anche
+	#    realm con altri nomi.
+	@permessi {
+		# Login, token, certificati, logout e metadati OIDC dei due realm (browser dell'utente e client del BFF).
+		path /realms/loyaltyhub /realms/loyaltyhub/*
+		path /realms/loyaltyhub-members /realms/loyaltyhub-members/*
+		# File statici dei temi (/resources/<versione>/admin/keycloak.v2/..., /resources/<versione>/common/...): script e
+		# fogli di stile della pagina di login e della console. Il tema non contiene dati dei realm.
+		path /resources/*
+		# La pagina della console di ciascun realm e i suoi punti d'accesso: /whoami, /logout, /messages.json. Senza barra
+		# finale Keycloak risponde con un reindirizzamento alla versione con barra.
+		path /admin/loyaltyhub/console /admin/loyaltyhub/console/*
+		path /admin/loyaltyhub-members/console /admin/loyaltyhub-members/console/*
+		# API REST di amministrazione che la console chiama dal browser, solo dei due realm (compreso il realm stesso,
+		# GET /admin/realms/<realm>, e le estensioni /ui-ext/*). Le protegge il realm con i suoi token: servono i ruoli di
+		# realm-management del client, che gli amministratori di test hanno limitati (Q-671).
+		path /admin/realms/loyaltyhub /admin/realms/loyaltyhub/*
+		path /admin/realms/loyaltyhub-members /admin/realms/loyaltyhub-members/*
+		# Informazioni sul server (versione, provider, temi): la console le legge all'avvio e non parte senza. Risponde solo
+		# a chi ha un token di amministratore di un realm; non dipende dal nome del realm.
+		path /admin/serverinfo
+	}
+	handle @permessi {
 		reverse_proxy idp:8080 {
 			header_up X-Forwarded-Proto https
 		}
 	}
+
+	# 4. Tutto il resto: /admin, /admin/master/..., /admin/realms (elenco dei realm), /realms/master, /js/*, pagina
+	#    iniziale, metriche e salute.
 	handle {
 		respond 404
 	}

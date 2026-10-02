@@ -862,7 +862,7 @@ test('master.json (Q-672): solo impostazioni del realm master, nessun utente né
   assert.equal(m.sslRequired, 'external');
   assert.match(m.passwordPolicy, /length\(\d+\)/);
   for (const k of ['users', 'clients', 'roles', 'groups', 'frontendUrl', 'attributes', 'smtpServer', 'browserFlow', 'identityProviders', 'components']) {
-    assert.ok(!(k in m), `master.json non deve contenere ${k} (frontendUrl è V9, Q-670)`);
+    assert.ok(!(k in m), `master.json non deve contenere ${k} (il frontendUrl è dinamico: lo imposta apply-overlay.sh da MASTER_FRONTEND_URL, Q-670)`);
   }
   assert.ok(!/credentials|secret/i.test(fs.readFileSync(VETRINA_MASTER_PATH, 'utf8')), 'nessuna credenziale');
 });
@@ -876,10 +876,10 @@ test('Eventi di amministrazione (Q-677): attivi con i dettagli in entrambi i rea
   }
 });
 
-test('Gitleaks: credenziali di test pubbliche ammesse solo nei percorsi esatti degli overlay e dei documenti che le elencano (ADR-051 decisione 1)', () => {
+test('Gitleaks: credenziali di test pubbliche ammesse solo nei percorsi esatti degli overlay, dei documenti che le elencano e di web/lib/hub/testUsers.ts (ADR-051 decisione 1)', () => {
   const toml = fs.readFileSync(path.join(ROOT, '.gitleaks.toml'), 'utf8');
   assert.match(toml, /ADR-051 decisione 1/);
-  for (const f of ['deploy/idp/vetrina/realm-vetrina-overlay.json', 'deploy/idp/vetrina/realm-members-vetrina-overlay.json', 'deploy/vetrina/README.md', 'concetti/vetrina-enterprise.mdx']) {
+  for (const f of ['deploy/idp/vetrina/realm-vetrina-overlay.json', 'deploy/idp/vetrina/realm-members-vetrina-overlay.json', 'deploy/vetrina/README.md', 'concetti/vetrina-enterprise.mdx', 'web/lib/hub/testUsers.ts']) {
     assert.ok(toml.includes(f.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')), `.gitleaks.toml: percorso ${f}`);
   }
 });
@@ -949,7 +949,10 @@ test('apply-overlay.sh di vetrina: ruoli operatore e MFA_REQUIRED_ROLE coerenti 
 // senza un server reale. Regola 20: la password di amministrazione di prova e' un valore inventato del test.
 // Simula la semantica di Keycloak che serve allo script: PUT dei realm, partialImport OVERWRITE di client, ruoli e
 // utenti (con gli id dichiarati), ruoli di realm-management assegnati con l'API, elenco degli utenti per ruolo.
-function mockKeycloak({ operators, dropOtp = false, renumberIds = false }) {
+// Con `staleTokenOnFrontendUrl` simula Keycloak 26 (hostname v2): cambiato il frontendUrl di un realm, i token emessi prima
+// non valgono piu' (l'emittente atteso cambia); `refuseFrontendUrl` risponde 400 al PUT che lo contiene e
+// `ignoreFrontendUrl` lo scarta in silenzio (Q-670: lo script deve fallire in entrambi i casi).
+function mockKeycloak({ operators, dropOtp = false, renumberIds = false, staleTokenOnFrontendUrl = true, refuseFrontendUrl = false, ignoreFrontendUrl = false }) {
   const base = (name, extra = {}) => ({ realm: name, registrationAllowed: true, browserFlow: 'browser', bruteForceProtected: true, sslRequired: 'external',
     adminEventsEnabled: true, adminEventsDetailsEnabled: false, ...extra });
   const state = {
@@ -960,7 +963,7 @@ function mockKeycloak({ operators, dropOtp = false, renumberIds = false }) {
     },
     users: { loyaltyhub: new Map(), 'loyaltyhub-members': new Map() },
     roles: { loyaltyhub: [], 'loyaltyhub-members': [] },
-    clients: [], scope: [], puts: 0, loginBody: '', imports: [],
+    clients: [], scope: [], puts: 0, loginBody: '', imports: [], issued: 0, minValid: 1, logins: 0,
   };
   const imported = (realm) => [...state.users[realm].values()];
   const roleUsers = (role) => operators.filter(u => (u.realmRoles ?? []).includes(role)).map(u => ({ id: `id-${u.username}`, username: u.username }))
@@ -973,14 +976,22 @@ function mockKeycloak({ operators, dropOtp = false, renumberIds = false }) {
       const url = new URL(req.url, 'http://x');
       const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(obj === undefined ? '' : JSON.stringify(obj)); };
       const p = url.pathname;
-      if (p === '/realms/master/protocol/openid-connect/token') { state.loginBody = body; return json(200, { access_token: 'mock-token' }); }
-      if (req.headers.authorization !== 'Bearer mock-token') return json(401, {});
+      if (p === '/realms/master/protocol/openid-connect/token') { state.loginBody = body; state.logins++; return json(200, { access_token: `mock-token-${++state.issued}` }); }
+      const tokenNo = Number((req.headers.authorization ?? '').match(/^Bearer mock-token-(\d+)$/)?.[1]);
+      if (!(tokenNo >= state.minValid)) return json(401, {});
       const m = p.match(/^\/admin\/realms\/([a-z-]+)(?:\/(.*))?$/);
       if (!m || !state.realms[m[1]]) return json(404, { path: p });
       const [, realm, rest] = m;
       if (rest === undefined) {
         if (req.method === 'GET') return json(200, state.realms[realm]);
-        if (req.method === 'PUT') { state.puts++; state.realms[realm] = JSON.parse(body); return json(204); }
+        if (req.method === 'PUT') {
+          const rep = JSON.parse(body);
+          const oldFe = state.realms[realm].attributes?.frontendUrl, newFe = rep.attributes?.frontendUrl;
+          if (newFe !== oldFe && refuseFrontendUrl) return json(400, { errorMessage: 'frontendUrl non valido' });
+          if (newFe !== oldFe && ignoreFrontendUrl) delete rep.attributes.frontendUrl;
+          else if (newFe !== oldFe && staleTokenOnFrontendUrl) state.minValid = state.issued + 1;
+          state.puts++; state.realms[realm] = rep; return json(204);
+        }
       }
       if (rest === 'partialImport') {
         const b = JSON.parse(body);
@@ -1046,9 +1057,9 @@ function mockKeycloak({ operators, dropOtp = false, renumberIds = false }) {
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve({ server, state, url: `http://127.0.0.1:${server.address().port}` })));
 }
 
-function runApply(url, args, userName = 'admin') {
+function runApply(url, args, userName = 'admin', extraEnv = {}) {
   return new Promise(resolve => {
-    const env = { ...process.env, KEYCLOAK_URL: url, KC_BOOTSTRAP_ADMIN_USERNAME: userName, KC_BOOTSTRAP_ADMIN_PASSWORD: 'Test&Pass=1 x' };
+    const env = { ...process.env, ...extraEnv, KEYCLOAK_URL: url, KC_BOOTSTRAP_ADMIN_USERNAME: userName, KC_BOOTSTRAP_ADMIN_PASSWORD: 'Test&Pass=1 x' };
     const child = spawn('bash', [VETRINA_APPLY_PATH, ...args], { env });
     let out = '', err = '';
     child.stdout.on('data', d => { out += d; });
@@ -1083,7 +1094,8 @@ test('apply-overlay.sh di vetrina contro un Keycloak simulato: applica i tre rea
     const masterOverlay = masterVetrina();
     const { _comment, realm: _r, ...settings } = masterOverlay;
     assert.deepEqual(master, { ...before.master, ...settings });
-    assert.equal(master.frontendUrl, undefined, 'niente frontendUrl: è V9 (Q-670)');
+    assert.equal(master.frontendUrl, undefined, 'senza MASTER_FRONTEND_URL il realm master non riceve il frontendUrl (Q-670)');
+    assert.equal(master.attributes, undefined);
     const c = kc.state.clients.find(x => x.clientId === 'lh-cli');
     assert.ok(c && c.publicClient && c.consentRequired && c.fullScopeAllowed === false);
     assert.deepEqual(kc.state.scope.map(x => x.name).sort(), [...OPERATOR_ROLES].sort());
@@ -1144,6 +1156,53 @@ test('apply-overlay.sh di vetrina: fallisce se l\'OTP degli operatori non viene 
     assert.notEqual(r.code, 0);
     assert.match(r.err, /id fisso non e' stato rispettato/);
   } finally { renumbered.server.close(); }
+});
+
+test('apply-overlay.sh di vetrina con MASTER_FRONTEND_URL (Q-670): frontendUrl sul solo realm master come ultima scrittura, token nuovo per la verifica, attributi esistenti conservati', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
+  const FE = 'https://prova-vetrina-8180.app.github.dev';
+  const kc = await mockKeycloak({ operators: [] });
+  kc.state.realms.master.attributes = { displayNameHtml: 'x' };
+  try {
+    const before = structuredClone(kc.state.realms);
+    const r = await runApply(kc.url, [], 'admin', { MASTER_FRONTEND_URL: FE });
+    assert.equal(r.code, 0, `apply-overlay.sh è fallito: ${r.err}${r.out}`);
+    assert.deepEqual(kc.state.realms.master.attributes, { displayNameHtml: 'x', frontendUrl: FE }, 'unione con gli attributi esistenti');
+    for (const realm of ['loyaltyhub', 'loyaltyhub-members']) {
+      assert.equal(kc.state.realms[realm].attributes?.frontendUrl, undefined, `${realm}: nessun frontendUrl (usa l'indirizzo pubblico)`);
+    }
+    assert.equal(kc.state.logins, 2, 'un login per le scritture e uno nuovo, dopo il frontendUrl, per la verifica');
+    assert.match(r.out, new RegExp(`verifica: frontendUrl del realm master = ${FE.replaceAll('.', '\\.')}`));
+    const { _comment, realm: _r, ...settings } = masterVetrina();
+    const { attributes: _a, ...rest } = kc.state.realms.master;
+    const { attributes: _b, ...restBefore } = before.master;
+    assert.deepEqual(rest, { ...restBefore, ...settings }, "nessun'altra impostazione cambia");
+    // Idempotente: una seconda esecuzione col frontendUrl gia' impostato (token con l'emittente nuovo) riesce ancora.
+    assert.equal((await runApply(kc.url, [], 'admin', { MASTER_FRONTEND_URL: FE })).code, 0);
+    assert.equal(kc.state.realms.master.attributes.frontendUrl, FE);
+  } finally { kc.server.close(); }
+});
+
+test('apply-overlay.sh di vetrina con MASTER_FRONTEND_URL: fallisce se Keycloak rifiuta o scarta il frontendUrl, o se il valore non e\' un indirizzo https senza percorso (Q-670)', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
+  const FE = 'https://prova-vetrina-8180.app.github.dev';
+  const refuses = await mockKeycloak({ operators: [], refuseFrontendUrl: true });
+  try {
+    const r = await runApply(refuses.url, [], 'admin', { MASTER_FRONTEND_URL: FE });
+    assert.notEqual(r.code, 0);
+    assert.match(r.err, /ha rifiutato il frontendUrl del realm master \(400\)/);
+    assert.match(r.err, /Q-670/);
+  } finally { refuses.server.close(); }
+  const ignores = await mockKeycloak({ operators: [], ignoreFrontendUrl: true });
+  try {
+    const r = await runApply(ignores.url, [], 'admin', { MASTER_FRONTEND_URL: FE });
+    assert.notEqual(r.code, 0);
+    assert.match(r.err, /frontendUrl del realm master e' None, atteso/);
+  } finally { ignores.server.close(); }
+  // Valore non ammesso: errore prima di ogni chiamata di rete (nessun server in ascolto).
+  for (const bad of ['http://prova-8180.app.github.dev', 'https://prova-8180.app.github.dev/admin', 'prova-8180.app.github.dev', 'https://Prova.example.org', 'https://']) {
+    const r = await runApply('http://127.0.0.1:9', [], 'admin', { MASTER_FRONTEND_URL: bad });
+    assert.notEqual(r.code, 0, bad);
+    assert.match(r.err, /MASTER_FRONTEND_URL deve essere https/, bad);
+  }
 });
 
 test('apply-overlay.sh di vetrina --check: valida i tre file senza rete e rifiuta un overlay con utenti non ammessi', { skip: !haveTools && 'servono bash e python3' }, () => {

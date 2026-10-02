@@ -46,7 +46,8 @@ export class LoginRejectedError extends Error {
 
 export interface OidcClient {
   readonly clientId: string;
-  authorizationUrl(checks: LoginChecks): Promise<URL>;
+  /** `extra`: parametri aggiuntivi dell'URL (HUB-02: `login_hint`, `prompt`); mai quelli fissi del flusso (non si sovrascrivono). */
+  authorizationUrl(checks: LoginChecks, extra?: Readonly<Record<string, string>>): Promise<URL>;
   /** Scambia il codice (URL di callback completo) e valida l'ID token; lancia `LoginRejectedError` sui rifiuti. */
   exchangeCode(callbackUrl: URL, checks: LoginChecks): Promise<TokenSet>;
   /** Lancia `RefreshRejectedError` se l'IdP rifiuta il refresh token; altri errori = IdP non raggiungibile. */
@@ -61,6 +62,9 @@ export interface OidcClient {
 export function redirectUri(cfg: EnterpriseAuthConfig, callbackPath: string = CALLBACK_PATH): string {
   return new URL(callbackPath, cfg.publicUrl).href;
 }
+
+/** Parametri aggiuntivi ammessi nell'URL di autorizzazione (HUB-02). */
+const EXTRA_PARAMS = new Set(["login_hint", "prompt"]);
 
 export function createOidcClient(cfg: EnterpriseAuthConfig, callbackPath: string = CALLBACK_PATH): OidcClient {
   let discovered: Promise<client.Configuration> | null = null;
@@ -87,9 +91,11 @@ export function createOidcClient(cfg: EnterpriseAuthConfig, callbackPath: string
   return {
     clientId: cfg.clientId,
 
-    async authorizationUrl(checks) {
+    async authorizationUrl(checks, extra = {}) {
       const config = await configuration();
       return client.buildAuthorizationUrl(config, {
+        // Solo i parametri ammessi: l'IdP non deve poter ricevere un client_id, uno state o un redirect_uri diversi.
+        ...(Object.fromEntries(Object.entries(extra).filter(([k]) => EXTRA_PARAMS.has(k)))),
         redirect_uri: redirectUri(cfg, callbackPath),
         scope: SCOPE,
         state: checks.state,

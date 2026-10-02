@@ -7,11 +7,12 @@
 # Cosa cambia rispetto all'host fisso (ADR-049):
 # - niente IP pubblico né ACME: il TLS lo termina l'inoltro delle porte di GitHub su
 #   https://<codespace>-<porta>.<dominio di inoltro>. Il proxy resta, ma in HTTP su due porte di loopback, 8000 (web) e
-#   8001 (Keycloak), rese pubbliche nel codespace: tiene la console /admin e il realm `master` fuori portata (404) e le
-#   intestazioni di sicurezza, come sull'host fisso;
+#   8001 (Keycloak), rese pubbliche nel codespace: apre solo i due realm di vetrina e le loro console (404 su `master`) e
+#   aggiunge le intestazioni di sicurezza;
 # - niente alias di rete: i nomi pubblici puntano a GitHub, non al proxy. Web e hub raggiungono l'emittente con lo
 #   stesso URL del browser, passando dall'inoltro delle porte (Q-420), con un certificato pubblico verificato;
-# - la console di Keycloak ha un indirizzo proprio sulla porta 8180 privata (solo il proprietario del codespace);
+# - le console di Keycloak dei realm `loyaltyhub` e `loyaltyhub-members` stanno sull'indirizzo pubblico della porta 8001
+#   (Q-670); quella del realm `master` solo sulla porta 8180 privata (solo il proprietario del codespace);
 # - tutto il resto (TLS verso bus e database con la CA locale, segreti da file, profilo fisso) resta identico.
 services:
   proxy:
@@ -28,13 +29,20 @@ services:
     networks: !override
       default: {}
 
-  # Console di Keycloak (/admin e realm `master`) sull'inoltro PRIVATO della porta 8180: solo il proprietario del
-  # codespace, autenticato da GitHub, poi con l'utente admin di Keycloak. Senza questo indirizzo la console rimanderebbe
-  # a http://127.0.0.1:8180 (quello dell'host fisso), irraggiungibile dal browser. La porta resta privata: avvio.sh
-  # rende pubbliche solo 8000 e 8001, e il proxy pubblico continua a rispondere 404 su /admin.
+  # Console di Keycloak (ADR-051 decisione 8, Q-670, opzione A). KC_HOSTNAME_ADMIN NON si imposta: il compose base
+  # (compose.vetrina.yml) lo fissa a http://127.0.0.1:8180 e qui `KC_HOSTNAME_ADMIN: null` lo sovrascrive con un
+  # valore nullo, cosi' Compose non lo passa al contenitore; vetrina.sh toglie la variabile anche dalla shell
+  # (`env -u`), quindi non si puo' riempire dall'ambiente. Cosi' la console dei realm `loyaltyhub` e
+  # `loyaltyhub-members` usa l'indirizzo pubblico KC_HOSTNAME (porta 8001, filtrata dal proxy: deploy/vetrina/caddy/
+  # Caddyfile.codespace). Con hostname v2 senza KC_HOSTNAME_ADMIN l'URL di amministrazione e' quello di frontend, e
+  # l'attributo `frontendUrl` del realm, se presente, ha la precedenza (HostnameV2Provider.getFrontUriBuilder): il realm
+  # `master` lo riceve da apply-overlay.sh (MASTER_FRONTEND_URL = https://<codespace>-8180.<dominio>), quindi la sua
+  # console e il suo login vivono solo sull'inoltro PRIVATO della porta 8180 (solo il proprietario, autenticato da
+  # GitHub). Il proxy pubblico risponde 404 a tutto cio' che riguarda `master`. La porta 8180 resta privata: avvio.sh
+  # rende pubbliche solo 8000 e 8001.
   idp:
     environment:
-      KC_HOSTNAME_ADMIN: "https://${LH_VETRINA_ADMIN_HOST:?LH_VETRINA_ADMIN_HOST obbligatoria nel codespace}"
+      KC_HOSTNAME_ADMIN: null
   # Utenti di test (Q-676, ADR-051): ammessi solo con LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test, che vetrina.sh
   # passa solo dentro un GitHub Codespace (CODESPACES=true); vuote altrove, e un utente con LH_TEST_USER è rifiutato.
   # Solo questo overlay le dichiara: né il compose di riferimento né il chart.
