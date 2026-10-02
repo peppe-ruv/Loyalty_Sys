@@ -67,7 +67,7 @@ export function EnterpriseHubHeader({ demoUrl }: { demoUrl: string | null }) {
 }
 
 /**
- * Banner della vetrina (Q-624): non HA, solo dati fittizi, azzeramento settimanale senza backup.
+ * Banner della vetrina (Q-624, Q-662, Q-663): non HA, solo dati fittizi, accesa su richiesta, azzeramento senza backup.
  * SPEC-GAP: Q-640 — compare in ogni HUB-02 `enterprise`, perché nessuna variabile distingue la vetrina da
  * un'installazione di chi adotta il prodotto (scelta conservativa: mai una vetrina senza avviso).
  */

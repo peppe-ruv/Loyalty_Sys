@@ -26,7 +26,7 @@ describe("EnterpriseShowcaseLink", () => {
     expect(link).not.toHaveAttribute("target");
     expect(link).toHaveAccessibleName(`${t.hub.enterpriseCta} ${t.hub.enterpriseExternal}`);
     expect(link).toHaveAccessibleDescription(t.hub.enterpriseNote);
-    expect(screen.getByText("istanza separata · login reale · dati fittizi · non HA")).toBeInTheDocument();
+    expect(screen.getByText("istanza separata · login reale · dati fittizi · non HA · disponibile su richiesta")).toBeInTheDocument();
   });
 
   it("nel profilo enterprise è nascosto anche con un URL valido", () => {

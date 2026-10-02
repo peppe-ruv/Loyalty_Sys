@@ -1,0 +1,61 @@
+// Vetrina enterprise in un GitHub Codespace acceso su richiesta (F2-DIST-09, ADR-050, M8.14 V7; Q-660…Q-663).
+// Si sceglie come configurazione «Vetrina enterprise» quando si crea il codespace; non è l'ambiente di sviluppo.
+// Runbook: deploy/vetrina/README.md, sezione «Vetrina in un codespace».
+{
+  "name": "Vetrina enterprise",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  // Q-660: 4 core e 16 GB (lo stack chiede circa 6,5 GB di limiti); le immagini e i volumi stanno nel disco.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
+  "features": {
+    // Docker nel codespace: /var/lib/docker sta in un volume, quindi i dati restano tra un arresto e un riavvio.
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    // Node.js per `vetrina.sh programma` (scripts/vetrina-programma.mjs), python3 per operatori.py e l'overlay del realm.
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "os-provided",
+      "installTools": false
+    }
+  },
+  "containerEnv": {
+    // Configurazione e segreti fuori dal repository ma sotto /workspaces, che sopravvive anche a una ricostruzione
+    // del container, come il volume di Docker: segreti e dati restano coerenti.
+    "LH_VETRINA_CONFIG": "/workspaces/.loyaltyhub-vetrina/vetrina.env"
+  },
+  // Q-663: a ogni avvio (creazione e riavvio) la vetrina si configura e parte da sola.
+  "postStartCommand": "bash .devcontainer/vetrina/avvio.sh",
+  "forwardPorts": [8000, 8001],
+  "portsAttributes": {
+    "8000": {
+      "label": "Vetrina: web (pubblica)",
+      "onAutoForward": "silent"
+    },
+    "8001": {
+      "label": "Vetrina: Keycloak, solo realm loyaltyhub (pubblica)",
+      "onAutoForward": "silent"
+    },
+    "8180": {
+      "label": "Keycloak con console /admin (resta privata)",
+      "onAutoForward": "silent"
+    },
+    "8080": {
+      "label": "Hub (resta privata, solo vetrina.sh programma)",
+      "onAutoForward": "ignore"
+    },
+    "3000": {
+      "label": "Web senza proxy (non serve)",
+      "onAutoForward": "ignore"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  }
+}
