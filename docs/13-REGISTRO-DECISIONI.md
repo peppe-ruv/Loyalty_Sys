@@ -494,14 +494,14 @@ Il bus preserva le proprietà che contano: **fan-out per topic** (un gruppo cons
 - Fuzz delle API solo notturno: un difetto arriva in `main` prima di essere visto.
 
 ### ADR-054 — Cypress con Cypress Cloud sulla demo pubblica, ogni notte, accanto a Playwright
-**Stato.** ACCETTATA il 2026-10-02 (Giuseppe, opzione «Demo notturna, PR»). I dettagli sono in Q-700…Q-703, con il default proposto in uso finché il proprietario non decide. **Integra** ADR-052 e ADR-053; non supera nessuna decisione.
+**Stato.** ACCETTATA il 2026-10-02 (Giuseppe, opzione «Demo notturna, PR»). I dettagli sono in Q-710…Q-713, con il default proposto in uso finché il proprietario non decide. **Integra** ADR-052 e ADR-053; non supera nessuna decisione.
 **Contesto.** Il proprietario vuole usare Cypress, con la registrazione delle corse su Cypress Cloud (piano gratuito, progetto `v1g3bz`), come secondo strumento accanto a Playwright. Playwright è già il cancello delle PR sul profilo `enterprise` (ADR-052 livello 1, T1). Il profilo `demo` (persone simulate con `X-LH-Actor`, demo pubblica su Vercel) oggi ha solo `scripts/smoke.sh` e lo smoke della demo, senza browser. Il piano gratuito di Cypress Cloud conta i risultati di test registrati ogni mese, con un tetto basso. La guida di Cypress prevede che il comando di registrazione, che contiene la *record key*, lo lanci una persona dal terminale; il proprietario lavora solo dal browser.
 **Decisione.**
-1. **Divisione dei compiti.** Playwright verifica il profilo `enterprise` nelle PR (login vero, MFA, invarianti). Cypress verifica il profilo `demo` sulla demo pubblica, con le persone simulate: Demo Hub, «Accendi la demo», backoffice e portale per persona, un'azione che produce punti (Q-700).
-2. **Quando gira.** Un workflow `cypress-demo` ogni notte e a richiesta (`workflow_dispatch`), non nelle PR: la demo pubblica è quella in produzione su Vercel, non la build della PR. Registra su Cypress Cloud solo con la *record key* presente (Q-702).
-3. **Budget del piano gratuito.** Al più 10 test per corsa e una corsa per notte; nessun retry automatico registrato (Q-701).
+1. **Divisione dei compiti.** Playwright verifica il profilo `enterprise` nelle PR (login vero, MFA, invarianti). Cypress verifica il profilo `demo` sulla demo pubblica, con le persone simulate: Demo Hub, «Accendi la demo», backoffice e portale per persona, un'azione che produce punti (Q-710).
+2. **Quando gira.** Un workflow `cypress-demo` ogni notte e a richiesta (`workflow_dispatch`), non nelle PR: la demo pubblica è quella in produzione su Vercel, non la build della PR. Registra su Cypress Cloud solo con la *record key* presente (Q-712).
+3. **Budget del piano gratuito.** Al più 10 test per corsa e una corsa per notte; nessun retry automatico registrato (Q-711).
 4. **Record key solo come segreto.** `CYPRESS_RECORD_KEY` sta solo nei segreti del repository GitHub, mai in un file, in un log o nella configurazione (regola 20); senza il segreto la corsa avviene lo stesso, senza registrazione. Impostarlo è una modifica esterna: la fa il proprietario, o Claude con il suo consenso esplicito.
-5. **Dove sta.** Nel pacchetto `e2e/` di T1, con `e2e/cypress.config.ts` (`projectId: 'v1g3bz'`) e i test in `e2e/cypress/` (Q-703). Cypress entra solo come dipendenza di sviluppo di `e2e/`, mai nel web o nell'immagine.
+5. **Dove sta.** Nel pacchetto `e2e/` di T1, con `e2e/cypress.config.ts` (`projectId: 'v1g3bz'`) e i test in `e2e/cypress/` (Q-713). Cypress entra solo come dipendenza di sviluppo di `e2e/`, mai nel web o nell'immagine.
 6. **Nessun componente nuovo del prodotto.** Cypress Cloud è un servizio esterno degli strumenti di sviluppo: riceve solo esiti, screenshot e registrazioni della demo con dati fittizi, mai credenziali o dati personali (regola 7, regola 20).
 
 **Conseguenze.**
@@ -510,7 +510,7 @@ Il bus preserva le proprietà che contano: **fan-out per topic** (un gruppo cons
 - − Due strumenti di test da mantenere; Cypress aggiunge un binario da scaricare nel workflow notturno.
 - − Il piano gratuito limita i risultati registrati: oltre il tetto le corse continuano senza registrazione.
 - − Una corsa notturna scrive dati fittizi nella demo pubblica; si rimedia con il reset della demo (`POST /v1/demo/reset`).
-**Attuazione.** **T0c** questa ADR con Q-700…Q-703; **C1** `fase2/M9.8a-cypress-demo` — Cypress in `e2e/`, `projectId`, i primi test della demo, il workflow `cypress-demo` (dipende da T1).
+**Attuazione.** **T0c** questa ADR con Q-710…Q-713; **C1** `fase2/M9.8a-cypress-demo` — Cypress in `e2e/`, `projectId`, i primi test della demo, il workflow `cypress-demo` (dipende da T1).
 **Scartate.**
 - Cypress nelle PR: consumerebbe il piano gratuito in pochi giorni e duplicherebbe il cancello Playwright.
 - Test dei componenti React con Cypress: si sovrappone ai test vitest del web.
