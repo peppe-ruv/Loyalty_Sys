@@ -1,6 +1,5 @@
 import type { NextRequest, NextResponse } from "next/server";
 import { problem, type Bff } from "./bff";
-import { SESSION_COOKIE } from "./cookies";
 import { checkCsrf } from "./csrf";
 import { csrfRejected } from "./handlers";
 import { hasMemberIdInPath, hasMemberIdInQuery, isPortalPath } from "./memberScope";
@@ -18,7 +17,7 @@ export type ProxyAuthorization =
 export const UNAUTHENTICATED = "UNAUTHENTICATED";
 
 export async function authorizeProxy(req: NextRequest, path: readonly string[], bff: Bff): Promise<ProxyAuthorization> {
-  const id = req.cookies.get(SESSION_COOKIE)?.value;
+  const id = req.cookies.get(bff.cookies.session)?.value;
   if (!id) return { ok: false, response: unauthenticated() };
   if (checkCsrf(req, bff.cfg.publicUrl.origin, { id, csrfKey: bff.csrfKey })) return { ok: false, response: csrfRejected() };
 

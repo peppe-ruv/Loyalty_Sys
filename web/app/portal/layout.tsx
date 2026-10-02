@@ -19,13 +19,14 @@ import { themeStyle } from "@/lib/theme/theme";
 // serve la sessione OIDC di un membro; il BFF non inoltra mai un memberId scelto dal browser, quindi quello del
 // contesto è solo il `sub` del token, per le chiavi di cache delle viste. SPEC-GAP: Q-410.
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const viewer = await getViewer();
+  const viewer = await getViewer("members");
   let memberId: string;
   if (viewer.mode === "enterprise") {
     if (!viewer.user) return <LoginRedirect area="portale" />;
     if (viewer.user.kind !== "member") {
       return (
         <AccessDenied
+          realm="members"
           title="Il portale è riservato ai membri"
           detail="Questo account è di un operatore: esci e accedi con l'account di un membro del programma."
         />
@@ -56,7 +57,7 @@ export default async function PortalLayout({ children }: { children: React.React
           ) : (
             <span className="flex items-center gap-2">
               <InboxBell />
-              <LogoutButton />
+              <LogoutButton realm="members" />
             </span>
           )}
         </header>

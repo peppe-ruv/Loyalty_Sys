@@ -63,6 +63,15 @@ spec:
             - name: LH_OIDC_JWKS_URI
               value: {{ . | quote }}
             {{- end }}
+            {{- with (include "loyaltyhub.oidc.memberIssuer" .) }}
+            # Realm dei membri (ADR-051): MEMBER vale solo dai suoi token, che portano solo MEMBER.
+            - name: LH_OIDC_MEMBER_ISSUER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (include "loyaltyhub.oidc.memberJwksUri" .) }}
+            - name: LH_OIDC_MEMBER_JWKS_URI
+              value: {{ . | quote }}
+            {{- end }}
             - name: LH_OIDC_AUDIENCE
               value: {{ .Values.oidc.audience | quote }}
             {{- /* Chiave dello pseudonimo subjectRef (ADR-048, Q-552): solo enterprise, solo da Secret; mai nel demo. */}}

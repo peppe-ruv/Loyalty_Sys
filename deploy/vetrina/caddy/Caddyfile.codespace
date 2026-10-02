@@ -29,11 +29,11 @@
 	}
 }
 
-# Keycloak: solo il realm `loyaltyhub` e le risorse statiche, come sull'host fisso. La console /admin e il realm
+# Keycloak: solo i realm `loyaltyhub` e `loyaltyhub-members` (ADR-051) e le risorse statiche, come sull'host fisso. La console /admin e il realm
 # `master` restano su 127.0.0.1:8180 del codespace, con l'inoltro privato (solo il proprietario, deploy/vetrina/README.md).
 :8001 {
 	import intestazioni
-	@realm path /realms/loyaltyhub /realms/loyaltyhub/* /resources/*
+	@realm path /realms/loyaltyhub /realms/loyaltyhub/* /realms/loyaltyhub-members /realms/loyaltyhub-members/* /resources/*
 	handle @realm {
 		reverse_proxy idp:8080 {
 			header_up X-Forwarded-Proto https

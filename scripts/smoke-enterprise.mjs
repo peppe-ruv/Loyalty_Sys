@@ -12,6 +12,10 @@
 //              health del web, HUB-02 raggiungibile con banner e tessere attive, login avviato dal BFF verso il
 //              realm `loyaltyhub`, discovery OIDC e JWKS, pagina di login senza registrazione (Q-619), console
 //              /admin e realm master non esposti, API del BFF chiuse senza sessione.
+//   in entrambi — realm dei membri `loyaltyhub-members` (ADR-051): login dei membri avviato dal BFF
+//              (GET /api/auth/login?realm=members → 303 verso il suo endpoint di autorizzazione, client `portal`,
+//              PKCE S256, callback /api/auth/callback/members), discovery OIDC e JWKS del realm, pagina di login
+//              raggiungibile (nel modo compose anche con la registrazione aperta dei membri).
 //
 // Sicurezza (regole 18-20): solo https (http solo verso loopback, e per web e IdP solo con --allow-http, che usano i
 // test). Le password arrivano solo da file 0600 (formato di deploy/idp/bootstrap.sh: `utente: password`), mai da
@@ -33,6 +37,8 @@ export class UsageError extends Error {}
 export class SmokeError extends Error {}
 
 export const REALM = 'loyaltyhub';
+/** Realm dei membri del portale e dei widget (ADR-051): client `portal`, login dal BFF con `?realm=members`. */
+export const MEMBER_REALM = 'loyaltyhub-members';
 export const SESSION_COOKIE = '__Host-lh_session';
 export const CSRF_COOKIE = '__Host-lh_csrf';
 export const AUTH_FLOW_COOKIE = '__Host-lh_auth';
@@ -435,7 +441,58 @@ export async function checkPublic(ctx, opts) {
   expect(anon.status === 401 && problemCode(anon) === ' UNAUTHENTICATED', `BFF senza sessione: HTTP ${anon.status}${problemCode(anon)}, atteso 401 UNAUTHENTICATED`);
   ctx.ok('BFF: API del backoffice senza sessione → 401 UNAUTHENTICATED');
 
+  await checkMemberRealm(ctx, opts, idp);
   return { idp, issuer };
+}
+
+/** Discovery OIDC di un realm: emittente, endpoint dentro il realm, S256 e JWKS con sole chiavi pubbliche. */
+async function checkDiscovery(ctx, issuer, realm) {
+  const disc = await http(ctx, `${issuer}/.well-known/openid-configuration`);
+  const doc = parseJson(disc.text);
+  expect(disc.status === 200 && doc, `discovery del realm ${realm}: HTTP ${disc.status}`);
+  expect(doc.issuer === issuer, `discovery del realm ${realm}: issuer diverso dall'URL pubblico del realm`);
+  expect(doc.authorization_endpoint === `${issuer}/protocol/openid-connect/auth`, `discovery del realm ${realm}: authorization_endpoint diverso da quello usato dal BFF`);
+  for (const k of ['token_endpoint', 'jwks_uri', 'end_session_endpoint']) {
+    expect(typeof doc[k] === 'string' && doc[k].startsWith(`${issuer}/`), `discovery del realm ${realm}: ${k} fuori dal realm o assente`);
+  }
+  expect((doc.code_challenge_methods_supported ?? []).includes('S256'), `discovery del realm ${realm}: S256 non supportato`);
+  const jwks = await http(ctx, doc.jwks_uri);
+  const keys = parseJson(jwks.text)?.keys;
+  expect(jwks.status === 200 && Array.isArray(keys) && keys.some((k) => k.use === 'sig'), `JWKS del realm ${realm}: HTTP ${jwks.status} o nessuna chiave di firma`);
+  expect(keys.every((k) => !('d' in k) && !('p' in k) && !('k' in k)), `JWKS del realm ${realm}: contiene materiale di chiave privata o simmetrica`);
+}
+
+/**
+ * Realm dei membri (ADR-051): il BFF avvia il login dei membri nel loro realm, con il client `portal`, e il realm
+ * risponde con discovery, JWKS e pagina di login. Solo GET, nessuna credenziale.
+ */
+async function checkMemberRealm(ctx, opts, idp) {
+  const { web } = opts;
+  const issuer = `${idp}/realms/${MEMBER_REALM}`;
+  const jar = new CookieJar();
+  const start = await http(ctx, `${web}/api/auth/login?realm=members`, { jar });
+  expect(start.status === 303 && start.headers.get('location'), `login dei membri: /api/auth/login?realm=members HTTP ${start.status}, atteso 303`);
+  const auth = new URL(start.headers.get('location'), web);
+  const p = auth.searchParams;
+  expect(auth.origin === idp, 'login dei membri: redirect verso un IdP diverso da quello degli operatori');
+  expect(auth.pathname === `/realms/${MEMBER_REALM}/protocol/openid-connect/auth`, `login dei membri: redirect verso ${auth.pathname}, atteso l'endpoint di autorizzazione del realm ${MEMBER_REALM}`);
+  expect(p.get('client_id') === 'portal', 'login dei membri: client_id diverso da portal');
+  expect(p.get('response_type') === 'code', 'login dei membri: response_type diverso da code');
+  expect(p.get('code_challenge_method') === 'S256' && p.get('code_challenge'), 'login dei membri: manca PKCE S256');
+  expect(p.get('state') && p.get('nonce'), 'login dei membri: mancano state o nonce');
+  expect(p.get('redirect_uri') === `${web}/api/auth/callback/members`, 'login dei membri: redirect_uri diversa da <web>/api/auth/callback/members');
+  ctx.ok(`login dei membri: il BFF risponde 303 verso il realm ${MEMBER_REALM}, client portal, PKCE S256`);
+
+  await checkDiscovery(ctx, issuer, MEMBER_REALM);
+  ctx.ok(`discovery OIDC del realm ${MEMBER_REALM} e JWKS (solo chiavi pubbliche)`);
+
+  const page = await http(ctx, auth.href, { jar });
+  expect(page.status === 200, `pagina di login dei membri: HTTP ${page.status}${pageFeedback(page.text) ? ` (${pageFeedback(page.text)})` : ''}`);
+  expect(parseForms(page.text).some((f) => f.method === 'post' && f.inputs.some((i) => i.name === 'username')), 'pagina di login dei membri: manca il modulo');
+  // Registrazione aperta nel realm dei membri (realm-members.json). Nella vetrina non si verifica: la chiude l'overlay
+  // di vetrina dei due realm (ADR-051 decisione 2, fetta V8).
+  if (opts.mode === 'compose') expect(page.text.includes('login-actions/registration'), 'pagina di login dei membri: manca la registrazione');
+  ctx.ok(`pagina di login del realm ${MEMBER_REALM} raggiungibile${opts.mode === 'compose' ? ', con la registrazione dei membri' : ''}`);
 }
 
 function validateIdp(origin, opts) {
@@ -472,7 +529,7 @@ async function freshTotp(ctx, seed, lastCounter) {
  * Login come lo fa un browser: /api/auth/login del BFF → pagine di Keycloak (credenziali, eventuali azioni richieste
  * e OTP) → /api/auth/callback del BFF. Restituisce il cookie jar con la sessione e i passi attraversati.
  */
-export async function oidcLogin(ctx, { web, username, password }) {
+export async function oidcLogin(ctx, { web, username, password, allowRejected = false }) {
   const jar = new CookieJar();
   const start = await http(ctx, `${web}/api/auth/login?returnTo=${encodeURIComponent('/backoffice')}`, { jar });
   expect(isRedirect(start.status), `login di ${username}: /api/auth/login HTTP ${start.status}`);
@@ -490,6 +547,7 @@ export async function oidcLogin(ctx, { web, username, password }) {
         const cb = await http(ctx, loc.href, { jar });
         expect(isRedirect(cb.status), `login di ${username}: callback del BFF HTTP ${cb.status}${problemCode(cb)}`);
         const target = new URL(cb.headers.get('location'), web);
+        if (allowRejected && target.pathname === '/auth/error') return { jar, steps, rejected: target.searchParams.get('reason') ?? 'motivo non indicato' };
         expect(target.pathname !== '/auth/error', `login di ${username}: rifiutato dal BFF (${target.searchParams.get('reason') ?? 'motivo non indicato'})`);
         expect(jar.get(web, SESSION_COOKIE) && jar.get(web, CSRF_COOKIE), `login di ${username}: il BFF non ha aperto la sessione`);
         return { jar, steps };
@@ -609,7 +667,14 @@ async function checkCompose(ctx, opts) {
   ctx.ok(`GET /v1/audit: voce CREATE di REWARD_CATEGORY ${code} con attore reale ${opts.operator}`);
 
   if (opts.member) {
-    const member = await oidcLogin(ctx, { web, username: opts.member, password: readCredentials(opts.memberCredentials, opts.member) });
+    const member = await oidcLogin(ctx, { web, username: opts.member, password: readCredentials(opts.memberCredentials, opts.member), allowRejected: true });
+    // Con il realm dei membri (ADR-051) il BFF rifiuta già al callback un account di soli membri sul login del
+    // backoffice: nessuna sessione si apre. Con un solo realm la sessione si apre e le API rispondono 403.
+    if (member.rejected) {
+      expect(!member.jar.get(web, SESSION_COOKIE), `login di ${opts.member}: rifiutato ma con la sessione aperta`);
+      ctx.ok(`login OIDC reale del membro di prova ${opts.member} sul backoffice: rifiutato dal BFF (${member.rejected}), nessuna sessione`);
+      return;
+    }
     const res = await http(ctx, categories, { jar: member.jar });
     expect(res.status === 403 && problemCode(res) === ' FORBIDDEN_ROLE', `membro sulle API del backoffice: HTTP ${res.status}${problemCode(res)}, atteso 403 FORBIDDEN_ROLE`);
     ctx.ok(`login OIDC reale del membro di prova ${opts.member}; API del backoffice → 403 FORBIDDEN_ROLE`);

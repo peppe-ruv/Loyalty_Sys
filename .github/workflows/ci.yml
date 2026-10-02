@@ -531,6 +531,7 @@ jobs:
           kubectl -n "$NS" create secret generic lh-idp-admin --from-literal=password="$(openssl rand -hex 24)"
           kubectl -n "$NS" create secret generic lh-idp-clients \
             --from-literal=web-client-secret="$(openssl rand -hex 32)" \
+            --from-literal=portal-client-secret="$(openssl rand -hex 32)" \
             --from-literal=widgets-client-secret="$(openssl rand -hex 32)" \
             --from-literal=cms-client-secret="$(openssl rand -hex 32)"
           kubectl -n "$NS" create secret generic lh-idp-db --type=kubernetes.io/basic-auth \

@@ -29,7 +29,8 @@ global:
   # LH_MODE: nel chart solo `external` (Postgres e Kafka fuori dal container). `embedded` è l'appliance a un solo
   # container, non HA (ADR-037), e non si installa con Helm.
   mode: external
-  # Nome del realm di deploy/idp/realm.json.
+  # Nome del realm di deploy/idp/realm.json (operatori, fonti, job). Il realm dei membri (ADR-051) ha il nome scritto in
+  # files/realm-members.json (`loyaltyhub-members`): il chart lo legge da lì.
   realm: loyaltyhub
 
 # URL pubblici (origini viste dal browser). Servono al realm (redirect URI, back-channel logout) e all'emittente OIDC.
@@ -49,6 +50,12 @@ oidc:
   issuer: ""
   # Vuoto = JWKS del ruolo idp raggiunto dentro il cluster (nessun giro dall'Ingress).
   jwksUri: ""
+  # Realm dei membri del portale e dei widget (ADR-051, LH_OIDC_MEMBER_ISSUER di hub e web). Vuoto = con il ruolo idp
+  # <publicUrls.idp>/realms/loyaltyhub-members; senza ruolo idp nessun secondo emittente (un solo realm, come prima).
+  # Se c'è, l'hub accetta MEMBER solo dai suoi token e il BFF vi fa entrare i membri; https nel profilo enterprise.
+  memberIssuer: ""
+  # Vuoto = JWKS del realm dei membri del ruolo idp dentro il cluster, o quello della discovery senza ruolo idp.
+  memberJwksUri: ""
   audience: hub
 
 serviceAccount:
@@ -86,6 +93,12 @@ roles:
   # e Keycloak (8080 HTTP, 9000 gestione). Sono definite una volta sola in templates/_helpers.tpl.
   # ---- hub: tutti i moduli Java (ingestion, member, campaign, wallet, insight, reward, gamification, engagement) ----
   hub:
+    # Utenti di test (Q-676, ADR-051): hub e web rifiutano un utente con il ruolo LH_TEST_USER salvo
+    # LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test insieme (allowed senza test ⇒ INSECURE_CONFIG). Le imposta solo la
+    # vetrina nel codespace; il chart non le passa. Per un ambiente di test, con extraEnv di hub e web:
+    #   extraEnv:
+    #     - { name: LH_TEST_USERS_ALLOWED, value: "true" }
+    #     - { name: LH_ENVIRONMENT, value: test }
     enabled: true
     replicas: 2
     # LH_SERVICES: per ora solo vuoto o `all` (l'immagine rifiuta selezioni parziali, SPEC-GAP Q-376 del M8.1):
@@ -151,9 +164,15 @@ roles:
       # CA privata del certificato dell'emittente: ConfigMap con il PEM, montata come NODE_EXTRA_CA_CERTS. Nome vuoto =
       # solo le CA pubbliche di Node. Il web verifica sempre il certificato dell'IdP.
       issuerCaBundle: { name: "", key: ca.crt }
+      # Login dei membri nel loro realm (ADR-051), solo con un emittente dei membri (oidc.memberIssuer o ruolo idp).
+      # Segreto del client confidential `portal`: nome vuoto = lo stesso Secret dato a Keycloak
+      # (roles.idp.clientSecrets.portal). Obbligatorio con un emittente dei membri e roles.idp.enabled=false.
+      member:
+        clientId: portal
+        clientSecret: { name: "", key: portal-client-secret }
     extraEnv: []
 
-  # ---- idp: Keycloak con il realm as code di deploy/idp/realm.json (ADR-027) ----
+  # ---- idp: Keycloak con i realm as code di deploy/idp/realm.json e realm-members.json (ADR-027, ADR-051) ----
   idp:
     enabled: true
     replicas: 2
@@ -175,12 +194,14 @@ roles:
     pdb:
       enabled: true
       minAvailable: 1
-    # Secret esistenti. Chiavi del realm: tutte le variabili ${LH_*} di deploy/idp/realm.json. clientSecrets.web lo legge
-    # anche il web (BFF), salvo roles.web.bff.clientSecret.name.
+    # Secret esistenti. Chiavi dei realm: tutte le variabili ${LH_*} di deploy/idp/realm.json e realm-members.json.
+    # clientSecrets.web e clientSecrets.portal li legge anche il web (BFF), salvo roles.web.bff.clientSecret.name e
+    # roles.web.bff.member.clientSecret.name. widgets è un client del realm dei membri (ADR-051).
     adminUsername: admin
     adminPassword: { name: lh-idp-admin, key: password }
     clientSecrets:
       web: { name: lh-idp-clients, key: web-client-secret }
+      portal: { name: lh-idp-clients, key: portal-client-secret }
       widgets: { name: lh-idp-clients, key: widgets-client-secret }
       cms: { name: lh-idp-clients, key: cms-client-secret }
     # JWKS dei client private_key_jwt (fonti e job). Finché non puntano al JWKS reale, l'autenticazione di quel

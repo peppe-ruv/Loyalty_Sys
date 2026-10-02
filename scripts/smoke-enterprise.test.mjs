@@ -155,7 +155,7 @@ const page = {
  * Istanza finta: BFF (web), Keycloak (idp) e hub. `users` = { nome: { password, roles, mfa, updatePassword } }.
  * `audit` raccoglie le voci; `actorOverride` sostituisce l'attore delle voci (per provare il rifiuto).
  */
-async function fakeInstance({ users, registration = false, actorOverride = null, tiles = {} } = {}) {
+async function fakeInstance({ users, registration = false, actorOverride = null, tiles = {}, memberLogin = 'ok' } = {}) {
   const state = { sessions: new Map(), flows: new Map(), codes: new Map(), kcSessions: new Map(), audit: [], categories: [], seen: [] };
   const servers = {};
   servers.hub = await listen((req, res) => {
@@ -166,6 +166,20 @@ async function fakeInstance({ users, registration = false, actorOverride = null,
     const u = new URL(req.url, origin(servers.idp));
     const iss = `${origin(servers.idp)}/realms/loyaltyhub`;
     state.seen.push(`idp ${req.method} ${u.pathname}`);
+    // Realm dei membri (ADR-051): discovery, JWKS e pagina di login con la registrazione aperta.
+    const miss = `${origin(servers.idp)}/realms/loyaltyhub-members`;
+    if (u.pathname === '/realms/loyaltyhub-members/.well-known/openid-configuration') {
+      return send(res, 200, {
+        issuer: miss, authorization_endpoint: `${miss}/protocol/openid-connect/auth`, token_endpoint: `${miss}/protocol/openid-connect/token`,
+        jwks_uri: `${miss}/protocol/openid-connect/certs`, end_session_endpoint: `${miss}/protocol/openid-connect/logout`,
+        code_challenge_methods_supported: ['S256'],
+      });
+    }
+    if (u.pathname === '/realms/loyaltyhub-members/protocol/openid-connect/certs') return send(res, 200, { keys: [{ kid: '2', kty: 'EC', use: 'sig', crv: 'P-256', x: 'AQAB', y: 'AQAB' }] });
+    if (u.pathname === '/realms/loyaltyhub-members/protocol/openid-connect/auth') {
+      assert.equal(u.searchParams.get('client_id'), 'portal');
+      return send(res, 200, page.login(`${miss}/login-actions/authenticate?session_code=1`).replace('</body>', '<a href="/realms/loyaltyhub-members/login-actions/registration?client_id=portal">Registrati</a></body>'));
+    }
     if (u.pathname === '/realms/loyaltyhub/.well-known/openid-configuration') {
       return send(res, 200, {
         issuer: iss, authorization_endpoint: `${iss}/protocol/openid-connect/auth`, token_endpoint: `${iss}/protocol/openid-connect/token`,
@@ -226,6 +240,16 @@ async function fakeInstance({ users, registration = false, actorOverride = null,
       const t = { hub: 'UP', web: 'UP', idp: 'UP', cms: 'NOT_INSTALLED', db: 'UP', kafka: 'UP', ...tiles };
       return send(res, 200, `<h1>Loyalty Hub</h1><p role="note" data-testid="showcase-banner">Vetrina</p><div data-testid="portal-closed"></div>
         <ul>${Object.entries(t).map(([k, v]) => `<li data-testid="tile-${k}" data-state="${v}"></li>`).join('')}</ul>`);
+    }
+    if (u.pathname === '/api/auth/login' && u.searchParams.get('realm') === 'members') {
+      if (memberLogin === 'operators') u.searchParams.delete('realm');
+      else {
+        const q = new URLSearchParams({
+          client_id: 'portal', response_type: 'code', scope: 'openid', redirect_uri: `${web}/api/auth/callback/members`,
+          state: 's', nonce: 'n', code_challenge: 'c', code_challenge_method: 'S256',
+        });
+        return redirectTo(res, `${origin(servers.idp)}/realms/loyaltyhub-members/protocol/openid-connect/auth?${q}`, { 'set-cookie': '__Host-lh_auth_members=f; Path=/; Secure; HttpOnly; SameSite=Lax' });
+      }
     }
     if (u.pathname === '/api/auth/login') {
       const flow = crypto.randomUUID();
@@ -304,6 +328,9 @@ test('compose: login reale con cambio password e OTP, scrittura con CSRF, voce d
   assert.match(r.out, /configurazione dell'OTP/);
   assert.match(r.out, /voce CREATE di REWARD_CATEGORY SMOKE[0-9A-Z]+ con attore reale marta\.admin/);
   assert.match(r.out, /403 FORBIDDEN_ROLE/);
+  assert.match(r.out, /login dei membri: il BFF risponde 303 verso il realm loyaltyhub-members, client portal/);
+  assert.match(r.out, /discovery OIDC del realm loyaltyhub-members/);
+  assert.match(r.out, /pagina di login del realm loyaltyhub-members raggiungibile, con la registrazione dei membri/);
   assert.match(r.out, /superato: 1\d controlli/);
   // Il cambio password è avvenuto e la nuova password non compare da nessuna parte.
   assert.notEqual(users['marta.admin'].password, operatorPw);
@@ -370,6 +397,14 @@ test('vetrina: registrazione aperta o tessera giù → uscita 1 con la causa', a
   err = capture();
   assert.equal(await main(['vetrina', '--allow-http', '--web', down.web, '--settle', '0'], { stdout: capture(), stderr: err, retries: 0, sleep }), 1);
   assert.match(err.text(), /tessere non attive: kafka=DOWN/);
+});
+
+test('realm dei membri: login dei membri che finisce nel realm degli operatori → uscita 1 con la causa (ADR-051)', async (t) => {
+  const inst = await fakeInstance({ users: {}, memberLogin: 'operators' });
+  t.after(inst.close);
+  const err = capture();
+  assert.equal(await main(['vetrina', '--allow-http', '--web', inst.web, '--settle', '0'], { stdout: capture(), stderr: err, retries: 0, sleep }), 1);
+  assert.match(err.text(), /login dei membri: redirect verso \/realms\/loyaltyhub\/protocol\/openid-connect\/auth, atteso l'endpoint di autorizzazione del realm loyaltyhub-members/);
 });
 
 test('uso: errori di argomenti → uscita 2 senza richieste', async () => {

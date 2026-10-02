@@ -4,27 +4,30 @@ Questa directory contiene la configurazione as-code dell'Identity Provider per i
 
 ## Contenuto
 
-- `realm.json`: export del realm `loyaltyhub` con client, ruoli, client scope (quelli standard di Keycloak 26 più `hub-audience` e `lh-roles-scope`), flussi e utenti senza password. I valori variabili sono segnaposto `${LH_*}` che Keycloak sostituisce con le variabili d'ambiente all'import.
+- Due realm nella stessa istanza di Keycloak, senza legami tra loro (ADR-051 decisioni 6 e 7): `loyaltyhub` per operatori, fonti e job, `loyaltyhub-members` per i membri del portale e i widget. Vedi «Due realm».
+- `realm.json`: export del realm `loyaltyhub` (operatori, fonti, job) con client, ruoli, client scope (quelli standard di Keycloak 26 più `hub-audience` e `lh-roles-scope`), flussi e utenti senza password. I valori variabili sono segnaposto `${LH_*}` che Keycloak sostituisce con le variabili d'ambiente all'import.
 - Fonti di ingestion (Q-492): un client confidential `src-<codice>` per ogni fonte HTTP di `seed/sources.json`, non per le fonti `INTERNAL` (`internal`, `simulator`: non entrano da HTTP e non hanno chiavi da custodire) (`private_key_jwt`, solo service account, JWKS da `LH_SOURCE_<FONTE>_JWKS_URL`, nessun segreto) e l'utenza di servizio `service-account-src-<codice>` con il solo ruolo realm `SOURCE`, incluso nel claim `lh_roles`. Il ruolo `SOURCE` non è una persona: non lo riceve nessun utente demo. Per una fonte creata dopo l'installazione vedi `deploy/README.md` (Q-494).
-- Auto-registrazione dei membri (Q-557, ADR-048): `registrationAllowed: true`, `verifyEmail: false` dichiarato, nessun `smtpServer`, ruolo `MEMBER` nel composito del ruolo predefinito `default-roles-loyaltyhub`. L'utenza di servizio del client `lh-jobs` è dichiarata con `realmRoles: []` perché non erediti `MEMBER`. Vedi «Auto-registrazione dei membri».
+- `realm-members.json`: export del realm `loyaltyhub-members` (ADR-051) con il solo ruolo applicativo `MEMBER` (nel composito del ruolo predefinito `default-roles-loyaltyhub-members`), il client confidential `portal` del BFF, il client `widgets` (spostato qui dal realm degli operatori), gli stessi client scope di `realm.json` (`hub-audience` e `lh-roles-scope` compresi), registrazione aperta, passkey e flusso di login standard `browser`. Nessun utente né credenziale.
+- Registrazione: dal realm dei membri (ADR-051), con `registrationAllowed: true`, `verifyEmail: false` dichiarato e nessun `smtpServer` (Q-557); nel realm degli operatori `registrationAllowed: false`. Il realm degli operatori tiene `MEMBER` nel composito di `default-roles-loyaltyhub` per le installazioni con un solo realm (senza `LH_OIDC_MEMBER_ISSUER`, regola 14) e per il membro di prova di `test-idp/`. L'utenza di servizio del client `lh-jobs` è dichiarata con `realmRoles: []` perché non erediti `MEMBER`. Vedi «Auto-registrazione dei membri».
 - `bootstrap.sh`: imposta le password temporanee dei cinque operatori demo dopo l'avvio. Le password generate vanno solo in un file `0600`, mai su stdout (regola 20); vedi «Inizializzazione password demo».
-- `vetrina/` (**solo vetrina enterprise**, F2-DIST-09, ADR-049): overlay del realm che chiude la registrazione e aggiunge il client `lh-cli` per la CLI dell'operatore (`realm-vetrina-overlay.json`) e lo script che lo applica (`apply-overlay.sh`). Vedi «Vetrina enterprise».
+- `vetrina/` (**solo vetrina enterprise**, F2-DIST-09, ADR-049): overlay del realm degli operatori che ne riconferma la registrazione chiusa e aggiunge il client `lh-cli` per la CLI dell'operatore (`realm-vetrina-overlay.json`) e lo script che lo applica (`apply-overlay.sh`). Vedi «Vetrina enterprise».
 - `test-idp/` (**solo prova**, F2-IAM-04, F2-IAM-03): IdP OIDC secondario (`test-realm.json`), LDAP (`ldap-seed.ldif`), overlay del realm con il broker, il client di prova `lh-ldap-test` e il membro di prova `testmember` (`realm-test-overlay.json`), lo script che lo applica (`apply-overlay.sh`) e la verifica non interattiva della federazione e dei ruoli nei token (`verify.sh`).
 
 > Perché i client scope standard sono nel file: se un export contiene l'array `clientScopes`, Keycloak **non** crea i propri scope predefiniti (`profile`, `email`, `roles`, `basic`…). Senza di essi i token non avrebbero `preferred_username`, che `OidcActorFilter` di `libs/lh-common` usa come attore. `scripts/check-realm.mjs` verifica che ogni scope referenziato sia definito.
 
 ## Variabili d'ambiente
 
-Il servizio `idp` del compose passa a Keycloak tutte le variabili usate come segnaposto in `realm.json` (lo verifica `scripts/check-realm.mjs`). I segreti non hanno valore nel repository né default: se uno manca il container si ferma subito con `Variabile obbligatoria mancante: <NOME>` (guardia `x-lh-require-env`, CLAUDE.md regola 20). Il controllo è all'avvio e non in interpolazione (`${VAR:?}`) perché Compose interpola anche i servizi dei profili non attivi: `${VAR:?}` renderebbe obbligatori i segreti dell'IdP anche per `up -d kafka postgres kafka-ui`.
+Il servizio `idp` dei due compose passa a Keycloak tutte le variabili usate come segnaposto in `realm.json` e `realm-members.json` (lo verifica `scripts/check-realm.mjs`). I segreti non hanno valore nel repository né default: se uno manca il container si ferma subito con `Variabile obbligatoria mancante: <NOME>` (guardia `x-lh-require-env`, CLAUDE.md regola 20). Il controllo è all'avvio e non in interpolazione (`${VAR:?}`) perché Compose interpola anche i servizi dei profili non attivi: `${VAR:?}` renderebbe obbligatori i segreti dell'IdP anche per `up -d kafka postgres kafka-ui`.
 
 | Variabile | Obbligatoria | Default locale | Uso |
 |---|---|---|---|
 | `LH_IDP_ADMIN_PASSWORD` | sì | — | password dell'amministratore di bootstrap di Keycloak |
 | `LH_IDP_ADMIN_USERNAME` | no | `admin` | utente dell'amministratore di bootstrap |
 | `LH_WEB_CLIENT_SECRET` | sì | — | segreto del client confidential `web` (BFF) |
-| `LH_WIDGETS_CLIENT_SECRET` | sì | — | segreto del client `widgets` |
+| `LH_PORTAL_CLIENT_SECRET` | sì | — | segreto del client confidential `portal` (BFF) del realm dei membri; lo stesso valore va al web come `LH_WEB_MEMBER_CLIENT_SECRET` |
+| `LH_WIDGETS_CLIENT_SECRET` | sì | — | segreto del client `widgets` del realm dei membri |
 | `LH_CMS_CLIENT_SECRET` | sì | — | segreto del client `cms` (Directus) |
-| `LH_WEB_URL` | no | `http://localhost:3000` | origine del BFF senza barra finale, la stessa data al web: redirect URI esatta `/api/auth/callback`, ritorno dopo il logout `/` e back-channel logout del client `web` |
+| `LH_WEB_URL` | no | `http://localhost:3000` | origine del BFF senza barra finale, la stessa data al web: redirect URI esatte `/api/auth/callback` (client `web`) e `/api/auth/callback/members` (client `portal`), ritorno dopo il logout `/`, back-channel logout `/api/auth/backchannel-logout` e `/api/auth/backchannel-logout/members` |
 | `LH_CMS_URL` | no | `http://localhost:8055` | origine di Directus: redirect URI del client `cms` |
 | `LH_JOBS_JWKS_URL` | no | `http://localhost/jwks/lh-jobs.json` | JWKS del client `lh-jobs` (`private_key_jwt`) |
 | `LH_SOURCE_<FONTE>_JWKS_URL` | no | `http://localhost/jwks/<fonte>.json` | JWKS del client fonte `src-<fonte>` (`crm`, `app`, `ecommerce`, `billing`, `partner`); la chiave pubblica della fonte si registra qui, all'installazione |
@@ -42,15 +45,33 @@ Solo per il profilo di prova `idp-test` (servizi `idp-test` e `ldap`, mai in pro
 | `LH_LDAP_TEST_CLIENT_SECRET` | segreto del client di prova `lh-ldap-test` |
 | `LH_MEMBER_TEST_PASSWORD` | password del membro di prova `testmember` (segnaposto dell'overlay, come le altre credenziali di prova) |
 
+## Due realm (ADR-051)
+
+| | `loyaltyhub` (`realm.json`) | `loyaltyhub-members` (`realm-members.json`) |
+|---|---|---|
+| Chi | operatori del backoffice, fonti di ingestion (`src-*`), job (`lh-jobs`), Directus (`cms`) | membri del portale, widget |
+| Client del BFF | `web`: callback `/api/auth/callback`, back-channel `/api/auth/backchannel-logout` | `portal`: callback `/api/auth/callback/members`, back-channel `/api/auth/backchannel-logout/members` |
+| Ruoli | `ADMIN`, `MARKETING`, `LEGAL`, `CARE`, `ANALYST`, `SOURCE`, `MFA_REQUIRED_ROLE` (e `MEMBER` predefinito, vedi sopra) | solo `MEMBER`, predefinito |
+| Login | `browser-mfa`: OTP obbligatorio per gli operatori | `browser` standard; passkey con l'azione `webauthn-register-passwordless` (abilitata, non predefinita) |
+| Registrazione | chiusa | aperta, senza verifica dell'e-mail (Q-557) |
+
+In comune: audience `hub` e claim `lh_roles` (scope `hub-audience` e `lh-roles-scope`), access token di 300 secondi, sessioni, rotazione dei refresh token, blocco dei tentativi, eventi utente e di amministrazione. Nessun broker né collegamento di account tra i due realm (decisione 7). Hub e web leggono l'emittente dei membri da `LH_OIDC_MEMBER_ISSUER` (`docs/11 §8`): l'hub accetta `MEMBER` solo da quei token, il web vi fa entrare i membri (`GET /api/auth/login?realm=members`).
+
+> **Nota:** il login standard `browser` registra una passkey ma non la propone da sola all'accesso: il flusso con la passkey al posto della password (o l'interfaccia condizionale delle passkey) è una scelta da fare nel realm, non in questa fetta.
+
 ## Avvio locale
 
 ```bash
-export LH_IDP_ADMIN_PASSWORD=… LH_WEB_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
+export LH_IDP_ADMIN_PASSWORD=… LH_WEB_CLIENT_SECRET=… LH_PORTAL_CLIENT_SECRET=… LH_WIDGETS_CLIENT_SECRET=… LH_CMS_CLIENT_SECRET=…
 docker compose -f deploy/docker-compose.yml up -d postgres
 docker compose -f deploy/docker-compose.yml --profile idp up -d idp
 ```
 
-Keycloak importa `realm.json` al primo avvio (`--import-realm`); se il realm esiste già l'import viene saltato.
+Keycloak importa i due realm al primo avvio (`--import-realm`); un realm che esiste già è saltato. Keycloak rifiuta un file `<nome>-realm.json` che contiene un realm diverso: per questo il realm dei membri è montato come `loyaltyhub-members-realm.json` (e con la stessa chiave nel ConfigMap del chart).
+
+### Aggiornare un realm già importato a due realm (ADR-038)
+
+Il realm dei membri è nuovo e Keycloak lo importa al primo riavvio dopo l'aggiornamento (serve solo `LH_PORTAL_CLIENT_SECRET`, o la chiave `portal-client-secret` del Secret `lh-idp-clients` nel chart). Il realm degli operatori esistente invece non cambia: con un amministratore, dopo aver aggiornato web e widget al realm dei membri, chiudi la registrazione con `PUT /admin/realms/loyaltyhub` e `{"registrationAllowed": false}` ed elimina il client `widgets` dal realm `loyaltyhub`. I membri già registrati nel realm degli operatori restano lì: con `LH_OIDC_MEMBER_ISSUER` l'hub rifiuta i loro token (403), quindi vanno registrati di nuovo nel realm dei membri. Prima di ADR-051 non c'era alcun membro reale (portale chiuso, Q-410), quindi non c'è nulla da migrare.
 
 ### Realm già importato prima di M8.2f (aggiornamento, ADR-038)
 
@@ -132,7 +153,7 @@ Consegna le password fuori banda e cancella il file. Nella vetrina enterprise no
 
 ## Vetrina enterprise (F2-DIST-09, ADR-049)
 
-La vetrina è una seconda installazione ospitata in `LH_PROFILE=enterprise` (`docs/11 §17`, `concetti/vetrina-enterprise.mdx`). Usa lo stesso `realm.json` e applica, a realm avviato, l'overlay `vetrina/realm-vetrina-overlay.json` (`--import-realm` salta un realm già esistente): il realm base e l'overlay di prova (`test-idp/`) non cambiano.
+La vetrina è una seconda installazione ospitata in `LH_PROFILE=enterprise` (`docs/11 §17`, `concetti/vetrina-enterprise.mdx`). Usa gli stessi `realm.json` e `realm-members.json` e applica al realm degli operatori, a realm avviato, l'overlay `vetrina/realm-vetrina-overlay.json` (`--import-realm` salta un realm già esistente): il realm base e l'overlay di prova (`test-idp/`) non cambiano. Nel realm dei membri lo script chiude la sola registrazione libera di account (`registrationAllowed: false`, ADR-051 e Q-673): Keycloak torna alla configurazione del repo a ogni avvio e gli account creati sparirebbero.
 
 ```bash
 KC_BOOTSTRAP_ADMIN_PASSWORD="$LH_IDP_ADMIN_PASSWORD" KEYCLOAK_URL=https://idp.example.org ./deploy/idp/vetrina/apply-overlay.sh
@@ -166,30 +187,30 @@ Gli account operatore non si pubblicano e non si importano: li crea a mano il pr
 
 ## Auto-registrazione dei membri (Q-557, F2-IAM-03)
 
-Il realm è aperto alla registrazione: la pagina di login mostra «Registrati» e il flusso `registration` predefinito di Keycloak (nome utente, e-mail, nome, cognome, password) crea l'account e riporta al client `web` già autenticato. Chi si registra riceve il solo ruolo `MEMBER` (più quelli tecnici di Keycloak) e con quel token può usare soltanto le funzioni del portale. Il legame tra l'account e il membro (`member_identity`) lo crea la registrazione dal portale, non l'IdP (ADR-048).
+Con ADR-051 i membri si registrano nel realm `loyaltyhub-members`: la sua pagina di login mostra «Registrati» e il flusso `registration` predefinito di Keycloak (nome utente, e-mail, nome, cognome, password) crea l'account e riporta al client `portal` già autenticato. Il realm degli operatori ha la registrazione chiusa. Chi si registra riceve il solo ruolo `MEMBER` (più quelli tecnici di Keycloak) e con quel token può usare soltanto le funzioni del portale. Il legame tra l'account e il membro (`member_identity`) lo crea la registrazione dal portale, non l'IdP (ADR-048).
 
-| Impostazione di `realm.json` | Valore | Perché |
+| Impostazione di `realm-members.json` | Valore | Perché |
 |---|---|---|
-| `registrationAllowed` | `true` | sblocca PT-16 (auto-registrazione) senza componenti nuovi |
+| `registrationAllowed` | `true` (`false` in `realm.json`) | sblocca PT-16 (auto-registrazione) senza componenti nuovi |
 | `verifyEmail` | `false`, dichiarato | la verifica richiede un `smtpServer`, cioè una nuova destinazione di rete in uscita: caso «Fermati e chiedi» di CLAUDE.md §7, serve un'ADR e non prima del modulo `delivery` (M8.4) |
 | `smtpServer` | assente | come sopra |
-| ruolo predefinito `default-roles-loyaltyhub` | `MEMBER` (Keycloak aggiunge `offline_access`, `uma_authorization` e i ruoli del client `account`) | ogni account creato dopo l'import diventa membro |
+| ruolo predefinito `default-roles-loyaltyhub-members` | `MEMBER` (Keycloak aggiunge `offline_access`, `uma_authorization` e i ruoli del client `account`) | ogni account creato dopo l'import diventa membro; `realm.json` tiene lo stesso composito in `default-roles-loyaltyhub` per le installazioni con un solo realm |
 
 ```mermaid
 sequenceDiagram
     accTitle: Auto-registrazione di un membro
-    accDescr: Il membro si registra nel modulo di Keycloak senza verifica dell'e-mail, riceve il ruolo predefinito MEMBER e il BFF ottiene un token con lh_roles che contiene MEMBER
+    accDescr: Il membro si registra nel modulo del realm dei membri di Keycloak senza verifica dell'e-mail, riceve il ruolo predefinito MEMBER e il BFF, con il client portal, ottiene un token con lh_roles che contiene MEMBER
     actor Membro
     participant NextJS as Next.js (BFF)
-    participant Keycloak as Keycloak (IdP)
+    participant Keycloak as Keycloak (realm loyaltyhub-members)
 
     Membro->>NextJS: Visita /portal (non autenticato)
-    NextJS->>Membro: Redirect a /api/auth/login
-    Membro->>Keycloak: Auth Request (PKCE), sceglie Registrati
+    NextJS->>Membro: Redirect a /api/auth/login?realm=members
+    Membro->>Keycloak: Auth Request del client portal (PKCE), sceglie Registrati
     Keycloak->>Membro: Modulo di registrazione
     Membro->>Keycloak: Nome utente, e-mail, nome, cognome, password
-    Note over Keycloak: Nessuna verifica dell'e-mail e nessun SMTP<br/>L'account riceve default-roles-loyaltyhub, che contiene MEMBER
-    Keycloak->>NextJS: Redirect URI con Auth Code
+    Note over Keycloak: Nessuna verifica dell'e-mail e nessun SMTP<br/>L'account riceve default-roles-loyaltyhub-members, che contiene MEMBER
+    Keycloak->>NextJS: /api/auth/callback/members con Auth Code
     NextJS->>Keycloak: Scambia Auth Code per token (backend-to-backend)
     Keycloak-->>NextJS: Access token con aud hub e lh_roles con MEMBER
     NextJS->>Membro: Cookie di sessione __Host- (HttpOnly, Secure)
@@ -201,7 +222,7 @@ Da sapere:
 
 - **L'e-mail non è verificata.** `email_verified` resta `false` e non è una garanzia: nessun collegamento tra un account e un membro già esistente (CRM, import) può fondarsi sull'e-mail (Q-558). Per abilitare la verifica servono un'ADR, uno `smtpServer` e `verifyEmail: true`; `scripts/check-realm.mjs` la vieta finché non cambia insieme all'ADR.
 - **Chi riceve `MEMBER`.** Ogni account creato dopo l'import: registrazione, console di amministrazione, utenti federati da LDAP o dal broker senza ruoli mappati. Un operatore creato dalla console riceve `MEMBER` insieme al ruolo operatore: il token misto vale come operatore (Q-554). Non lo ricevono gli utenti elencati in `realm.json`, perché l'import assegna solo i `realmRoles` scritti (operatori demo e utenze `service-account-src-*`), né `service-account-lh-jobs`: un client con service account non dichiarato negli `users` ottiene da Keycloak un'utenza con il ruolo predefinito, quindi con `MEMBER`; dichiararla con `realmRoles: []` lo evita, e `scripts/check-realm.mjs` lo controlla per ogni client con service account.
-- **Il realm è condiviso** con il backoffice (`web`), con Directus (`cms`) e con i widget: un account registrato può autenticarsi su qualunque client del realm. `MEMBER` non dà nulla fuori dal portale, e la mappatura dei ruoli di Directus (M10.2) non deve concederlo. `bruteForceProtected` protegge gli accessi, non le registrazioni: Keycloak non ne limita la frequenza, e un limite va messo davanti all'IdP.
+- **Il realm dei membri è separato** da quello del backoffice (`web`) e di Directus (`cms`) (ADR-051): un account registrato può autenticarsi solo sui client `portal` e `widgets`. Con `LH_OIDC_MEMBER_ISSUER` l'hub accetta `MEMBER` solo da questo realm; senza (un solo realm), `MEMBER` non dà comunque nulla fuori dal portale, e la mappatura dei ruoli di Directus (M10.2) non deve concederlo. `bruteForceProtected` protegge gli accessi, non le registrazioni: Keycloak non ne limita la frequenza, e un limite va messo davanti all'IdP.
 - **Perché il file è fatto così.** Per l'import di Keycloak i composti del ruolo predefinito valgono solo nell'entry `default-roles-loyaltyhub` di `roles.realm`, e `defaultRole` deve nominarla: i `composites` scritti dentro `defaultRole` sono ignorati in silenzio, e senza `defaultRole` Keycloak crea un secondo ruolo `default-roles-loyaltyhub-1` come predefinito e `MEMBER` non arriva a nessuno (verificato con l'import reale; lo controlla `scripts/check-realm.mjs`).
 
 ## IdP e LDAP di prova (F2-IAM-04)
@@ -253,7 +274,7 @@ I controlli `member` e `sources` fanno fallire con un messaggio esplicito (e usc
 node --test scripts/check-realm.mjs
 ```
 
-Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito, che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose, la registrazione aperta senza verifica dell'e-mail né `smtpServer` (Q-557), `MEMBER` come solo composito del ruolo predefinito (con `defaultRole` che lo nomina e nessun `SOURCE`, operatore o MFA tra i predefiniti) e un'utenza dichiarata, con ruoli espliciti e senza ruolo predefinito, per ogni client con service account. Verifica anche l'overlay di prova: che ogni credenziale sia un segnaposto (compresa la password di `testmember`), che il membro di prova abbia il solo ruolo predefinito e l'e-mail non verificata e che i segnaposto dell'overlay coincidano con `OVERLAY_VARS` di `apply-overlay.sh`. E l'overlay di vetrina: `registrationAllowed: false`, nessun utente, credenziale, segreto o segnaposto, il solo client `lh-cli` pubblico con Device Authorization Grant e con consenso obbligatorio, `fullScopeAllowed` false, scope mapping ai soli ruoli operatore e senza direct access grant, service account, redirect URI né `offline_access`, il client `web` non ridefinito, operatori del realm base con `UPDATE_PASSWORD` e `MFA_REQUIRED_ROLE`, l'applicazione simulata dell'overlay a una copia del realm, la coerenza di `REALM_SETTINGS` di `vetrina/apply-overlay.sh` con le chiavi dell'overlay che `bootstrap.sh` scriva le password solo in un file `0600` creato in modo atomico (file temporaneo e `rename`) e mai su stdout, e che `vetrina/apply-overlay.sh` giri, contro un Keycloak simulato in Node, per l'applicazione, la verifica e il rifiuto di un operatore senza `MFA_REQUIRED_ROLE`. La copia del realm nel chart è verificata da `scripts/check-helm.mjs`. Gira nel job `seed` della CI. `verify.sh` non gira in CI: ha bisogno di un Keycloak avviato con l'overlay (e dell'LDAP di prova per `ldap`).
+Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del seed con impostazioni e utenza di servizio (solo `SOURCE`), assenza di segreti letterali (`secret`, `clientSecret`, `bindCredential`) in `realm.json` e nell'overlay, redirect URI senza wildcard assolute, URI del client `web` uguali ai percorsi del BFF (callback, ritorno dopo il logout, back-channel logout), durata dell'access token, `private_key_jwt` per i service account, che ogni client scope referenziato sia definito, che ogni segnaposto `${LH_*}` di `realm.json` sia passato al servizio `idp` del compose, la registrazione aperta senza verifica dell'e-mail né `smtpServer` (Q-557), `MEMBER` come solo composito del ruolo predefinito (con `defaultRole` che lo nomina e nessun `SOURCE`, operatore o MFA tra i predefiniti) e un'utenza dichiarata, con ruoli espliciti e senza ruolo predefinito, per ogni client con service account. Verifica anche l'overlay di prova: che ogni credenziale sia un segnaposto (compresa la password di `testmember`), che il membro di prova abbia il solo ruolo predefinito e l'e-mail non verificata e che i segnaposto dell'overlay coincidano con `OVERLAY_VARS` di `apply-overlay.sh`. E l'overlay di vetrina: `registrationAllowed: false`, nessun utente, credenziale, segreto o segnaposto, il solo client `lh-cli` pubblico con Device Authorization Grant e con consenso obbligatorio, `fullScopeAllowed` false, scope mapping ai soli ruoli operatore e senza direct access grant, service account, redirect URI né `offline_access`, il client `web` non ridefinito, operatori del realm base con `UPDATE_PASSWORD` e `MFA_REQUIRED_ROLE`, l'applicazione simulata dell'overlay a una copia del realm, la coerenza di `REALM_SETTINGS` di `vetrina/apply-overlay.sh` con le chiavi dell'overlay che `bootstrap.sh` scriva le password solo in un file `0600` creato in modo atomico (file temporaneo e `rename`) e mai su stdout, e che `vetrina/apply-overlay.sh` giri, contro un Keycloak simulato in Node, per l'applicazione, la verifica e il rifiuto di un operatore senza `MFA_REQUIRED_ROLE`. Verifica il realm dei membri (ADR-051): nessun utente, credenziale, broker o federazione, il solo ruolo `MEMBER` (predefinito), il client `portal` confidential con PKCE S256, senza direct access grant, con i percorsi `/members` del BFF e gli scope `hub-audience` e `lh-roles-scope` uguali a quelli del realm degli operatori, `widgets` spostato qui, registrazione aperta senza SMTP, passkey e flusso `browser` standard, sessioni, token, tentativi ed eventi come nel realm degli operatori; nel realm degli operatori registrazione chiusa e nessun `widgets`; i due compose che importano entrambi i realm e passano `LH_PORTAL_CLIENT_SECRET` come obbligatoria; nessun ruolo `LH_TEST_USER` né credenziali nei due realm di base (Q-676). Le copie dei due realm nel chart sono verificate da `scripts/check-helm.mjs`. Gira nel job `seed` della CI. `verify.sh` non gira in CI: ha bisogno di un Keycloak avviato con l'overlay (e dell'LDAP di prova per `ldap`).
 
 ## Diagrammi
 
@@ -262,15 +283,15 @@ Controlla ruoli (compreso `SOURCE`), un client `src-<codice>` per ogni fonte del
 ```mermaid
 sequenceDiagram
     accTitle: Autenticazione BFF
-    accDescr: Flusso di login per i membri tramite Backend-for-Frontend
+    accDescr: Flusso di login per i membri tramite Backend-for-Frontend nel realm dei membri, con il client portal
     actor Membro
     participant NextJS as Next.js (BFF)
-    participant Keycloak as Keycloak (IdP)
+    participant Keycloak as Keycloak (realm loyaltyhub-members)
 
     Membro->>NextJS: Visita /portal (non autenticato)
-    NextJS->>Membro: Redirect a /api/auth/login
-    Membro->>NextJS: /api/auth/login
-    NextJS->>Keycloak: Auth Request (OIDC con PKCE, redirect_uri)
+    NextJS->>Membro: Redirect a /api/auth/login?realm=members
+    Membro->>NextJS: /api/auth/login?realm=members
+    NextJS->>Keycloak: Auth Request del client portal (OIDC con PKCE, redirect_uri /api/auth/callback/members)
     Keycloak->>Membro: Mostra pagina login / Passkey
     Membro->>Keycloak: Credenziali (WebAuthn o OTP/Password)
     Keycloak->>NextJS: Redirect URI con Auth Code

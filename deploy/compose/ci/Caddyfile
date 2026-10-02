@@ -1,6 +1,6 @@
 # SOLO CI. Reverse proxy TLS dello smoke enterprise (F2-QA-04, ADR-049, M8.14 V6), letto dal servizio `proxy` di
 # deploy/compose/ci/smoke-enterprise.yml. Stesse regole del proxy della vetrina (deploy/vetrina/caddy/Caddyfile):
-# web intero, di Keycloak solo il realm `loyaltyhub` e le risorse statiche, console /admin e realm `master` in 404.
+# web intero, di Keycloak solo i realm `loyaltyhub` e `loyaltyhub-members` (ADR-051) e le risorse statiche, console /admin e realm `master` in 404.
 # Differenze: certificato della CA di prova generata nel job (niente ACME, niente uscita verso Internet), porta 8443
 # (il proxy gira come utente del runner, senza capability), nessun redirect da http.
 {
@@ -30,7 +30,7 @@ https://web.lh.test:8443 {
 https://idp.lh.test:8443 {
 	tls /etc/lh/tls/server.crt /etc/lh/tls/server.key
 	import intestazioni
-	@realm path /realms/loyaltyhub /realms/loyaltyhub/* /resources/*
+	@realm path /realms/loyaltyhub /realms/loyaltyhub/* /realms/loyaltyhub-members /realms/loyaltyhub-members/* /resources/*
 	handle @realm {
 		reverse_proxy idp:8080
 	}

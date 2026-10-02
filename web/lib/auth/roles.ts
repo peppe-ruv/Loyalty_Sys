@@ -9,6 +9,8 @@ import type { Role } from "@/lib/persona/personas";
 // ruoli e non compare in nessuna scelta di persona. Un token con il solo `SOURCE` vale `ANALYST` nel web.
 const OPERATOR_ROLES: readonly Role[] = ["ADMIN", "MARKETING", "LEGAL", "CARE", "ANALYST"];
 export const MEMBER_ROLE = "MEMBER";
+/** Utente di test con credenziali pubbliche (ADR-051, Q-676): stesso nome del ruolo che rifiutano i servizi. */
+export const TEST_USER_ROLE = "LH_TEST_USER";
 
 export type SessionKind = "operator" | "member";
 

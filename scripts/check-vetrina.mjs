@@ -155,13 +155,14 @@ test('pg_hba: dalla rete solo TLS, connessioni in chiaro rifiutate', () => {
   assert.ok(rules.some((r) => r[0] === 'hostnossl' && r[3] === '::/0'));
 });
 
-test('Caddyfile: API di amministrazione spenta, Keycloak esposto solo per il realm loyaltyhub e le risorse', () => {
+test('Caddyfile: API di amministrazione spenta, Keycloak esposto solo per i realm loyaltyhub e loyaltyhub-members e le risorse', () => {
   const c = read(path.join(DIR, 'caddy/Caddyfile'));
   assert.match(c, /^\s*admin off$/m);
   assert.match(c, /^\{\$LH_VETRINA_WEB_HOST\} \{[\s\S]*?reverse_proxy web:3000/m);
   const idp = c.split('{$LH_VETRINA_IDP_HOST} {')[1];
   assert.ok(idp, 'blocco del nome idp');
-  assert.match(idp, /@realm path \/realms\/loyaltyhub \/realms\/loyaltyhub\/\* \/resources\/\*/);
+  // I due realm (ADR-051): operatori e membri; nessun altro realm, nessuna console.
+  assert.match(idp, /@realm path \/realms\/loyaltyhub \/realms\/loyaltyhub\/\* \/realms\/loyaltyhub-members \/realms\/loyaltyhub-members\/\* \/resources\/\*\n/);
   assert.match(idp, /handle @realm \{\s*reverse_proxy idp:8080\s*\}/);
   assert.match(idp, /handle \{\s*respond 404\s*\}/);
   assert.equal((c.match(/reverse_proxy/g) ?? []).length, 2, 'solo web e idp dietro il proxy');
@@ -217,11 +218,24 @@ test('compose unito: limiti di memoria per ogni container, porte solo su loopbac
     }
   }
   assert.equal(cfg.services.hub.environment.LH_OIDC_ISSUER, 'https://idp-vetrina.example.org/realms/loyaltyhub');
+  // Realm dei membri (ADR-051): stesso emittente pubblico per hub e web, JWKS dal proxy, client portal con il segreto da file.
+  assert.equal(cfg.services.hub.environment.LH_OIDC_MEMBER_ISSUER, 'https://idp-vetrina.example.org/realms/loyaltyhub-members');
+  assert.equal(cfg.services.hub.environment.LH_OIDC_MEMBER_JWKS_URI, 'https://idp-vetrina.example.org/realms/loyaltyhub-members/protocol/openid-connect/certs');
+  assert.equal(cfg.services.web.environment.LH_OIDC_MEMBER_ISSUER, cfg.services.hub.environment.LH_OIDC_MEMBER_ISSUER);
+  assert.equal(cfg.services.web.environment.LH_WEB_MEMBER_CLIENT_ID, 'portal');
+  assert.equal(cfg.services.web.environment.LH_WEB_MEMBER_CLIENT_SECRET_FILE, '/run/secrets/lh_portal_client_secret');
+  assert.equal(cfg.services.idp.environment.LH_PORTAL_CLIENT_SECRET_FILE, '/run/secrets/lh_portal_client_secret');
+  assert.ok(cfg.services.idp.volumes.some((v) => v.target === '/opt/keycloak/data/import/loyaltyhub-members-realm.json'), 'realm dei membri importato');
   assert.equal(cfg.services.web.environment.LH_WEB_URL, 'https://web-vetrina.example.org');
+  // Utenti di test (Q-676): fuori dal codespace l'overlay non dichiara le variabili.
+  for (const svc of ['hub', 'web', 'idp']) {
+    assert.equal(cfg.services[svc].environment.LH_TEST_USERS_ALLOWED, undefined, svc);
+    assert.equal(cfg.services[svc].environment.LH_ENVIRONMENT, undefined, svc);
+  }
   assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://idp-vetrina.example.org');
   assert.equal(cfg.secrets.lh_db_password.file, '/etc/loyaltyhub-vetrina/secrets/db-password');
   // Anche con le variabili di segreto del riferimento esportate, nel compose unito restano vuote.
-  const leaked = composeConfig({ ...EXAMPLE_ENV, LH_DB_PASSWORD: 'non-deve-entrare', LH_SUBJECT_KEY: 'non-deve-entrare' });
+  const leaked = composeConfig({ ...EXAMPLE_ENV, LH_DB_PASSWORD: 'non-deve-entrare', LH_SUBJECT_KEY: 'non-deve-entrare', LH_PORTAL_CLIENT_SECRET: 'non-deve-entrare' });
   assert.equal(leaked.status, 0, leaked.stderr);
   // Solo i servizi contano: l'estensione x-lh-db-env del riferimento resta un frammento non usato dall'overlay.
   assert.doesNotMatch(JSON.stringify(JSON.parse(leaked.stdout).services), /non-deve-entrare/);
@@ -534,14 +548,27 @@ const CODESPACE_ENV = {
   LH_VETRINA_PUBLIC_ADDRESS: '127.0.0.1',
 };
 
-test('Caddyfile del codespace: niente ACME, instradamento per porta, Keycloak solo per il realm loyaltyhub (Q-661)', () => {
+test('vetrina.sh: utenti di test ammessi solo nel codespace con CODESPACES=true, altrove variabili forzate a vuoto (Q-676)', () => {
+  const sh = read(VETRINA_SH);
+  const fn = sh.split('\ncompose() {')[1]?.split('\n}\n')[0] ?? '';
+  assert.match(fn, /local test_env=\(LH_TEST_USERS_ALLOWED= LH_ENVIRONMENT=\)/, 'default: vuote, anche se esportate');
+  assert.match(fn, /if \[ "\$\{LH_VETRINA_MODE:-host\}" = codespace \] && \[ "\$\{CODESPACES:-\}" = true \]; then\n\s+test_env=\(LH_TEST_USERS_ALLOWED=true LH_ENVIRONMENT=test\)/);
+  assert.match(fn, /env "\$\{unset_args\[@\]\}" "\$\{test_env\[@\]\}" docker compose/);
+  // Né il compose di riferimento né l'overlay dell'host fisso né il chart le dichiarano.
+  for (const f of [REFERENCE, OVERLAY, path.join(ROOT, 'deploy/helm/loyaltyhub/templates/hub.yaml'), path.join(ROOT, 'deploy/helm/loyaltyhub/templates/web.yaml')]) {
+    assert.doesNotMatch(read(f), /LH_TEST_USERS_ALLOWED|LH_ENVIRONMENT/, path.relative(ROOT, f));
+  }
+});
+
+test('Caddyfile del codespace: niente ACME, instradamento per porta, Keycloak solo per i realm loyaltyhub e loyaltyhub-members (Q-661, ADR-051)', () => {
   const c = read(path.join(DIR, 'caddy/Caddyfile.codespace'));
   assert.match(c, /^\s*admin off$/m);
   assert.match(c, /^\s*auto_https off$/m);
   assert.match(c, /^:8000 \{[\s\S]*?reverse_proxy web:3000/m);
   const idp = c.split(':8001 {')[1];
   assert.ok(idp, 'blocco della porta 8001');
-  assert.match(idp, /@realm path \/realms\/loyaltyhub \/realms\/loyaltyhub\/\* \/resources\/\*/);
+  // I due realm (ADR-051): operatori e membri; nessun altro realm, nessuna console.
+  assert.match(idp, /@realm path \/realms\/loyaltyhub \/realms\/loyaltyhub\/\* \/realms\/loyaltyhub-members \/realms\/loyaltyhub-members\/\* \/resources\/\*\n/);
   assert.match(idp, /handle @realm \{\s*reverse_proxy idp:8080/);
   assert.match(idp, /handle \{\s*respond 404\s*\}/);
   assert.equal((c.match(/reverse_proxy/g) ?? []).length, 2, 'solo web e idp dietro il proxy');
@@ -571,7 +598,7 @@ test('dev container della vetrina: macchina di Q-660, avvio automatico, configur
 
 test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun alias, stesso emittente pubblico', { skip: !haveCompose && 'docker compose assente' }, () => {
   const r = spawnSync('docker', ['compose', '-f', REFERENCE, '-f', OVERLAY, '-f', CODESPACE_OVERLAY, 'config', '--format', 'json'], {
-    env: { PATH: process.env.PATH, HOME: process.env.HOME ?? os.tmpdir(), ...CODESPACE_ENV }, encoding: 'utf8',
+    env: { PATH: process.env.PATH, HOME: process.env.HOME ?? os.tmpdir(), ...CODESPACE_ENV, LH_TEST_USERS_ALLOWED: 'true', LH_ENVIRONMENT: 'test' }, encoding: 'utf8',
   });
   assert.equal(r.status, 0, r.stderr);
   const cfg = JSON.parse(r.stdout);
@@ -588,7 +615,15 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
     for (const p of svc.ports ?? []) assert.equal(p.host_ip, '127.0.0.1', `${name}: porta ${p.published} solo su loopback`);
   }
   assert.equal(cfg.services.hub.environment.LH_OIDC_ISSUER, 'https://prova-vetrina-8001.app.github.dev/realms/loyaltyhub');
+  for (const svc of ['hub', 'web']) {
+    assert.equal(cfg.services[svc].environment.LH_OIDC_MEMBER_ISSUER, 'https://prova-vetrina-8001.app.github.dev/realms/loyaltyhub-members', svc);
+  }
   assert.equal(cfg.services.web.environment.LH_WEB_URL, 'https://prova-vetrina-8000.app.github.dev');
+  // Utenti di test (Q-676): nel codespace hub e web ricevono le due variabili da vetrina.sh (qui dall'ambiente del test).
+  for (const svc of ['hub', 'web']) {
+    assert.equal(cfg.services[svc].environment.LH_TEST_USERS_ALLOWED, 'true', svc);
+    assert.equal(cfg.services[svc].environment.LH_ENVIRONMENT, 'test', svc);
+  }
   assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://prova-vetrina-8001.app.github.dev');
   // Console sull'inoltro privato della porta 8180 (solo il proprietario), non su 127.0.0.1 come sull'host fisso.
   assert.equal(cfg.services.idp.environment.KC_HOSTNAME_ADMIN, 'https://prova-vetrina-8180.app.github.dev');

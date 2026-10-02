@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # VETRINA ENTERPRISE (F2-IAM-01, F2-IAM-03, ADR-049; Q-618, Q-619 e Q-626, decise il 2026-09-30).
-# Applica realm-vetrina-overlay.json al realm `loyaltyhub` gia' avviato, con lo stesso meccanismo di
+# Applica realm-vetrina-overlay.json al realm `loyaltyhub` gia' avviato (e chiude la registrazione libera in `loyaltyhub-members`, ADR-051), con lo stesso meccanismo di
 # test-idp/apply-overlay.sh ma senza segnaposto ne' credenziali:
 #   - impostazioni del realm (oggi solo `registrationAllowed: false`): lettura del realm, unione con il frammento
 #     dell'overlay e PUT /admin/realms/loyaltyhub della rappresentazione completa (come fa `kcadm update`: il
@@ -289,4 +289,36 @@ PY
 echo "Verifica della MFA degli account operatore..."
 check_operators
 
-echo "Overlay di vetrina applicato al realm ${REALM}."
+# 7. Realm dei membri (ADR-051, Q-673): nella vetrina la registrazione libera di account resta chiusa, perche'
+#    Keycloak torna alla configurazione del repo a ogni avvio e gli account creati sparirebbero. Stesso metodo del
+#    passo 3 (lettura, unione, PUT intero), poi verifica. Il realm base lascia la registrazione aperta.
+MEMBERS_ADMIN="${KEYCLOAK_URL}/admin/realms/loyaltyhub-members"
+echo "Realm dei membri: registrazione libera chiusa (ADR-051)..."
+curl -sS -f "${MEMBERS_ADMIN}" -H "@$WORK/auth" > "$WORK/members-before.json" || {
+  echo "Errore: realm loyaltyhub-members assente (deploy/idp/realm-members.json non importato)." >&2
+  exit 1
+}
+python3 -c 'import sys,json;r=json.load(open(sys.argv[1]));r["registrationAllowed"]=False;json.dump(r,open(sys.argv[2],"w"))' \
+  "$WORK/members-before.json" "$WORK/members-put.json"
+chmod 600 "$WORK/members-put.json"
+HTTP_CODE="$(curl -sS -o "$WORK/members-result.json" -w '%{http_code}' -X PUT "${MEMBERS_ADMIN}" \
+  -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/members-put.json")"
+if [ "$HTTP_CODE" != "204" ] && [ "$HTTP_CODE" != "200" ]; then
+  echo "Errore: l'aggiornamento del realm dei membri ha risposto ${HTTP_CODE}: $(head -c 300 "$WORK/members-result.json")" >&2
+  exit 1
+fi
+curl -sS -f "${MEMBERS_ADMIN}" -H "@$WORK/auth" > "$WORK/members-now.json"
+python3 - "$WORK/members-before.json" "$WORK/members-now.json" <<'PY'
+import json, sys
+before, now = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
+errors = [] if now.get("registrationAllowed") is False else ["registrationAllowed non e' false"]
+for k in ("bruteForceProtected", "failureFactor", "eventsEnabled", "adminEventsEnabled", "accessTokenLifespan",
+          "ssoSessionIdleTimeout", "ssoSessionMaxLifespan", "passwordPolicy", "sslRequired", "browserFlow"):
+    if before.get(k) != now.get(k):
+        errors.append(f"impostazione cambiata dal PUT: {k}")
+if errors:
+    sys.exit("Errore: verifica del realm dei membri fallita: " + "; ".join(errors))
+print("  verifica: loyaltyhub-members con registrationAllowed=false")
+PY
+
+echo "Overlay di vetrina applicato ai realm ${REALM} e loyaltyhub-members."

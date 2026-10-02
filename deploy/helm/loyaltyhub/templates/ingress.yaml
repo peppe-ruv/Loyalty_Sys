@@ -52,6 +52,14 @@ spec:
                 name: {{ include "loyaltyhub.fullname" . }}-idp
                 port:
                   name: http
+          # Realm dei membri (ADR-051): login del portale, token e JWKS dei membri.
+          - path: /realms/{{ include "loyaltyhub.memberRealm" . }}/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "loyaltyhub.fullname" . }}-idp
+                port:
+                  name: http
           - path: /resources/
             pathType: Prefix
             backend:

@@ -2,10 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { readCappedBody } from "@/lib/api/proxyBody";
 import { problem, currentSession, type Bff } from "./bff";
 import {
-  AUTH_FLOW_COOKIE,
   AUTH_FLOW_MAX_AGE,
-  CSRF_COOKIE,
-  SESSION_COOKIE,
   authFlowCookieOptions,
   csrfCookieOptions,
   expiredCookie,
@@ -16,7 +13,7 @@ import { open, randomId, seal } from "./crypto";
 import { InvalidLogoutTokenError, LogoutKeysUnavailableError, verifyLogoutToken } from "./logoutToken";
 import { LoginRejectedError, redirectUri, type LoginChecks } from "./oidc";
 import { safeReturnTo } from "./returnTo";
-import { effectiveRole, rolesFromClaim, sessionKind } from "./roles";
+import { effectiveRole, rolesFromClaim, sessionKind, TEST_USER_ROLE } from "./roles";
 import type { SessionUser } from "./sessionStore";
 
 // Endpoint di autenticazione del BFF (ADR-027, docs/18 §3.2) nel profilo enterprise. Funzioni pure rispetto al BFF
@@ -47,32 +44,41 @@ export async function handleLogin(req: NextRequest, bff: Bff): Promise<NextRespo
     return failure(bff, "idp_unavailable", returnTo);
   }
   const res = redirect(authorizationUrl);
-  res.cookies.set(AUTH_FLOW_COOKIE, seal(JSON.stringify(flow), bff.flowKey, AUTH_FLOW_COOKIE), authFlowCookieOptions);
+  res.cookies.set(bff.cookies.flow, seal(JSON.stringify(flow), bff.flowKey, bff.cookies.flow), authFlowCookieOptions);
   return res;
 }
 
 /** `GET /api/auth/callback`: verifica state/iss, scambia il codice, valida l'ID token (nonce) e apre la sessione. */
 export async function handleCallback(req: NextRequest, bff: Bff): Promise<NextResponse> {
   const flow = readFlow(req, bff);
-  if (!flow) return clearFlow(failure(bff, "expired", "/"));
+  if (!flow) return clearFlow(bff, failure(bff, "expired", "/"));
 
-  const callbackUrl = new URL(redirectUri(bff.cfg));
+  const callbackUrl = new URL(redirectUri(bff.cfg, bff.callbackPath));
   callbackUrl.search = req.nextUrl.search;
   let tokens;
   try {
     tokens = await bff.oidc.exchangeCode(callbackUrl, flow);
   } catch (err) {
     if (err instanceof LoginRejectedError) {
-      return clearFlow(failure(bff, err.reason === "access_denied" ? "denied" : "rejected", flow.returnTo));
+      return clearFlow(bff, failure(bff, err.reason === "access_denied" ? "denied" : "rejected", flow.returnTo));
     }
     console.error("callback: scambio del codice non riuscito", errorName(err));
-    return clearFlow(failure(bff, "idp_unavailable", flow.returnTo));
+    return clearFlow(bff, failure(bff, "idp_unavailable", flow.returnTo));
   }
   const user = userFromClaims(tokens.claims);
-  if (!user || !tokens.idToken) return clearFlow(failure(bff, "rejected", flow.returnTo));
+  if (!user || !tokens.idToken) return clearFlow(bff, failure(bff, "rejected", flow.returnTo));
+  // Utente di test fuori dall'ambiente di test dichiarato: credenziali pubbliche, login rifiutato (Q-676).
+  if (user.roles.includes(TEST_USER_ROLE) && !bff.cfg.testUsersAllowed) {
+    return clearFlow(bff, failure(bff, "rejected", flow.returnTo));
+  }
+  // Due realm (ADR-051): nel realm dei membri entra solo un membro, in quello degli operatori mai un solo membro.
+  const twoRealms = bff.cfg.members !== null;
+  if (twoRealms && (bff.realm === "members") !== (user.kind === "member")) {
+    return clearFlow(bff, failure(bff, "rejected", flow.returnTo));
+  }
 
   // Mai riusare un id di sessione arrivato dal browser (session fixation): la vecchia sessione si chiude.
-  const previous = req.cookies.get(SESSION_COOKIE)?.value;
+  const previous = req.cookies.get(bff.cookies.session)?.value;
   if (previous) await bff.store.delete(previous);
   const id = await bff.store.create(user, {
     accessToken: tokens.accessToken,
@@ -82,9 +88,9 @@ export async function handleCallback(req: NextRequest, bff: Bff): Promise<NextRe
   });
 
   const res = redirect(new URL(safeReturnTo(flow.returnTo), bff.cfg.publicUrl));
-  res.cookies.set(SESSION_COOKIE, id, sessionCookieOptions);
-  res.cookies.set(CSRF_COOKIE, csrfTokenFor(id, bff.csrfKey), csrfCookieOptions);
-  return clearFlow(res);
+  res.cookies.set(bff.cookies.session, id, sessionCookieOptions);
+  res.cookies.set(bff.cookies.csrf, csrfTokenFor(id, bff.csrfKey), csrfCookieOptions);
+  return clearFlow(bff, res);
 }
 
 /**
@@ -94,7 +100,7 @@ export async function handleCallback(req: NextRequest, bff: Bff): Promise<NextRe
  * passa mai dal JavaScript della pagina (regola 20). Richiesta rifiutata ⇒ 303 verso /auth/error.
  */
 export async function handleLogout(req: NextRequest, bff: Bff): Promise<NextResponse> {
-  const id = req.cookies.get(SESSION_COOKIE)?.value ?? null;
+  const id = req.cookies.get(bff.cookies.session)?.value ?? null;
   const formToken = await readFormField(req, "csrf");
   const csrf = checkCsrf(req, bff.cfg.publicUrl.origin, id ? { id, csrfKey: bff.csrfKey } : null, formToken);
   if (csrf) return failure(bff, "logout_failed", "/");
@@ -114,8 +120,8 @@ export async function handleLogout(req: NextRequest, bff: Bff): Promise<NextResp
     }
   }
   const res = redirect(location);
-  res.cookies.set(SESSION_COOKIE, "", expiredCookie(sessionCookieOptions));
-  res.cookies.set(CSRF_COOKIE, "", expiredCookie(csrfCookieOptions));
+  res.cookies.set(bff.cookies.session, "", expiredCookie(sessionCookieOptions));
+  res.cookies.set(bff.cookies.csrf, "", expiredCookie(csrfCookieOptions));
   return res;
 }
 
@@ -191,9 +197,9 @@ export function userFromClaims(claims: Record<string, unknown> | null): SessionU
 }
 
 function readFlow(req: NextRequest, bff: Bff): AuthFlow | null {
-  const sealed = req.cookies.get(AUTH_FLOW_COOKIE)?.value;
+  const sealed = req.cookies.get(bff.cookies.flow)?.value;
   if (!sealed) return null;
-  const plain = open(sealed, bff.flowKey, AUTH_FLOW_COOKIE);
+  const plain = open(sealed, bff.flowKey, bff.cookies.flow);
   if (!plain) return null;
   try {
     const flow = JSON.parse(plain) as Partial<AuthFlow>;
@@ -223,8 +229,8 @@ function failure(bff: Bff, reason: LoginFailure, returnTo: string): NextResponse
   return redirect(url);
 }
 
-function clearFlow(res: NextResponse): NextResponse {
-  res.cookies.set(AUTH_FLOW_COOKIE, "", expiredCookie(authFlowCookieOptions));
+function clearFlow(bff: Bff, res: NextResponse): NextResponse {
+  res.cookies.set(bff.cookies.flow, "", expiredCookie(authFlowCookieOptions));
   return res;
 }
 

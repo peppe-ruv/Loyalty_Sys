@@ -59,7 +59,9 @@ export async function lhFetch<T>(
   const multipart = typeof FormData !== "undefined" && rest.body instanceof FormData;
   // Profilo enterprise: le richieste che cambiano stato portano il token CSRF della sessione (docs/07 §4-bis);
   // nel profilo demo il cookie non c'è e gli header restano quelli di sempre.
-  const csrf = csrfHeaders(rest.method);
+  // Le API del portale usano la sessione del membro, le altre quella dell'operatore (ADR-051).
+  const portal = (path.startsWith("/") ? path : `/${path}`).startsWith("/v1/portal/");
+  const csrf = csrfHeaders(rest.method, undefined, portal ? "members" : "operators");
   const res = await fetch(url(service, path, query), {
     ...rest,
     headers: multipart

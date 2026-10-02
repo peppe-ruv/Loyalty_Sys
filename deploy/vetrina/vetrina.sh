@@ -49,9 +49,9 @@ CONFIG_KEYS=(LH_VETRINA_MODE LH_IMAGE LH_VETRINA_DIR LH_VETRINA_WEB_HOST LH_VETR
             LH_VETRINA_ADMIN_HOST)
 # Segreti generati sull'host: nome del file e forma (password = 32 caratteri url-safe; key = 32 byte in base64).
 SECRETS=(db-password:password idp-db-password:password idp-admin-password:password web-client-secret:password
-         widgets-client-secret:password cms-client-secret:password web-session-key:key subject-key:key)
+         portal-client-secret:password widgets-client-secret:password cms-client-secret:password web-session-key:key subject-key:key)
 # Variabili di segreto del compose di riferimento: nella vetrina non devono stare nell'ambiente (regola 20).
-SECRET_ENV=(LH_DB_PASSWORD LH_IDP_DB_PASSWORD LH_IDP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET
+SECRET_ENV=(LH_DB_PASSWORD LH_IDP_DB_PASSWORD LH_IDP_ADMIN_PASSWORD LH_WEB_CLIENT_SECRET LH_PORTAL_CLIENT_SECRET LH_WIDGETS_CLIENT_SECRET
             LH_CMS_CLIENT_SECRET LH_WEB_SESSION_KEY LH_SUBJECT_KEY LH_GRAFANA_ADMIN_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD)
 # Porte del proxy nel codespace (Q-661): HTTP in chiaro su loopback, l'inoltro di GitHub le pubblica in https.
 CODESPACE_WEB_PORT=8000
@@ -152,7 +152,14 @@ compose() {
   for v in "${SECRET_ENV[@]}"; do unset_args+=(-u "$v"); done
   local files=(-f "$REFERENCE" -f "$OVERLAY")
   [ "${LH_VETRINA_MODE:-host}" = codespace ] && files+=(-f "$CODESPACE_OVERLAY")
-  env "${unset_args[@]}" docker compose --project-name "$PROJECT" "${files[@]}" "$@"
+  # Utenti di test (Q-676, ADR-051): hub e web li accettano solo con LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test,
+  # che passano soltanto alla vetrina dentro un GitHub Codespace (CODESPACES=true, impostata da GitHub). Altrove le due
+  # variabili sono forzate a vuoto, anche se esportate a mano: un utente con LH_TEST_USER resta rifiutato.
+  local test_env=(LH_TEST_USERS_ALLOWED= LH_ENVIRONMENT=)
+  if [ "${LH_VETRINA_MODE:-host}" = codespace ] && [ "${CODESPACES:-}" = true ]; then
+    test_env=(LH_TEST_USERS_ALLOWED=true LH_ENVIRONMENT=test)
+  fi
+  env "${unset_args[@]}" "${test_env[@]}" docker compose --project-name "$PROJECT" "${files[@]}" "$@"
 }
 
 # ---------------------------------------------------------------------------------------------------------------

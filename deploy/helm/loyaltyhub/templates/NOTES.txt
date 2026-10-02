@@ -9,6 +9,7 @@ Topic: 5 (lh.actions.v1, lh.effects.v1, lh.facts.v1, lh.audit.v1, lh.dlq.v1) x {
 Portale e backoffice: {{ .Values.publicUrls.web }}
 {{- if .Values.roles.idp.enabled }}
 Login (Keycloak):     {{ .Values.publicUrls.idp }}/realms/{{ .Values.global.realm }}
+Login dei membri:     {{ .Values.publicUrls.idp }}/realms/{{ include "loyaltyhub.memberRealm" . }}
 {{- end }}
 {{- end }}
 
