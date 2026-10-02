@@ -167,6 +167,27 @@ describe("BFF con due realm", () => {
   });
 });
 
+describe("utenti di test (Q-676)", () => {
+  it("LH_TEST_USERS_ALLOWED solo con LH_ENVIRONMENT=test", () => {
+    expect(problemsOf({ ...BASE, LH_TEST_USERS_ALLOWED: "true" })).toContain(
+      "LH_TEST_USERS_ALLOWED=true vale solo con LH_ENVIRONMENT=test (credenziali di test pubbliche, Q-676)",
+    );
+    expect((parseAuthConfig({ ...BASE, LH_TEST_USERS_ALLOWED: "true", LH_ENVIRONMENT: "test" }) as EnterpriseAuthConfig).testUsersAllowed).toBe(true);
+    expect((parseAuthConfig(BASE) as EnterpriseAuthConfig).testUsersAllowed).toBe(false);
+  });
+
+  it("login di un utente di test rifiutato in ogni realm, salvo nell'ambiente di test", async () => {
+    const op = await loginAndCallback("operators", TWO_REALMS, { lh_roles: ["ADMIN", "LH_TEST_USER"] });
+    expect(new URL(op.res.headers.get("location") ?? "").searchParams.get("reason")).toBe("rejected");
+    const mem = await loginAndCallback("members", TWO_REALMS, { lh_roles: ["MEMBER", "LH_TEST_USER"] });
+    expect(new URL(mem.res.headers.get("location") ?? "").searchParams.get("reason")).toBe("rejected");
+    const allowed = await loginAndCallback("members", { ...TWO_REALMS, LH_TEST_USERS_ALLOWED: "true", LH_ENVIRONMENT: "test" }, {
+      lh_roles: ["MEMBER", "LH_TEST_USER"],
+    });
+    expect(cookieValue(allowed.res, "__Host-lh_msession")).toBeTruthy();
+  });
+});
+
 describe("token CSRF nel browser", () => {
   it("le API del portale usano il cookie dei membri, con ripiego su quello degli operatori (un solo realm)", () => {
     const both = "__Host-lh_csrf=op; __Host-lh_mcsrf=mem";

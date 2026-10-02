@@ -13,7 +13,7 @@ import { open, randomId, seal } from "./crypto";
 import { InvalidLogoutTokenError, LogoutKeysUnavailableError, verifyLogoutToken } from "./logoutToken";
 import { LoginRejectedError, redirectUri, type LoginChecks } from "./oidc";
 import { safeReturnTo } from "./returnTo";
-import { effectiveRole, rolesFromClaim, sessionKind } from "./roles";
+import { effectiveRole, rolesFromClaim, sessionKind, TEST_USER_ROLE } from "./roles";
 import type { SessionUser } from "./sessionStore";
 
 // Endpoint di autenticazione del BFF (ADR-027, docs/18 §3.2) nel profilo enterprise. Funzioni pure rispetto al BFF
@@ -67,6 +67,10 @@ export async function handleCallback(req: NextRequest, bff: Bff): Promise<NextRe
   }
   const user = userFromClaims(tokens.claims);
   if (!user || !tokens.idToken) return clearFlow(bff, failure(bff, "rejected", flow.returnTo));
+  // Utente di test fuori dall'ambiente di test dichiarato: credenziali pubbliche, login rifiutato (Q-676).
+  if (user.roles.includes(TEST_USER_ROLE) && !bff.cfg.testUsersAllowed) {
+    return clearFlow(bff, failure(bff, "rejected", flow.returnTo));
+  }
   // Due realm (ADR-051): nel realm dei membri entra solo un membro, in quello degli operatori mai un solo membro.
   const twoRealms = bff.cfg.members !== null;
   if (twoRealms && (bff.realm === "members") !== (user.kind === "member")) {

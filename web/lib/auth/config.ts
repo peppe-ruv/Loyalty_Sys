@@ -42,6 +42,11 @@ export interface EnterpriseAuthConfig {
    * suo client e una sessione separata da quella del backoffice. `null` ⇒ un solo realm per tutti, come prima.
    */
   members: MemberRealmConfig | null;
+  /**
+   * Utenti di test con credenziali pubbliche (ruolo `LH_TEST_USER`, ADR-051, Q-676): ammessi solo con
+   * `LH_TEST_USERS_ALLOWED=true` e `LH_ENVIRONMENT=test` (la vetrina nel codespace); altrimenti il login è rifiutato.
+   */
+  testUsersAllowed: boolean;
 }
 
 /** Emittente e client del BFF nel realm dei membri. */
@@ -88,6 +93,8 @@ const WATCHED = [
   "LH_WEB_MEMBER_CLIENT_ID",
   "LH_WEB_MEMBER_CLIENT_SECRET",
   "LH_WEB_MEMBER_CLIENT_SECRET_FILE",
+  "LH_TEST_USERS_ALLOWED",
+  "LH_ENVIRONMENT",
 ] as const;
 
 /** Profilo richiesto; un valore sconosciuto è un errore (mai un ripiego silenzioso sul demo). */
@@ -140,6 +147,10 @@ export function parseAuthConfig(env: Env, readFile: (path: string) => string = r
   }
 
   const members = memberRealm(env, readFile, issuer, problems);
+  const testUsersAllowed = (env.LH_TEST_USERS_ALLOWED ?? "").trim().toLowerCase() === "true";
+  if (testUsersAllowed && (env.LH_ENVIRONMENT ?? "").trim() !== "test") {
+    problems.push("LH_TEST_USERS_ALLOWED=true vale solo con LH_ENVIRONMENT=test (credenziali di test pubbliche, Q-676)");
+  }
 
   if (problems.length || !issuer || !publicUrl || clientSecret === null || sessionKey === null) {
     throw new InsecureConfigError(problems.length ? problems : ["configurazione OIDC incompleta"]);
@@ -156,6 +167,7 @@ export function parseAuthConfig(env: Env, readFile: (path: string) => string = r
         maxSeconds,
         maxSessions,
         members ? [members.issuer.href, members.clientId, members.clientSecret] : null,
+        testUsersAllowed,
       ]),
     )
     .digest("base64url");
@@ -172,6 +184,7 @@ export function parseAuthConfig(env: Env, readFile: (path: string) => string = r
     maxSessions,
     allowInsecureIssuer: issuer.protocol === "http:",
     members,
+    testUsersAllowed,
   };
 }
 
