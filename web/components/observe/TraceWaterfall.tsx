@@ -4,6 +4,7 @@ import { familyColorVar } from "@/lib/realtime/sse";
 import { it } from "@/lib/i18n/it";
 import { eventLabel } from "@/lib/observe/eventLabels";
 import { formatSecondsShort } from "@/lib/format/duration";
+import { layoutLane, rowCenterPx } from "@/lib/observe/waterfallLayout";
 import type { Trace, TraceNode } from "@/lib/observe/trace";
 
 export type { Trace, TraceNode, TraceOutcome } from "@/lib/observe/trace";
@@ -30,15 +31,17 @@ export function TraceWaterfall({
 
   return (
     <div className="space-y-1.5" role="group" aria-label={it.traces.tech.title}>
-      {lanes.map((lane) => (
-        <div key={lane} className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-2">
-          <span className="truncate text-right font-mono text-[11px] text-[var(--color-bo-ink-2)]" title={lane}>
-            {lane}
-          </span>
-          <div className="relative h-7 rounded bg-[var(--color-bo-bg)]">
-            {trace.nodes
-              .filter((n) => n.service === lane)
-              .map((n) => {
+      {lanes.map((lane) => {
+        const laneNodes = trace.nodes.filter((n) => n.service === lane);
+        const layout = layoutLane(laneNodes.map((n) => ({ id: n.eventId, pct: pct(n.offsetMs) })));
+        const rowOf = new Map(layout.slots.map((sl) => [sl.id, sl.row]));
+        return (
+          <div key={lane} className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-2">
+            <span className="truncate text-right font-mono text-[11px] text-[var(--color-bo-ink-2)]" title={lane}>
+              {lane}
+            </span>
+            <div className="relative rounded bg-[var(--color-bo-bg)]" style={{ height: `${layout.heightPx}px` }}>
+              {laneNodes.map((n) => {
                 const label = it.traces.tech.marker(eventLabel(n.family, n.shortType), n.shortType, formatSecondsShort(n.offsetMs));
                 const selected = selectedId === n.eventId;
                 return (
@@ -46,26 +49,28 @@ export function TraceWaterfall({
                     key={n.eventId}
                     type="button"
                     data-testid="trace-marker"
+                    data-row={rowOf.get(n.eventId) ?? 0}
                     aria-label={label}
                     aria-pressed={selected}
                     title={label}
                     onClick={() => onSelect?.(n)}
-                    className={`absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 p-0 ${
+                    className={`absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 p-0 ${
                       selected ? "border-[var(--color-bo-ink)] ring-2 ring-[var(--color-bo-ink)]" : n.family === "DLQ" ? "border-red-700" : "border-white"
                     }`}
-                    style={{ left: `${pct(n.offsetMs)}%`, backgroundColor: familyColorVar(n.family) }}
+                    style={{ left: `${pct(n.offsetMs)}%`, top: `${rowCenterPx(rowOf.get(n.eventId) ?? 0)}px`, backgroundColor: familyColorVar(n.family) }}
                   />
                 );
               })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2" aria-hidden>
         <span />
         <div className="relative h-4 font-mono text-[10px] text-[var(--color-bo-ink-2)]">
           {ticks.map((s) => (
             <span key={s} className="absolute -translate-x-1/2" style={{ left: `${pct(s * 1000)}%` }}>
-              {s} s
+              {it.traces.tech.axisTick(s)}
             </span>
           ))}
         </div>

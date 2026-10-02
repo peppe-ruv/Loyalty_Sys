@@ -72,4 +72,12 @@ describe("BO-25 Tracciati, elenco", () => {
     );
     expect(await screen.findByText("Passo per passo")).toBeInTheDocument();
   });
+
+  it("l'id di correlazione nel percorso del dettaglio è codificato", async () => {
+    window.history.replaceState(null, "", "/backoffice/observe/traces?c=a%2Fb%20c");
+    renderWithProviders(<TracesPage />);
+    await waitFor(() =>
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringContaining("/api/lh/insight/v1/traces/a%2Fb%20c"), expect.anything()),
+    );
+  });
 });

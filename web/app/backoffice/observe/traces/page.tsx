@@ -38,7 +38,7 @@ export default function TracesPage() {
   }, []);
   // Elenco paginato {items, page} (docs/06 §2); un tracciato sconosciuto è 404 (Q-318).
   const list = useLhQuery<Page<TraceSummary>>("insight", "/v1/traces", { size: 50 }, { refetchInterval: 5000 });
-  const detail = useLhQuery<Trace>("insight", selected ? `/v1/traces/${selected}` : "/v1/traces", undefined, {
+  const detail = useLhQuery<Trace>("insight", selected ? `/v1/traces/${encodeURIComponent(selected)}` : "/v1/traces", undefined, {
     enabled: selected != null,
     refetchInterval: selected ? 3000 : undefined,
   });

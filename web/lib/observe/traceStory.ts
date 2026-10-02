@@ -74,6 +74,17 @@ export function detailOf(node: TraceNode, currencyName: (code: string) => string
   return "";
 }
 
+/** Stato della voce DLQ: ultimo token della sintesi «DLQ · <codice> · <stato>»; REPROCESSED = già gestita. */
+function isReprocessed(node: TraceNode): boolean {
+  const status = (node.summary ?? "").split("·").pop()?.trim() ?? "";
+  return status === "REPROCESSED";
+}
+
+/** Vero se tra i passi (a qualunque profondità di annidamento) ce n'è uno bloccato. */
+export function hasFailedStep(steps: StoryStep[]): boolean {
+  return steps.some((s) => s.failed || hasFailedStep(s.triggered));
+}
+
 function phaseOf(node: TraceNode, byId: Map<string, TraceNode>, rootId: string | null, depth = 0): PhaseId {
   if (node.eventId === rootId) return "action";
   if (node.family === "DLQ") {
@@ -100,20 +111,20 @@ export function buildStory(trace: Trace, options: StoryOptions = {}): TraceStory
   // Azioni derivate: ACTION con un genitore nel tracciato (diverse dalla radice).
   const derived = new Set(nodes.filter((n) => n.family === "ACTION" && n.eventId !== rootId && inTrace(n.parentEventId)).map((n) => n.eventId));
 
-  // Per ogni nodo, l'azione derivata più esterna sopra di lui (o lui stesso): se esiste, il nodo è annidato.
+  // Per ogni nodo, l'azione derivata PIÙ VICINA sopra di lui (o lui stesso): ogni azione derivata ha il suo sottoalbero,
+  // appeso al passo che l'ha innescata; un'azione derivata dentro un elenco annidato ha a sua volta il proprio.
   const outerDerived = (node: TraceNode): string | null => {
-    let found: string | null = null;
     let cur: TraceNode | undefined = node;
     const seen = new Set<string>();
     while (cur && !seen.has(cur.eventId)) {
       seen.add(cur.eventId);
-      if (derived.has(cur.eventId)) found = cur.eventId;
+      if (derived.has(cur.eventId)) return cur.eventId;
       cur = cur.parentEventId ? byId.get(cur.parentEventId) : undefined;
     }
-    return found;
+    return null;
   };
 
-  const nestedBy = new Map<string, TraceNode[]>(); // azione derivata più esterna → nodi del suo sottoalbero
+  const nestedBy = new Map<string, TraceNode[]>(); // azione derivata → nodi del suo sottoalbero (fino alla successiva azione derivata)
   const main: TraceNode[] = [];
   for (const n of nodes) {
     const outer = outerDerived(n);
@@ -125,7 +136,7 @@ export function buildStory(trace: Trace, options: StoryOptions = {}): TraceStory
       main.push(n);
     }
   }
-  // Nodo che ha innescato ciascuna azione derivata esterna → le sue azioni.
+  // Nodo che ha innescato ciascuna azione derivata → le sue azioni.
   const triggersOf = new Map<string, string[]>();
   for (const actionId of nestedBy.keys()) {
     const parentId = byId.get(actionId)?.parentEventId;
@@ -136,23 +147,25 @@ export function buildStory(trace: Trace, options: StoryOptions = {}): TraceStory
   const failed: StoryStep[] = [];
   const toStep = (n: TraceNode): StoryStep => {
     const isDlq = n.family === "DLQ";
+    // Una voce DLQ già riprocessata non blocca più nulla: resta come passo neutro.
+    const isFailed = isDlq && !isReprocessed(n);
     const parent = n.parentEventId ? byId.get(n.parentEventId) : undefined;
     const step: StoryStep = {
       key: n.eventId,
       family: n.family,
       shortType: n.shortType,
-      label: eventLabel(n.family, n.shortType),
+      label: isDlq && !isFailed ? it.traces.events.dlqReprocessed : eventLabel(n.family, n.shortType),
       detail: isDlq ? (parent ? eventLabel(parent.family, parent.shortType) : "") : detailOf(n, currencyName),
       count: 1,
       offsetMs: n.offsetMs,
       eventIds: [n.eventId],
-      failed: isDlq,
+      failed: isFailed,
       triggered: [],
     };
     for (const actionId of triggersOf.get(n.eventId) ?? []) {
       step.triggered.push(...groupSteps((nestedBy.get(actionId) ?? []).map(toStep)));
     }
-    if (isDlq) failed.push(step);
+    if (isFailed) failed.push(step);
     return step;
   };
 
@@ -217,7 +230,8 @@ export function outcomeChips(summary: TraceSummary, currencyChip: (code: string)
   const chips: OutcomeChip[] = [];
   for (const raw of (summary.outcomeSummary ?? "").split("·")) {
     const part = raw.trim();
-    const pts = part.match(/^([+-]?\d+)\s+(\S+)$/);
+    // Il server compone «+» + importo: un importo negativo arriva come «+-180 PTS».
+    const pts = part.match(/^\+?(-?\d+)\s+(\S+)$/);
     if (pts && !/DLQ/.test(pts[2])) {
       const n = Number(pts[1]);
       chips.push({ text: `${n > 0 ? "+" : ""}${formatPoints(n)} ${currencyChip(pts[2])}`, tone: n > 0 ? "good" : "neutral" });

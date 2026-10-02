@@ -56,6 +56,33 @@ export const FAILED_TRACE: Trace = {
   outcome: { points: [], tierChange: null, messages: 0, coupons: 0, plays: 0, dlq: 0 },
 };
 
+/** Come FAILED_TRACE, ma la voce DLQ è stata riprocessata: il tracciato è completo. */
+export const REPROCESSED_TRACE: Trace = {
+  ...FAILED_TRACE,
+  correlationId: "c0ffee00-0000-4000-8000-000000000005",
+  status: "COMPLETE",
+  nodes: FAILED_TRACE.nodes.map((x) => (x.family === "DLQ" ? { ...x, summary: "DLQ · INSUFFICIENT_BALANCE · REPROCESSED" } : x)),
+};
+
+/** Catena a due livelli di azioni derivate: ogni campaign.evaluated appartiene a un'azione diversa. */
+export const CHAIN_TRACE: Trace = {
+  correlationId: "c0ffee00-0000-4000-8000-000000000006",
+  memberId: "MBR-000001",
+  startedAt: "2026-10-02T19:00:00Z",
+  durationMs: 5000,
+  status: "COMPLETE",
+  nodes: [
+    n("r01", "ACTION", "purchase.completed", "ingestion", 0, null, "Acquisto · 10 €"),
+    n("r02", "FACT", "badge.awarded", "hub", 500, "r01", "badge.awarded"),
+    n("r03", "ACTION", "badge.awarded", "ingestion", 1000, "r02", "badge.awarded"),
+    n("r04", "FACT", "campaign.evaluated", "campaign", 1500, "r03", "Campagna valutata · 1 campagne"),
+    n("r05", "FACT", "badge.awarded", "hub", 2000, "r03", "badge.awarded"),
+    n("r06", "ACTION", "badge.awarded", "ingestion", 3000, "r05", "badge.awarded"),
+    n("r07", "FACT", "campaign.evaluated", "campaign", 4000, "r06", "Campagna valutata · 1 campagne"),
+  ],
+  outcome: { points: [], tierChange: null, messages: 0, coupons: 0, plays: 0, dlq: 0 },
+};
+
 export const TRACE_LIST: TraceSummary[] = [
   { correlationId: PURCHASE_TRACE.correlationId, memberId: "MBR-000001", rootShortType: "purchase.completed", startedAt: "2026-10-02T19:38:00Z", durationMs: 6426, status: "COMPLETE", outcomeSummary: "+100 PTS · +24 STS" },
   { correlationId: "c0ffee00-0000-4000-8000-000000000003", memberId: "MBR-000002", rootShortType: "member.segment.entered", startedAt: "2026-10-02T19:30:00Z", durationMs: 40, status: "COMPLETE", outcomeSummary: "" },

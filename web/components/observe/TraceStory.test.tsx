@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/test-utils";
-import { FAILED_TRACE, PURCHASE_TRACE } from "@/test/fixtures/traces";
+import { FAILED_TRACE, PURCHASE_TRACE, REPROCESSED_TRACE } from "@/test/fixtures/traces";
 import { TraceStoryView } from "./TraceStory";
 import { TraceWaterfall } from "./TraceWaterfall";
 
@@ -74,6 +74,22 @@ describe("TraceStoryView", () => {
     expect(screen.getByText(/fermo dopo 1,2 secondi/)).toBeInTheDocument();
   });
 
+  it("una DLQ riprocessata si legge come passo neutro, senza riquadro rosso", () => {
+    routeFetch(currencies);
+    renderWithProviders(<TraceStoryView trace={REPROCESSED_TRACE} memberName="Francesca Romano" />);
+    expect(screen.queryByTestId("trace-step-failed")).not.toBeInTheDocument();
+    expect(screen.getByText(/Passato dalla DLQ e riprocessato/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Apri in DLQ/ })).not.toBeInTheDocument();
+  });
+
+  it("«Non partito» solo nelle fasi vuote dopo il passo bloccato; prima c'è «Nessun passo»", () => {
+    routeFetch(currencies);
+    renderWithProviders(<TraceStoryView trace={FAILED_TRACE} memberName="Francesca Romano" />);
+    // FAILED_TRACE: bloccato nella fase «Effetti» (indice 2); la sola fase vuota successiva è «Obiettivi…».
+    expect(screen.getAllByText(/Non partito/)).toHaveLength(1);
+    expect(screen.queryByText("Nessun passo")).not.toBeInTheDocument();
+  });
+
   it("il dettaglio tecnico è ripiegato; il clic su un marcatore apre il payload dell'evento", async () => {
     routeFetch(currencies, evaluations, (u) =>
       u.includes("/api/lh/insight/v1/events/e05") ? json({ eventId: "e05", payload: { data: { currency: "PTS", amount: 100 } } }) : undefined,
@@ -101,5 +117,8 @@ describe("TraceWaterfall", () => {
       expect(m.textContent).toBe("");
       expect(m).toHaveAccessibleName(/\(.+\), \d+,\d s$/);
     }
+    // Nodi vicini nel tempo vanno su righe diverse: la corsia hub cresce oltre i 28 px.
+    const hubRows = markers.filter((m) => /Obiettivo|Badge|Entrato|segmento/.test(m.getAttribute("aria-label") ?? "")).map((m) => m.getAttribute("data-row"));
+    expect(new Set(hubRows).size).toBeGreaterThan(1);
   });
 });

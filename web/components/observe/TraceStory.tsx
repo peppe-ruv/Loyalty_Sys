@@ -9,7 +9,7 @@ import { formatDateTime } from "@/lib/format/dates";
 import { formatSeconds, formatSecondsShort } from "@/lib/format/duration";
 import { formatPoints } from "@/lib/format/points";
 import { eventLabel } from "@/lib/observe/eventLabels";
-import { buildStory, countFacts, statusLabel, storySentence, type StoryStep, type TraceStory } from "@/lib/observe/traceStory";
+import { buildStory, countFacts, hasFailedStep, statusLabel, storySentence, type StoryStep, type TraceStory } from "@/lib/observe/traceStory";
 import type { CampaignResult, EventDetail, Trace, TraceNode } from "@/lib/observe/trace";
 import { CodeText, DegradedBox } from "@/components/bo/primitives";
 import { JsonViewer } from "@/components/bo/JsonViewer";
@@ -125,27 +125,31 @@ function Kpis({ trace, currencyName }: { trace: Trace; currencyName: (c: string)
 }
 
 function Steps({ story, status }: { story: TraceStory; status: string }) {
+  // «Non partito» solo per le fasi vuote DOPO quella del primo passo bloccato.
+  const firstFailed = story.phases.findIndex((p) => hasFailedStep(p.steps));
   return (
     <section className="rounded-md border border-[var(--color-bo-border)] bg-white p-4">
       <h3 className="mb-3 text-base font-semibold">{T.steps.title}</h3>
       <ol className="space-y-0">
-        {story.phases.map((phase, i) => (
+        {story.phases.map((phase, i) => {
+          const phaseFailed = hasFailedStep(phase.steps);
+          return (
           <li key={phase.id} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3">
             <span className="flex flex-col items-center">
               <span
                 aria-hidden
                 className={`flex size-7 items-center justify-center rounded-full text-sm font-bold text-white ${
-                  phase.steps.some((s) => s.failed) ? "bg-red-700" : "bg-[var(--color-bo-accent)]"
+                  phaseFailed ? "bg-red-700" : "bg-[var(--color-bo-accent)]"
                 }`}
               >
-                {phase.steps.some((s) => s.failed) ? "!" : i + 1}
+                {phaseFailed ? "!" : i + 1}
               </span>
               {i < story.phases.length - 1 ? <span className="my-1 w-0.5 flex-1 bg-[var(--color-bo-border)]" /> : null}
             </span>
             <div className="pb-4">
               <p className="mt-0.5 font-medium">{T.steps.phases[phase.id]}</p>
               {phase.steps.length === 0 ? (
-                <p className="mt-1 text-xs text-[var(--color-bo-ink-2)]">{status === "FAILED" ? T.steps.notStarted : T.steps.none}</p>
+                <p className="mt-1 text-xs text-[var(--color-bo-ink-2)]">{status === "FAILED" && firstFailed >= 0 && i > firstFailed ? T.steps.notStarted : T.steps.none}</p>
               ) : (
                 <ul className="mt-1.5 space-y-1.5">
                   {phase.steps.map((s) => (
@@ -155,7 +159,8 @@ function Steps({ story, status }: { story: TraceStory; status: string }) {
               )}
             </div>
           </li>
-        ))}
+          );
+        })}
       </ol>
     </section>
   );

@@ -126,6 +126,11 @@ export const it = {
       FAILED: "Bloccato",
     } as Record<string, string>,
     statusUnknown: "Sconosciuto",
+    // Durate: il numero arriva già formattato (it-IT, una cifra decimale).
+    time: {
+      seconds: (n: string) => `${n} secondi`,
+      short: (n: string) => `${n} s`,
+    },
     // Ripiego dei nomi delle valute se Valute ed edizioni (wallet) non risponde.
     currencies: { PTS: "Punti", STS: "Punti status" } as Record<string, string>,
     detail: {
@@ -219,6 +224,7 @@ export const it = {
       copy: "Copia",
       copied: "Copiato",
       axis: "Tempo dall'azione, in secondi",
+      axisTick: (n: number) => `${n} s`,
       marker: (label: string, code: string, time: string) => `${label} (${code}), ${time}`,
       pick: "Scegli un punto della cascata per vedere codice evento e contenuto.",
       service: "Servizio",
@@ -280,6 +286,7 @@ export const it = {
       } as Record<string, string>,
       audit: "Modifica di configurazione",
       dlq: "Elaborazione non riuscita",
+      dlqReprocessed: "Passato dalla DLQ e riprocessato",
     },
   },
   // BO-09 «Azioni e fonti» e scorciatoia da BO-06 «2 · Quando» (docs/08 §BO-09, §BO-06; Q-429…Q-438).

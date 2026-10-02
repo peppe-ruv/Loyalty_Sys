@@ -9,6 +9,7 @@ export function JsonViewer({ value, label }: { value: unknown; label?: string })
   }
   return (
     <pre
+      role="region"
       aria-label={label}
       tabIndex={0}
       className="max-h-80 overflow-auto rounded border border-[var(--color-bo-border)] bg-white p-3 font-mono text-xs leading-5 text-[var(--color-bo-ink)]"
