@@ -56,6 +56,7 @@ const ACTION_LABEL: Record<string, string> = {
   "member.birthday": "Compleanno",
   "tier.upgraded": "Passaggio di livello",
   "instantwin.won": "Vincita instant win",
+  "achievement.completed": "Obiettivo completato",
   "badge.awarded": "Badge assegnato",
   "referral.completed": "Referral completato",
   "reward.redeemed": "Premio riscattato",
