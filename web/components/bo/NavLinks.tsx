@@ -1,19 +1,25 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { activeHref, visibleNav, type NavItem } from "@/lib/nav";
+import { activeHref, MEMBER_USERS_AFTER, visibleNav, type NavItem } from "@/lib/nav";
+import { it } from "@/lib/i18n/it";
+import { useBoPersona } from "./PersonaContext";
 import { useLhQuery, type Page } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
 import { mergeQueues } from "@/lib/approvals/queue";
 import type { ApprovalItem } from "@/lib/approvals/types";
 
+// «Utenti membri» (ADR-051 dec. 7) è un collegamento esterno, non una voce di NAV: si inserisce dopo BO-02 solo se il
+// layout ha dato un indirizzo (ADMIN/CARE, enterprise con realm dei membri).
 // Elenco dei gruppi/voci della sidebar (docs/08 §1), condiviso tra la sidebar fissa (desktop) e il
 // cassetto mobile. {@code onNavigate} chiude il cassetto quando si apre una voce.
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const groups = visibleNav();
   const current = activeHref(pathname, groups);
+  const memberUsersUrl = useBoPersona().memberUsersUrl ?? null;
 
   return (
     <nav className="flex-1 space-y-5 text-sm">
@@ -24,7 +30,8 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             {g.items.map((item) => {
               const active = item.href === current;
               return (
-                <li key={item.id}>
+                <Fragment key={item.id}>
+                <li>
                   <Link
                     href={item.href}
                     onClick={onNavigate}
@@ -45,6 +52,21 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                     ) : null}
                   </Link>
                 </li>
+                {item.id === MEMBER_USERS_AFTER && memberUsersUrl ? (
+                  <li>
+                    <a
+                      href={memberUsersUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 rounded border-l-2 border-transparent px-2 py-1.5 text-[#8b98ad] hover:text-white"
+                    >
+                      <span className="flex-1">{it.memberUsers.navLabel}</span>
+                      <span aria-hidden>↗</span>
+                      <span className="sr-only">{it.memberUsers.navExternal}</span>
+                    </a>
+                  </li>
+                ) : null}
+                </Fragment>
               );
             })}
           </ul>

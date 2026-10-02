@@ -39,11 +39,11 @@
       "onAutoForward": "silent"
     },
     "8001": {
-      "label": "Vetrina: Keycloak, solo realm loyaltyhub (pubblica)",
+      "label": "Vetrina: Keycloak, realm loyaltyhub e loyaltyhub-members con le loro console (pubblica)",
       "onAutoForward": "silent"
     },
     "8180": {
-      "label": "Keycloak con console /admin (resta privata)",
+      "label": "Console del realm master di Keycloak (resta privata)",
       "onAutoForward": "silent"
     },
     "8080": {

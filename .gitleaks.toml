@@ -24,10 +24,13 @@ regexes = ['''(?i)"?idempotencyKey"?\s*[:=]\s*"[^"\s]{1,80}"''']
 # base (realm.json, realm-members.json) e il chart non ne contengono (scripts/check-realm.mjs). L'eccezione e' limitata ai
 # soli file che le contengono, per percorso esatto: nessun altro file, nessun carattere jolly.
 [[allowlists]]
-description = "Utenti di test pubblici della vetrina: overlay dei realm e documenti che li elencano (ADR-051 decisione 1)"
+description = "Utenti di test pubblici della vetrina: overlay dei realm, documenti e schede HUB-02 che li elencano (ADR-051 decisione 1)"
 paths = [
   '''^deploy/idp/vetrina/realm-vetrina-overlay\.json$''',
   '''^deploy/idp/vetrina/realm-members-vetrina-overlay\.json$''',
   '''^deploy/vetrina/README\.md$''',
   '''^concetti/vetrina-enterprise\.mdx$''',
+  # Schede degli utenti di test in HUB-02 (M8.14 V9): letterali pubblici, gli stessi degli overlay; scripts/check-vetrina.mjs
+  # verifica che nomi, password e seme TOTP coincidano con quelli degli overlay.
+  '''^web/lib/hub/testUsers\.ts$''',
 ]

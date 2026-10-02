@@ -91,6 +91,17 @@ describe("createOidcClient", () => {
     expect(a.href).not.toContain(SECRET);
   });
 
+  it("parametri aggiuntivi (HUB-02): login_hint e prompt arrivano all'IdP, ma non sovrascrivono quelli fissi", async () => {
+    const url = await oidc.authorizationUrl(checks, { login_hint: "marta.admin", prompt: "login", state: "altro", client_id: "altro" });
+    expect(url.searchParams.get("login_hint")).toBe("marta.admin");
+    expect(url.searchParams.get("prompt")).toBe("login");
+    expect(url.searchParams.get("state")).toBe("stato-casuale");
+    expect(url.searchParams.get("client_id")).toBe("web");
+    const plain = await oidc.authorizationUrl(checks);
+    expect(plain.searchParams.has("login_hint")).toBe(false);
+    expect(plain.searchParams.has("prompt")).toBe(false);
+  });
+
   it("discovery fallita: non resta in cache, il tentativo dopo riprova", async () => {
     const real = globalThis.fetch;
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed"); }));

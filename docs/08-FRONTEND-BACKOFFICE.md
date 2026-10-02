@@ -59,6 +59,8 @@ Notazione endpoint: `<servizio> <METODO> <path>` = chiamata a `/api/lh/<servizio
 
 Una voce la cui milestone non è ancora realizzata **non compare** nella sidebar (flag in `lib/nav.ts`): mai pagine "in arrivo".
 
+**Voce esterna «Utenti membri»** (ADR-051 decisione 7): nel gruppo *Clienti*, subito dopo *Membri*, un collegamento `↗` in nuova scheda (`rel="noopener noreferrer"`) alla console Keycloak del realm dei membri, `<origine IdP dei membri>/admin/loyaltyhub-members/console/`. Visibile solo a `ADMIN` e `CARE` e solo nel profilo `enterprise` con `LH_OIDC_MEMBER_ISSUER` configurata; l'indirizzo lo calcola il layout server (`memberConsoleUrl`) e lo passa ai componenti client come prop del contesto, mai con `NEXT_PUBLIC_`. **Non è una schermata**: nessun ID `BO-nn`, nessuna milestone, non sta in `NAV` e non rientra nella regola «nessuna pagina in arrivo». Lo stesso collegamento compare in un riquadro sopra la tabella di BO-02 («Account di accesso dei membri… Apri gli utenti membri ↗»), per gli stessi ruoli.
+
 ## 2. Matrice permessi
 
 Tutte le personas **leggono tutto**, con una sola eccezione (istanti vincenti). La UI nasconde o disabilita; il backend rifiuta con `403` dove c'è ● (`@RequiresRole`, `docs/06 §3`). Il backend rifiuta inoltre **ogni scrittura** di `ANALYST`.

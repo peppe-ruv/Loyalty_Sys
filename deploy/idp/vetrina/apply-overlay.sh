@@ -15,7 +15,12 @@
 #     libera chiusa, ADR-051; eventi di amministrazione con dettagli, Q-677) e per ruolo e utenti di test (Anna, Marco,
 #     Giulia, Laura e membri.admin);
 #   - ruoli del client `realm-management` degli amministratori di test (Q-671): il partialImport non li porta in modo
-#     affidabile, quindi si assegnano con l'API e si rileggono.
+#     affidabile, quindi si assegnano con l'API e si rileggono;
+#   - SOLO con MASTER_FRONTEND_URL (nel codespace, Q-670): attributo `frontendUrl` del realm master = indirizzo privato
+#     della porta 8180, cosi' la console e il login di `master` vivono solo li' (hostname v2: il `frontendUrl` del realm
+#     ha la precedenza sull'indirizzo di frontend; senza KC_HOSTNAME_ADMIN anche su quello di amministrazione). E'
+#     l'ULTIMA scrittura: da quel momento Keycloak si aspetta token di `master` emessi con il nuovo indirizzo, quindi il
+#     token in uso non e' piu' valido e la verifica rilegge con un token nuovo. Un rifiuto di Keycloak e' un errore.
 # `--import-realm` salta un realm gia' esistente, quindi gli overlay non si applicherebbero da soli: vetrina.sh ricrea il
 # database di Keycloak a ogni avvio (Q-672) e poi esegue questo script. Lo script e' idempotente, non tocca flussi di
 # autenticazione e azioni richieste del realm, e non stampa mai una credenziale: le password e il seme TOTP di prova
@@ -31,7 +36,9 @@
 #   KC_BOOTSTRAP_ADMIN_PASSWORD=... ./apply-overlay.sh --check-operators
 #                                                           solo lettura: fallisce se un account operatore non ha
 #                                                           MFA_REQUIRED_ROLE; da rieseguire dopo ogni account creato
-# Opzionali: KEYCLOAK_URL (default http://localhost:8080), KC_BOOTSTRAP_ADMIN_USERNAME (default admin).
+# Opzionali: KEYCLOAK_URL (default http://localhost:8080), KC_BOOTSTRAP_ADMIN_USERNAME (default admin),
+# MASTER_FRONTEND_URL (https://<codespace>-8180.<dominio di inoltro>, senza percorso: lo passa vetrina.sh nel codespace;
+# vuota = il realm master non riceve il frontendUrl).
 set -euo pipefail
 
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
@@ -43,6 +50,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OVERLAY="${OVERLAY:-$HERE/realm-vetrina-overlay.json}"
 MEMBERS_OVERLAY="${MEMBERS_OVERLAY:-$HERE/realm-members-vetrina-overlay.json}"
 MASTER_OVERLAY="${MASTER_OVERLAY:-$HERE/master.json}"
+MASTER_FRONTEND_URL="${MASTER_FRONTEND_URL:-}"
 
 # Impostazioni dei realm che gli overlay possono contenere (allowlist: una chiave fuori elenco e' un errore).
 # check-realm.mjs verifica che gli elenchi coincidano con le chiavi dei file.
@@ -90,6 +98,11 @@ for arg in "$@"; do
 done
 
 command -v python3 >/dev/null || { echo "Errore: serve python3." >&2; exit 1; }
+# L'indirizzo privato della console master (Q-670): solo https, nome DNS minuscolo, porta facoltativa, nessun percorso.
+if [ -n "$MASTER_FRONTEND_URL" ] && ! [[ "$MASTER_FRONTEND_URL" =~ ^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$ ]]; then
+  echo "Errore: MASTER_FRONTEND_URL deve essere https://<nome DNS>[:porta], senza percorso." >&2
+  exit 1
+fi
 if [ "$MODE" != "check" ]; then
   command -v curl >/dev/null || { echo "Errore: serve curl." >&2; exit 1; }
   if [ -z "${ADMIN_PASSWORD}" ]; then
@@ -259,7 +272,7 @@ write("mem-expected-users.json", mem_expected)
 ms = load(master_file, "master")
 unknown = sorted(set(ms) - master_settings)
 if unknown:
-    sys.exit("Errore: chiavi non ammesse in master.json (niente utenti, client o frontendUrl): " + ", ".join(unknown))
+    sys.exit("Errore: chiavi non ammesse in master.json (niente utenti, client o frontendUrl: quest'ultimo e' dinamico e viene da MASTER_FRONTEND_URL, Q-670): " + ", ".join(unknown))
 if not (ms.get("bruteForceProtected") is True and ms.get("adminEventsEnabled") is True and ms.get("adminEventsDetailsEnabled") is True
         and ms.get("sslRequired") in ("external", "all") and ms.get("passwordPolicy")):
     sys.exit("Errore: master.json deve attivare blocco dei tentativi, eventi di amministrazione con dettagli, sslRequired external e una politica delle password")
@@ -279,16 +292,21 @@ printf '%s' "$ADMIN_USER" | urlenc >> "$WORK/login"
 printf '&password=' >> "$WORK/login"
 printf '%s' "$ADMIN_PASSWORD" | urlenc >> "$WORK/login"
 chmod 600 "$WORK/login"
-TOKEN="$(curl -sS -f -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
-  -H 'Content-Type: application/x-www-form-urlencoded' --data-binary "@$WORK/login" \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')" || {
-  echo "Errore: impossibile ottenere il token di amministrazione da ${KEYCLOAK_URL}." >&2
-  exit 1
+# La password resta solo nel file 0600 $WORK/login (rimosso all'uscita): serve a ripetere il login dopo il frontendUrl.
+fetch_token() {
+  local token
+  token="$(curl -sS -f -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+    -H 'Content-Type: application/x-www-form-urlencoded' --data-binary "@$WORK/login" \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')" || {
+    echo "Errore: impossibile ottenere il token di amministrazione da ${KEYCLOAK_URL}." >&2
+    exit 1
+  }
+  # Il token sta in un file 0600 e si passa con -H @file: non compare negli argomenti dei processi (curl >= 7.55).
+  printf 'Authorization: Bearer %s\n' "$token" > "$WORK/auth"
+  chmod 600 "$WORK/auth"
 }
-# Il token sta in un file 0600 e si passa con -H @file: non compare negli argomenti dei processi (curl >= 7.55).
-printf 'Authorization: Bearer %s\n' "$TOKEN" > "$WORK/auth"
-chmod 600 "$WORK/auth"
-unset TOKEN ADMIN_PASSWORD
+fetch_token
+unset ADMIN_PASSWORD
 KC_ROOT="${KEYCLOAK_URL}/admin/realms"
 
 # GET dell'API di amministrazione di un realm: kc_get_r <realm> <percorso> <file di uscita> [opzioni di curl...]
@@ -565,6 +583,43 @@ if [ "$TEST_USERS" = 1 ]; then
   apply_users "$MEMBERS_REALM" mem
 else
   echo "Utenti di test del realm ${MEMBERS_REALM}: saltati (--no-test-users)."
+fi
+
+# 10. frontendUrl del realm master (Q-670, ADR-051 decisione 8), solo nel codespace e SEMPRE per ultimo: dopo la modifica
+#     Keycloak verifica i token di `master` con l'indirizzo nuovo, quindi il token in uso smette di valere. Si unisce
+#     l'attributo a quelli esistenti (nessun altro attributo si perde), si controlla il codice del PUT e si rilegge il
+#     realm con un token nuovo: se il valore non e' quello atteso, errore (nessun ripiego silenzioso).
+if [ -n "$MASTER_FRONTEND_URL" ]; then
+  echo "Realm master: frontendUrl sull'indirizzo privato della console (Q-670)..."
+  kc_get_r master "" "$WORK/master-fe-before.json" || { echo "Errore: realm master non leggibile." >&2; exit 1; }
+  python3 - "$WORK/master-fe-before.json" "$MASTER_FRONTEND_URL" "$WORK/master-fe-put.json" <<'PY'
+import json, sys
+realm = json.load(open(sys.argv[1]))
+attrs = dict(realm.get("attributes") or {})
+attrs["frontendUrl"] = sys.argv[2]
+realm["attributes"] = attrs
+json.dump(realm, open(sys.argv[3], "w"))
+PY
+  chmod 600 "$WORK/master-fe-put.json"
+  code="$(curl -sS -o "$WORK/master-fe-result.json" -w '%{http_code}' -X PUT "${KC_ROOT}/master" \
+    -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/master-fe-put.json")"
+  if [ "$code" != "204" ] && [ "$code" != "200" ]; then
+    echo "Errore: Keycloak ha rifiutato il frontendUrl del realm master (${code}): $(head -c 300 "$WORK/master-fe-result.json"). Ripiego dichiarato in Q-670: console master solo dal terminale del codespace." >&2
+    exit 1
+  fi
+  fetch_token
+  kc_get_r master "" "$WORK/master-fe-after.json" || { echo "Errore: dopo il frontendUrl il realm master non e' leggibile con un token nuovo." >&2; exit 1; }
+  python3 - "$WORK/master-fe-after.json" "$MASTER_FRONTEND_URL" "$WORK/master-fe-before.json" <<'PY'
+import json, sys
+after, want, before = json.load(open(sys.argv[1])), sys.argv[2], json.load(open(sys.argv[3]))
+got = (after.get("attributes") or {}).get("frontendUrl")
+if got != want:
+    sys.exit(f"Errore: frontendUrl del realm master e' {got!r}, atteso {want!r}")
+lost = sorted(set((before.get("attributes") or {})) - set(after.get("attributes") or {}))
+if lost:
+    sys.exit("Errore: attributi del realm master persi dopo il PUT: " + ", ".join(lost))
+print("  verifica: frontendUrl del realm master = " + got)
+PY
 fi
 
 echo "Overlay di vetrina applicato ai realm master, ${REALM} e ${MEMBERS_REALM}."

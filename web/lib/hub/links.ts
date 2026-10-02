@@ -5,6 +5,9 @@ export const REPO_URL = "https://github.com/peppe-ruv/Loyalty_Sys";
 /** docs/11 §3 "Kafka su Aiven": come riaccendere il cluster gratuito. */
 export const KAFKA_RESTART_DOCS_URL = `${REPO_URL}/blob/main/docs/11-DEPLOY-COSTO-ZERO.md#3-kafka-su-aiven-unica-parte-manuale`;
 
+/** Guida della vetrina Enterprise su Mintlify (HUB-01, ADR-051): accensione, credenziali di test, console di Keycloak. */
+export const VETRINA_GUIDE_URL = "https://poc-0ae60636.mintlify.app/concetti/vetrina-enterprise";
+
 /** Motivi (chiusi, senza il valore) per cui `LH_HUB_ENTERPRISE_URL` è rifiutata. */
 export type EnterpriseUrlProblem = "non_url" | "schema" | "credenziali" | "host_vuoto" | "percorso" | "query_o_fragment";
 

@@ -11,6 +11,7 @@ import {
 import { checkCsrf, csrfTokenFor } from "./csrf";
 import { open, randomId, seal } from "./crypto";
 import { InvalidLogoutTokenError, LogoutKeysUnavailableError, verifyLogoutToken } from "./logoutToken";
+import { testUsernamesFor } from "@/lib/hub/testUsers";
 import { LoginRejectedError, redirectUri, type LoginChecks } from "./oidc";
 import { safeReturnTo } from "./returnTo";
 import { effectiveRole, rolesFromClaim, sessionKind, TEST_USER_ROLE } from "./roles";
@@ -32,13 +33,26 @@ interface AuthFlow extends LoginChecks {
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
+/**
+ * `login_hint` (HUB-02, ADR-051, Q-676): lo username già scritto nel form dell'IdP, con `prompt=login` (innocuo: Keycloak
+ * NON autentica un altro utente sopra una sessione SSO esistente, perciò con una sessione aperta HUB-02 offre l'uscita
+ * al posto dell'ingresso, vedi `TestUsers`). Ammesso SOLO con `testUsersAllowed` e solo per gli username di test noti del
+ * realm di questo BFF; qualunque altro valore si ignora in silenzio (mai un hint arbitrario verso l'IdP).
+ */
+export function loginHintParams(bff: Bff, raw: string | null): Record<string, string> | undefined {
+  if (raw === null || !bff.cfg.testUsersAllowed) return undefined;
+  if (!testUsernamesFor(bff.realm).includes(raw)) return undefined;
+  return { login_hint: raw, prompt: "login" };
+}
+
 /** `GET /api/auth/login?returnTo=`: avvia Authorization Code + PKCE, con state e nonce in un cookie cifrato. */
 export async function handleLogin(req: NextRequest, bff: Bff): Promise<NextResponse> {
   const returnTo = safeReturnTo(req.nextUrl.searchParams.get("returnTo"));
+  const extra = loginHintParams(bff, req.nextUrl.searchParams.get("login_hint"));
   const flow: AuthFlow = { state: randomId(), nonce: randomId(), codeVerifier: randomId(), returnTo, startedAt: nowSeconds() };
   let authorizationUrl: URL;
   try {
-    authorizationUrl = await bff.oidc.authorizationUrl(flow);
+    authorizationUrl = await (extra ? bff.oidc.authorizationUrl(flow, extra) : bff.oidc.authorizationUrl(flow));
   } catch (err) {
     console.error("login: discovery dell'IdP non riuscita", errorName(err));
     return failure(bff, "idp_unavailable", returnTo);

@@ -16,13 +16,18 @@ import {
   type TileState,
 } from "@/lib/hub/enterpriseStatus";
 import { REPO_URL } from "@/lib/hub/links";
+import type { TestMode } from "@/lib/hub/testMode";
 import { it } from "@/lib/i18n/it";
 import { AutoRetryNote, RefreshStatusButton } from "./RefreshStatus";
+import { TestEnvironmentBanner, TestUsers } from "./TestUsers";
 
 // HUB-02 — Demo Hub nel profilo enterprise (docs/18 §5, ADR-049, F2-DIST-09, M8.14 V5). Server component: nessuna
 // chiamata a `/api/persona` né a `/v1/demo/personas`, nessun «Accendi la demo» (niente servizi addormentati nella
 // vetrina). Al posto delle persone il login OIDC del BFF (`/api/auth/login`); il portale membri resta senza ingresso
 // finché Q-619 non lo apre. Il ritorno alla demo viene da `LH_HUB_DEMO_URL`, validata lato server (`demoHubUrl`).
+// Ambiente di test dichiarato (`testMode` non nullo: LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test, Q-676): in più il
+// banner «credenziali pubbliche» e, al posto dei due ingressi generici, le schede degli utenti di test (ADR-051, Q-673).
+// Altrove la pagina resta quella di sempre, con il solo login.
 // SPEC-GAP: Q-641 — «stato migrazioni» di docs/18 §5 non mostrato: nessuna API lo espone (la tessera `hub` è attiva
 // solo dopo le migrazioni applicate all'avvio).
 
@@ -265,21 +270,24 @@ export function EnterpriseHub({
   demoUrl,
   user,
   load,
+  testMode = null,
 }: {
   demoUrl: string | null;
   user: Pick<SessionUser, "username" | "name"> | null;
   load?: () => Promise<EnterpriseStatus>;
+  testMode?: TestMode | null;
 }) {
   return (
     <div className="mx-auto min-h-dvh max-w-5xl px-4 pb-16 pt-10">
       <EnterpriseHubHeader demoUrl={demoUrl} />
       <ShowcaseBanner />
+      {testMode ? <TestEnvironmentBanner /> : null}
       <div className="mb-8">
         <Suspense fallback={<EnterpriseStatusSkeleton />}>
           <EnterpriseStatusPanel load={load} />
         </Suspense>
       </div>
-      <EnterpriseEntrances user={user} />
+      {testMode ? <TestUsers mode={testMode} user={user} /> : <EnterpriseEntrances user={user} />}
     </div>
   );
 }

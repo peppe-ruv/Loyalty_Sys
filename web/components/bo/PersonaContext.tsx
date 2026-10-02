@@ -14,6 +14,12 @@ export interface BoPersona {
   role: Role;
   /** Profilo dell'installazione; assente = `demo`. */
   mode?: "demo" | "enterprise";
+  /**
+   * Console Keycloak del realm dei membri (ADR-051 decisione 7), solo per ADMIN e CARE in enterprise con il realm dei
+   * membri configurato; `null` o assente = nessuna voce «Utenti membri». Arriva dal layout server come prop, mai da
+   * NEXT_PUBLIC.
+   */
+  memberUsersUrl?: string | null;
 }
 
 const PersonaContext = createContext<BoPersona>({

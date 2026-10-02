@@ -1,6 +1,8 @@
 // Navigazione del backoffice (docs/08 §1). Ogni voce ha la milestone in cui compare: una voce la cui
 // milestone non è ancora realizzata NON compare nella sidebar (mai pagine "in arrivo").
 
+import type { Role } from "@/lib/persona/personas";
+
 export interface NavItem {
   id: string; // BO-xx
   label: string;
@@ -115,4 +117,17 @@ export function activeHref(pathname: string, groups: NavGroup[] = visibleNav()):
     if (match && (best === null || item.href.length > best.length)) best = item.href;
   }
   return best;
+}
+
+/**
+ * Voce esterna «Utenti membri» (ADR-051 decisione 7, docs/08 §1): collegamento alla console Keycloak del realm dei
+ * membri, nel gruppo *Clienti* subito dopo *Membri* (BO-02). NON è una schermata del backoffice, quindi non sta in
+ * `NAV` (niente milestone, niente ID BO) e non rientra nella regola «nessuna pagina in arrivo». Compare solo per
+ * questi ruoli e solo se il layout ha un indirizzo (enterprise con il realm dei membri configurato).
+ */
+export const MEMBER_USERS_AFTER = "BO-02";
+export const MEMBER_USERS_ROLES: readonly Role[] = ["ADMIN", "CARE"];
+
+export function canSeeMemberUsers(role: Role): boolean {
+  return MEMBER_USERS_ROLES.includes(role);
 }

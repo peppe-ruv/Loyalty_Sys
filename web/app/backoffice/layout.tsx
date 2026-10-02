@@ -6,7 +6,9 @@ import { PersonaProvider, type BoPersona } from "@/components/bo/PersonaContext"
 import { AccessDenied } from "@/components/shared/auth/AccessDenied";
 import { LoginRedirect } from "@/components/shared/auth/LoginRedirect";
 import { LogoutButton } from "@/components/shared/auth/LogoutButton";
+import { memberConsoleUrl } from "@/lib/auth/idpConsole";
 import { getViewer } from "@/lib/auth/viewer";
+import { canSeeMemberUsers } from "@/lib/nav";
 import { PERSONA_COOKIE, parsePersona } from "@/lib/persona/cookie";
 import {
   DEFAULT_BACKOFFICE_USERNAME,
@@ -33,13 +35,15 @@ export default async function BackofficeLayout({ children }: { children: React.R
   } else {
     persona = await demoPersona();
   }
+  // «Utenti membri» (ADR-051 dec. 7): console del realm dei membri, solo ADMIN e CARE in enterprise con quel realm.
+  const memberUsersUrl = viewer.mode === "enterprise" && canSeeMemberUsers(persona.role) ? memberConsoleUrl() : null;
   const initials = persona.displayName
     .split(" ")
     .map((w) => w[0])
     .join("");
 
   return (
-    <PersonaProvider value={{ username: persona.username, displayName: persona.displayName, role: persona.role, mode: viewer.mode }}>
+    <PersonaProvider value={{ username: persona.username, displayName: persona.displayName, role: persona.role, mode: viewer.mode, memberUsersUrl }}>
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">

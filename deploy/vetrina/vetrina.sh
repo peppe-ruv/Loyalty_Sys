@@ -64,7 +64,9 @@ SECRET_ENV=(LH_DB_PASSWORD LH_IDP_DB_PASSWORD LH_IDP_ADMIN_PASSWORD LH_WEB_CLIEN
 # Porte del proxy nel codespace (Q-661): HTTP in chiaro su loopback, l'inoltro di GitHub le pubblica in https.
 CODESPACE_WEB_PORT=8000
 CODESPACE_IDP_PORT=8001
-# Console di Keycloak nel codespace: porta 8180 con inoltro privato (solo il proprietario, accesso con GitHub).
+# Console del realm `master` nel codespace: porta 8180 con inoltro privato (solo il proprietario, accesso con GitHub).
+# Il suo indirizzo e' l'attributo `frontendUrl` del realm master (Q-670, ADR-051 decisione 8); le console dei realm
+# `loyaltyhub` e `loyaltyhub-members` stanno invece sull'indirizzo pubblico della porta 8001.
 CODESPACE_ADMIN_PORT=8180
 # Volumi azzerati ogni settimana (Q-624). I volumi del proxy (certificati ACME) restano.
 RESET_VOLUMES=(lh-ref-postgres lh-ref-kafka)
@@ -128,7 +130,7 @@ validate_config() {
     [[ "$LH_VETRINA_WEB_HOST" == *"-$CODESPACE_WEB_PORT."* ]] || usage_error "LH_VETRINA_WEB_HOST nel codespace è <nome>-$CODESPACE_WEB_PORT.<dominio di inoltro>"
     [[ "$LH_VETRINA_IDP_HOST" == *"-$CODESPACE_IDP_PORT."* ]] || usage_error "LH_VETRINA_IDP_HOST nel codespace è <nome>-$CODESPACE_IDP_PORT.<dominio di inoltro>"
     [[ "${LH_VETRINA_ADMIN_HOST:-}" =~ $host_re ]] && [[ "$LH_VETRINA_ADMIN_HOST" == *"-$CODESPACE_ADMIN_PORT."* ]] \
-      || usage_error "LH_VETRINA_ADMIN_HOST nel codespace è <nome>-$CODESPACE_ADMIN_PORT.<dominio di inoltro> (console di Keycloak)"
+      || usage_error "LH_VETRINA_ADMIN_HOST nel codespace è <nome>-$CODESPACE_ADMIN_PORT.<dominio di inoltro> (frontendUrl del realm master, Q-670)"
   else
     case "$LH_VETRINA_PUBLIC_ADDRESS" in
       0.0.0.0|127.*) usage_error "LH_VETRINA_PUBLIC_ADDRESS non può essere 0.0.0.0 né loopback: indica l'indirizzo dell'interfaccia dell'host" ;;
@@ -159,7 +161,13 @@ compose() {
   local unset_args=() v
   for v in "${SECRET_ENV[@]}"; do unset_args+=(-u "$v"); done
   local files=(-f "$REFERENCE" -f "$OVERLAY")
-  [ "${LH_VETRINA_MODE:-host}" = codespace ] && files+=(-f "$CODESPACE_OVERLAY")
+  # Nel codespace KC_HOSTNAME_ADMIN non si imposta (Q-670, opzione A): l'overlay lo toglie con un valore nullo, che
+  # Compose risolverebbe dall'ambiente del processo; lo si toglie anche da li' perche' una variabile esportata a mano
+  # non riporti la console dei due realm sull'indirizzo privato.
+  if [ "${LH_VETRINA_MODE:-host}" = codespace ]; then
+    files+=(-f "$CODESPACE_OVERLAY")
+    unset_args+=(-u KC_HOSTNAME_ADMIN)
+  fi
   # Utenti di test (Q-676, ADR-051): hub e web li accettano solo con LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test,
   # che passano soltanto alla vetrina dentro un GitHub Codespace (CODESPACES=true, impostata da GitHub). Altrove le due
   # variabili sono forzate a vuoto, anche se esportate a mano: un utente con LH_TEST_USER resta rifiutato.
@@ -481,7 +489,8 @@ cmd_codespace() {
   # sono ancora li registra avvio.sh dopo averle pubblicate. Un errore qui non ferma l'avvio: avvio.sh lo ripete e lo dice.
   cmd_membri --if-reachable || echo "Avviso: membri di test non registrati (messaggio sopra); li riprova avvio.sh, oppure: vetrina.sh membri" >&2
   info "web: https://$LH_VETRINA_WEB_HOST · Keycloak: https://$LH_VETRINA_IDP_HOST (porte $CODESPACE_WEB_PORT e $CODESPACE_IDP_PORT pubbliche, Q-661)"
-  info "console di Keycloak: https://$LH_VETRINA_ADMIN_HOST/admin/ (porta $CODESPACE_ADMIN_PORT privata: solo il proprietario del codespace; utente admin, password in $LH_VETRINA_DIR/secrets/idp-admin-password)"
+  info "console dei realm (pubbliche, ADR-051 decisione 8): https://$LH_VETRINA_IDP_HOST/admin/loyaltyhub/console/ e https://$LH_VETRINA_IDP_HOST/admin/loyaltyhub-members/console/ (utenti vetrina.admin e membri.admin, credenziali nel runbook)"
+  info "console del realm master (Q-670): https://$LH_VETRINA_ADMIN_HOST/admin/master/console/ (porta $CODESPACE_ADMIN_PORT privata: solo il proprietario del codespace; utente admin, password in $LH_VETRINA_DIR/secrets/idp-admin-password)"
   info "passo interattivo rimasto, se il programma è vuoto: vetrina.sh programma (Q-630)"
 }
 
@@ -496,7 +505,11 @@ apply_realm_overlay() {
   test_users_allowed || args+=(--no-test-users)
   IFS= read -r pw < "$LH_VETRINA_DIR/secrets/idp-admin-password" || [ -n "$pw" ]
   # La password va solo nell'ambiente del processo figlio (mai negli argomenti, mai stampata).
-  KC_BOOTSTRAP_ADMIN_PASSWORD="$pw" KEYCLOAK_URL="$KEYCLOAK_LOCAL" \
+  # Nel codespace il realm master riceve come frontendUrl l'indirizzo privato della porta 8180 (Q-670): l'indirizzo e'
+  # dinamico, quindi lo si passa qui e non sta in master.json. Altrove la variabile e' vuota e il realm non si tocca.
+  local master_frontend=""
+  [ "${LH_VETRINA_MODE:-host}" = codespace ] && master_frontend="https://$LH_VETRINA_ADMIN_HOST"
+  MASTER_FRONTEND_URL="$master_frontend" KC_BOOTSTRAP_ADMIN_PASSWORD="$pw" KEYCLOAK_URL="$KEYCLOAK_LOCAL" \
     "$REPO_ROOT/deploy/idp/vetrina/apply-overlay.sh" ${args[@]+"${args[@]}"}
 }
 
