@@ -19,7 +19,8 @@ function sources(dir: string): string[] {
   });
 }
 
-const isClient = (src: string) => /^\s*(?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*["']use client["']/.test(src);
+// Direttiva su una riga propria (in testa al file, dopo eventuali commenti): niente regex con ripetizioni annidate.
+const isClient = (src: string) => /^["']use client["'];?\s*$/m.test(src);
 
 /** Specificatori di importo di valore (non `import type`) di un file. */
 function valueImports(src: string): string[] {

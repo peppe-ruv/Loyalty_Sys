@@ -16,7 +16,7 @@ import { it } from "@/lib/i18n/it";
 // rende `EnterpriseNotConfigured` e questo componente non viene montato.
 // Dopo il proprio POST GitHub può dire «spento» per qualche secondo: per 90 s si tratta come «in accensione» e si continua
 // a leggere; il polling ha un tetto di 10 minuti, poi errore con «Riprova».
-// SPEC-GAP: Q-716 — lo stato «Quasi pronta» (vetrina accesa ma IdP non ancora pronto) del mockup non c'è: da Vercel non si
+// SPEC-GAP: Q-721 — lo stato «Quasi pronta» (vetrina accesa ma IdP non ancora pronto) del mockup non c'è: da Vercel non si
 // rileva (l'unica destinazione in uscita è GitHub e il CORS blocca una sonda dal browser); «accesa» porta alla vetrina,
 // che mostra già lo stato dei suoi componenti (HUB-02).
 

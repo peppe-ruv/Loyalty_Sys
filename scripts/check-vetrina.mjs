@@ -605,14 +605,14 @@ test('Caddyfile del codespace: niente ACME, instradamento per porta; Keycloak co
 });
 
 // Prova vera con Caddy (se c'e' un binario `caddy` nel PATH, come nell'immagine del proxy): il Caddyfile del codespace con
-// gli upstream puntati a un server finto che risponde "UP <percorso ricevuto>". Casi di Q-670: maiuscole, codifiche,
+// gli upstream puntati a un server finto che risponde "UP" e registra il percorso ricevuto. Casi di Q-670: maiuscole, codifiche,
 // doppie barre, `..`, `;`, doppia codifica.
 test('Caddyfile del codespace con Caddy: master e trucchi di percorso 404, solo i percorsi permessi arrivano a Keycloak (Q-670)', { skip: !has('caddy') && 'caddy assente (provato a mano con Caddy 2.11.4, vedi runbook)' }, async () => {
   const net = await import('node:net');
   const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); }); });
   const [upPort, webPort, idpPort] = [await freePort(), await freePort(), await freePort()];
   const received = [];
-  const upstream = http.createServer((req, res) => { received.push(req.url); res.end(`UP ${req.url}`); });
+  const upstream = http.createServer((req, res) => { received.push(req.url); res.end('UP'); });
   await new Promise((r) => upstream.listen(upPort, '127.0.0.1', r));
   const d = tmp();
   const cfg = path.join(d, 'Caddyfile');

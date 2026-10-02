@@ -139,7 +139,7 @@ flowchart TD
 5. **Gestisci gli utenti membri.** Nel backoffice, `ADMIN` e `CARE` hanno la voce **Utenti membri**, che apre la console del realm `loyaltyhub-members`.
 
 <Note>
-**Per il proprietario: accendere il pulsante.** Il riquadro compare solo se nel progetto Vercel della demo sono impostate `LH_HUB_ENTERPRISE_URL` e due variabili segrete: `LH_VETRINA_CODESPACE` (il nome del codespace) e `LH_VETRINA_GITHUB_TOKEN`. Il token è *fine-grained*, limitato al repository Loyalty_Sys, con i soli permessi «Codespaces» in lettura (per leggere lo stato) e «Codespaces lifecycle admin» in scrittura (per avviare) e una scadenza di al massimo un anno (Q-674, Q-715). Lo imposta il proprietario; non va mai nel browser né nei log, e il server della demo lo usa solo verso `api.github.com`. Senza le variabili il riquadro mostra «Disponibile su richiesta». I passi sono nel runbook `deploy/vetrina/README.md`.
+**Per il proprietario: accendere il pulsante.** Il riquadro compare solo se nel progetto Vercel della demo sono impostate `LH_HUB_ENTERPRISE_URL` e due variabili segrete: `LH_VETRINA_CODESPACE` (il nome del codespace) e `LH_VETRINA_GITHUB_TOKEN`. Il token è *fine-grained*, limitato al repository Loyalty_Sys, con i soli permessi «Codespaces» in lettura (per leggere lo stato) e «Codespaces lifecycle admin» in scrittura (per avviare) e una scadenza di al massimo un anno (Q-674, Q-720). Lo imposta il proprietario; non va mai nel browser né nei log, e il server della demo lo usa solo verso `api.github.com`. Senza le variabili il riquadro mostra «Disponibile su richiesta». I passi sono nel runbook `deploy/vetrina/README.md`.
 </Note>
 
 ### Console di Keycloak
