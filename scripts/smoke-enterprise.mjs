@@ -529,7 +529,7 @@ async function freshTotp(ctx, seed, lastCounter) {
  * Login come lo fa un browser: /api/auth/login del BFF → pagine di Keycloak (credenziali, eventuali azioni richieste
  * e OTP) → /api/auth/callback del BFF. Restituisce il cookie jar con la sessione e i passi attraversati.
  */
-export async function oidcLogin(ctx, { web, username, password }) {
+export async function oidcLogin(ctx, { web, username, password, allowRejected = false }) {
   const jar = new CookieJar();
   const start = await http(ctx, `${web}/api/auth/login?returnTo=${encodeURIComponent('/backoffice')}`, { jar });
   expect(isRedirect(start.status), `login di ${username}: /api/auth/login HTTP ${start.status}`);
@@ -547,6 +547,7 @@ export async function oidcLogin(ctx, { web, username, password }) {
         const cb = await http(ctx, loc.href, { jar });
         expect(isRedirect(cb.status), `login di ${username}: callback del BFF HTTP ${cb.status}${problemCode(cb)}`);
         const target = new URL(cb.headers.get('location'), web);
+        if (allowRejected && target.pathname === '/auth/error') return { jar, steps, rejected: target.searchParams.get('reason') ?? 'motivo non indicato' };
         expect(target.pathname !== '/auth/error', `login di ${username}: rifiutato dal BFF (${target.searchParams.get('reason') ?? 'motivo non indicato'})`);
         expect(jar.get(web, SESSION_COOKIE) && jar.get(web, CSRF_COOKIE), `login di ${username}: il BFF non ha aperto la sessione`);
         return { jar, steps };
@@ -666,7 +667,14 @@ async function checkCompose(ctx, opts) {
   ctx.ok(`GET /v1/audit: voce CREATE di REWARD_CATEGORY ${code} con attore reale ${opts.operator}`);
 
   if (opts.member) {
-    const member = await oidcLogin(ctx, { web, username: opts.member, password: readCredentials(opts.memberCredentials, opts.member) });
+    const member = await oidcLogin(ctx, { web, username: opts.member, password: readCredentials(opts.memberCredentials, opts.member), allowRejected: true });
+    // Con il realm dei membri (ADR-051) il BFF rifiuta già al callback un account di soli membri sul login del
+    // backoffice: nessuna sessione si apre. Con un solo realm la sessione si apre e le API rispondono 403.
+    if (member.rejected) {
+      expect(!member.jar.get(web, SESSION_COOKIE), `login di ${opts.member}: rifiutato ma con la sessione aperta`);
+      ctx.ok(`login OIDC reale del membro di prova ${opts.member} sul backoffice: rifiutato dal BFF (${member.rejected}), nessuna sessione`);
+      return;
+    }
     const res = await http(ctx, categories, { jar: member.jar });
     expect(res.status === 403 && problemCode(res) === ' FORBIDDEN_ROLE', `membro sulle API del backoffice: HTTP ${res.status}${problemCode(res)}, atteso 403 FORBIDDEN_ROLE`);
     ctx.ok(`login OIDC reale del membro di prova ${opts.member}; API del backoffice → 403 FORBIDDEN_ROLE`);
