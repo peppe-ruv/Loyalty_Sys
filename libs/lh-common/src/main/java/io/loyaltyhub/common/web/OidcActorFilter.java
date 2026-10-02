@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import io.loyaltyhub.common.config.IdentityGuard;
 import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -28,6 +29,11 @@ import java.util.List;
  * Un token di sola fonte ({@code SOURCE}, Q-492) vale soltanto sull'ingresso di ingestion ({@link #SOURCE_INGRESS_PATHS});
  * altrove, compresi {@code /actuator/metrics}, {@code /actuator/prometheus} e {@code /v3/api-docs}, ⇒ 403.
  * Restano liberi solo i probe {@code /actuator/health} e {@code /actuator/info}.
+ * Con l'emittente dei membri configurato (ADR-051 decisione 6) i ruoli dipendono dall'emittente: un token del realm
+ * dei membri porta solo {@code MEMBER} (altrimenti 401) e un token di solo membro del realm operatori non vale da
+ * nessuna parte (403): il membro entra solo dal suo realm.
+ * Un token con il ruolo {@code LH_TEST_USER} (utenti di test con credenziali pubbliche, ADR-051, Q-676) è rifiutato con
+ * 401 in ogni installazione, salvo con {@code LH_TEST_USERS_ALLOWED=true} in un ambiente dichiarato di test.
  */
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class OidcActorFilter extends OncePerRequestFilter {
@@ -51,11 +57,27 @@ public class OidcActorFilter extends OncePerRequestFilter {
     private final String service;
     private final JwtDecoder decoder;
     private final String rolesClaim;
+    /** Emittente dei membri senza {@code /} finale, o {@code null} con un solo emittente (comportamento di prima). */
+    private final String memberIssuer;
+    /** Utenti di test ammessi: solo con {@code LH_TEST_USERS_ALLOWED=true} e {@code LH_ENVIRONMENT=test} (Q-676). */
+    private final boolean testUsersAllowed;
 
     public OidcActorFilter(String service, JwtDecoder decoder, String rolesClaim) {
+        this(service, decoder, rolesClaim, null);
+    }
+
+    public OidcActorFilter(String service, JwtDecoder decoder, String rolesClaim, String memberIssuer) {
+        this(service, decoder, rolesClaim, memberIssuer, false);
+    }
+
+    public OidcActorFilter(String service, JwtDecoder decoder, String rolesClaim, String memberIssuer,
+                           boolean testUsersAllowed) {
+        this.testUsersAllowed = testUsersAllowed;
         this.service = service;
         this.decoder = decoder;
         this.rolesClaim = rolesClaim;
+        this.memberIssuer = memberIssuer == null || memberIssuer.isBlank() ? null
+                : memberIssuer.trim().replaceAll("/+$", "");
     }
 
     @Override
@@ -81,7 +103,27 @@ public class OidcActorFilter extends OncePerRequestFilter {
         }
         List<String> roles = jwt.hasClaim(rolesClaim) ? jwt.getClaimAsStringList(rolesClaim) : List.of();
         ActorContext actor = ActorContext.fromToken(roles, username(jwt), clientId(jwt));
+        if (!testUsersAllowed && roles.contains(IdentityGuard.TEST_USER_ROLE)) {
+            // Credenziali pubbliche fuori dall'ambiente di test: l'utente non vale, come un token non valido (Q-676).
+            reject(response, 401, "unauthorized", "UNAUTHORIZED", "Serve un access token valido.", request);
+            return;
+        }
         boolean memberOnly = roles.contains(MEMBER_ROLE) && roles.stream().noneMatch(OidcActorFilter::isOperatorRole);
+        if (memberIssuer != null) {
+            String issuer = jwt.getClaimAsString("iss");
+            boolean fromMemberRealm = issuer != null && memberIssuer.equals(issuer.trim().replaceAll("/+$", ""));
+            if (fromMemberRealm && (!roles.contains(MEMBER_ROLE) || roles.stream().anyMatch(r -> !MEMBER_ROLE.equals(r)
+                    && isKnownRole(r)))) {
+                // Il realm dei membri non rilascia ruoli da operatore né SOURCE: un token così non è valido (ADR-051).
+                reject(response, 401, "unauthorized", "UNAUTHORIZED", "Serve un access token valido.", request);
+                return;
+            }
+            if (!fromMemberRealm && memberOnly) {
+                reject(response, 403, "forbidden-role", "FORBIDDEN_ROLE",
+                        "Il token di un membro vale solo se emesso dal realm dei membri.", request);
+                return;
+            }
+        }
         if (memberOnly) {
             if (!path.startsWith("/v1/portal/")) {
                 reject(response, 403, "forbidden-role", "FORBIDDEN_ROLE", "Il token di un membro vale solo per il portale.",
@@ -126,6 +168,15 @@ public class OidcActorFilter extends OncePerRequestFilter {
 
     private static boolean isProbe(String path) {
         return path.equals("/actuator/health") || path.startsWith("/actuator/health/") || path.equals("/actuator/info");
+    }
+
+    private static boolean isKnownRole(String name) {
+        for (Role r : Role.values()) {
+            if (r.name().equals(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isOperatorRole(String name) {

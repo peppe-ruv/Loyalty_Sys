@@ -35,7 +35,44 @@ public final class IdentityGuard {
             throw new IllegalStateException("INSECURE_CONFIG: loyaltyhub.identity.mode=oidc senza emittente "
                     + "(loyaltyhub.identity.issuer-uri / LH_OIDC_ISSUER).");
         }
+        String memberIssuer = env.getProperty(MEMBER_ISSUER_PROPERTY, "").trim();
+        if (!memberIssuer.isEmpty()) {
+            if (mode != IdentityMode.OIDC) {
+                throw new IllegalStateException("INSECURE_CONFIG: LH_OIDC_MEMBER_ISSUER vale solo con "
+                        + "loyaltyhub.identity.mode=oidc (ADR-051).");
+            }
+            if (sameIssuer(memberIssuer, env.getProperty("loyaltyhub.identity.issuer-uri", ""))) {
+                throw new IllegalStateException("INSECURE_CONFIG: LH_OIDC_MEMBER_ISSUER coincide con LH_OIDC_ISSUER: "
+                        + "il realm dei membri deve essere un emittente distinto (ADR-051).");
+            }
+        } else if (!env.getProperty("loyaltyhub.identity.member-jwk-set-uri", "").isBlank()) {
+            throw new IllegalStateException("INSECURE_CONFIG: LH_OIDC_MEMBER_JWKS_URI senza LH_OIDC_MEMBER_ISSUER.");
+        }
+        if (testUsersAllowed(env) && !"test".equals(env.getProperty(ENVIRONMENT_PROPERTY, "").trim())) {
+            throw new IllegalStateException("INSECURE_CONFIG: LH_TEST_USERS_ALLOWED=true vale solo con LH_ENVIRONMENT=test: "
+                    + "gli utenti di test hanno credenziali pubbliche (ADR-051, Q-676).");
+        }
         return mode;
+    }
+
+    /** Ruolo che marca gli utenti di test della vetrina, nel claim dei ruoli del token (ADR-051, Q-676). */
+    public static final String TEST_USER_ROLE = "LH_TEST_USER";
+    public static final String TEST_USERS_ALLOWED_PROPERTY = "loyaltyhub.identity.test-users-allowed";
+    public static final String ENVIRONMENT_PROPERTY = "loyaltyhub.environment";
+
+    /** Vero solo con {@code LH_TEST_USERS_ALLOWED=true}: ogni altro valore, o l'assenza, rifiuta gli utenti di test. */
+    public static boolean testUsersAllowed(Environment env) {
+        return "true".equalsIgnoreCase(env.getProperty(TEST_USERS_ALLOWED_PROPERTY, "").trim());
+    }
+
+    /**
+     * Proprietà dell'emittente dei membri ({@code LH_OIDC_MEMBER_ISSUER}, ADR-051 decisione 6): facoltativa. Se c'è, il
+     * ruolo {@code MEMBER} vale solo dai suoi token e i suoi token portano solo {@code MEMBER}.
+     */
+    public static final String MEMBER_ISSUER_PROPERTY = "loyaltyhub.identity.member-issuer-uri";
+
+    static boolean sameIssuer(String a, String b) {
+        return a.trim().replaceAll("/+$", "").equals(b.trim().replaceAll("/+$", ""));
     }
 
     /** Proprietà con la chiave dello pseudonimo del soggetto ({@code LH_SUBJECT_KEY}, base64, almeno 32 byte; Q-552). */

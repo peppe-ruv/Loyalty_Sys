@@ -276,7 +276,8 @@ public class LhCommonAutoConfiguration {
     /**
      * Attore dal token (ADR-027, M8.2): {@code loyaltyhub.identity.mode=oidc}. Il JWKS è quello dell'emittente
      * (default Keycloak: {@code <issuer>/protocol/openid-connect/certs}); validatori: firma, scadenza, {@code iss},
-     * {@code aud} contenente l'audience dei servizi (default {@code hub}).
+     * {@code aud} contenente l'audience dei servizi (default {@code hub}). Con {@code LH_OIDC_MEMBER_ISSUER} (ADR-051)
+     * un secondo decoder per il realm dei membri, scelto dal {@code iss} del token.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -289,12 +290,25 @@ public class LhCommonAutoConfiguration {
         String jwks = env.getProperty("loyaltyhub.identity.jwk-set-uri", "").trim();
         String audience = env.getProperty("loyaltyhub.identity.audience", "hub").trim();
         String rolesClaim = env.getProperty("loyaltyhub.identity.roles-claim", "lh_roles").trim();
+        org.springframework.security.oauth2.jwt.JwtDecoder decoder = decoder(issuer, jwks, audience);
+        String memberIssuer = env.getProperty(IdentityGuard.MEMBER_ISSUER_PROPERTY, "").trim();
+        if (!memberIssuer.isEmpty()) {
+            // Due realm (ADR-051): ogni token va al decoder del suo emittente, con il JWKS di quel realm.
+            String memberJwks = env.getProperty("loyaltyhub.identity.member-jwk-set-uri", "").trim();
+            decoder = new io.loyaltyhub.common.web.IssuerRoutingJwtDecoder(java.util.Map.of(
+                    issuer, decoder, memberIssuer, decoder(memberIssuer, memberJwks, audience)));
+        }
+        return new io.loyaltyhub.common.web.OidcActorFilter(props.getService(), decoder, rolesClaim, memberIssuer,
+                IdentityGuard.testUsersAllowed(env));
+    }
+
+    private static org.springframework.security.oauth2.jwt.JwtDecoder decoder(String issuer, String jwks, String audience) {
         org.springframework.security.oauth2.jwt.NimbusJwtDecoder decoder =
                 org.springframework.security.oauth2.jwt.NimbusJwtDecoder
                         .withJwkSetUri(jwks.isEmpty() ? issuer.replaceAll("/+$", "") + "/protocol/openid-connect/certs" : jwks)
                         .build();
         decoder.setJwtValidator(IdentityGuard.validator(issuer, audience));
-        return new io.loyaltyhub.common.web.OidcActorFilter(props.getService(), decoder, rolesClaim);
+        return decoder;
     }
 
     /**
