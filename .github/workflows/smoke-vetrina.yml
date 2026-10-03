@@ -1,18 +1,19 @@
 name: smoke-vetrina
 
-# Smoke pianificato contro la vetrina enterprise ospitata (F2-QA-04, F2-DIST-09, ADR-049, M8.14 V6; criterio di
+# Smoke pianificato contro la vetrina enterprise ospitata nel codespace (F2-QA-04, F2-DIST-09, ADR-050, M8.14 V6 e V12; criterio di
 # M8.14: «lo smoke pianificato contro la vetrina, senza credenziali, verifica health, discovery OIDC e HUB-02
 # raggiungibile»). Solo GET e nessuna credenziale né segreto: health del web, HUB-02 con banner e tessere attive,
 # login avviato dal BFF verso il realm `loyaltyhub`, discovery OIDC e JWKS, registrazione chiusa (Q-619), console
 # /admin e realm master non esposti, API del BFF chiuse senza sessione (scripts/smoke-enterprise.mjs vetrina).
 # Con --test-users (ADR-051 decisione 1, M8.14 V8) prova anche i login con le credenziali FISSE e PUBBLICHE degli utenti di
-# test (un operatore con password e seme TOTP documentati; Anna Rossi che apre il profilo del portale): vale solo per una
-# vetrina in un codespace, dove gli utenti di test sono ammessi (Q-676). La variabile del repository LH_VETRINA_TEST_USERS
-# a `false` li salta, per una vetrina su un host fisso (ADR-049), che non ha utenti di test.
+# test (un operatore con password e seme TOTP documentati; Anna Rossi che apre il profilo del portale): la vetrina gira solo
+# in un codespace, dove gli utenti di test sono ammessi (Q-676). La variabile del repository LH_VETRINA_TEST_USERS a
+# `false` li salta.
 #
 # Indirizzo: variabile del repository LH_VETRINA_URL (Settings → Secrets and variables → Actions → Variables), l'origine
 # https del web della vetrina, la stessa di LH_HUB_ENTERPRISE_URL della demo. Vuota = vetrina non ancora online: il
-# job lo dice con un avviso ed esce verde, senza richieste. L'IdP si ricava dal redirect del login.
+# job lo dice con un avviso ed esce verde, senza richieste. Il codespace si spegne da solo (ADR-050): se il web non
+# risponde, lo smoke pianificato salta con un avviso (un avvio manuale lo prova comunque). L'IdP si ricava dal redirect del login.
 # Costo zero: un minuto di Actions ogni sei ore.
 on:
   schedule:
@@ -55,6 +56,32 @@ jobs:
           if [ -z "${LH_VETRINA_URL}" ]; then
             echo "::notice title=Vetrina non configurata::La variabile del repository LH_VETRINA_URL è vuota: la vetrina non è ancora online, smoke saltato (ADR-049, M8.14)."
             exit 0
+          fi
+          # Il codespace si spegne dopo l'inattività e si accende su richiesta (ADR-050, Q-662): lo smoke pianificato
+          # salta solo se la vetrina è davvero irraggiungibile (nessuna risposta, o redirect verso github.com); ogni altro
+          # esito diverso da 200 con `checkedAt` è un errore. Un avvio manuale la prova comunque.
+          if [ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]; then
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${LH_VETRINA_URL}/api/demo/status" || true)"
+            skip=false
+            if [ "$code" = "000" ]; then
+              skip=true
+            elif [[ "$code" == 3* ]]; then
+              location="$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "${LH_VETRINA_URL}/api/demo/status" || true)"
+              case "$location" in https://github.com/*|https://*.github.com/*) skip=true ;; esac
+            fi
+            if [ "$skip" = true ]; then
+              echo "::notice title=Vetrina spenta::Vetrina non raggiungibile: codespace spento o porta non inoltrata (acceso su richiesta, ADR-050, Q-662), smoke saltato."
+              exit 0
+            fi
+            if [ "$code" != "200" ]; then
+              echo "::error title=Vetrina::Il web risponde con il codice $code invece di 200."
+              exit 1
+            fi
+            body="$(curl -s --max-time 20 "${LH_VETRINA_URL}/api/demo/status")"
+            if ! grep -q checkedAt <<<"$body"; then
+              echo "::error title=Vetrina::La risposta di /api/demo/status non contiene checkedAt."
+              exit 1
+            fi
           fi
           test_users=--test-users
           if [ "${LH_VETRINA_TEST_USERS}" = "false" ]; then test_users=; fi

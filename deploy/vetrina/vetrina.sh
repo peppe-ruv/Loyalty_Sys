@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Vetrina enterprise ospitata: comandi dell'host (F2-DIST-03, F2-DIST-09, ADR-049, ADR-050, M8.14 V3 e V7; Q-616,
-# Q-620, Q-621, Q-624, Q-660…Q-663).
+# Vetrina enterprise ospitata: comandi del codespace (F2-DIST-03, F2-DIST-09, ADR-049, ADR-050, ADR-051, M8.14 V3, V7 e
+# V12; Q-616, Q-621, Q-624, Q-660…Q-663).
 #
-# Avvia il compose di riferimento con l'overlay di vetrina (deploy/vetrina/compose.vetrina.yml). Due modalità
-# (LH_VETRINA_MODE): `host`, un host fisso con il proxy ACME sulle porte 80 e 443 (ADR-049, arm64 per default), e
-# `codespace`, un GitHub Codespace acceso su richiesta (ADR-050) con l'overlay deploy/vetrina/compose.codespace.yml:
-# niente ACME, il TLS lo termina l'inoltro delle porte di GitHub. Runbook completo: deploy/vetrina/README.md.
+# Avvia il compose di riferimento con gli overlay di vetrina (deploy/vetrina/compose.vetrina.yml e
+# deploy/vetrina/compose.codespace.yml) in un GitHub Codespace acceso su richiesta (ADR-050): il TLS lo termina
+# l'inoltro delle porte di GitHub. È l'unica modalità (ADR-051 decisione 5): `LH_VETRINA_MODE=codespace` resta ammessa
+# nei file di configurazione già scritti (regola 14), ogni altro valore è rifiutato. Runbook: deploy/vetrina/README.md.
 #
 #   vetrina.sh codespace            solo nel codespace (Q-663, ADR-051): scrive la configurazione dall'ambiente del
 #                                   codespace, provisioning, controlli, database di Keycloak RICREATO DA ZERO (Q-672),
@@ -14,12 +14,12 @@
 #
 #   vetrina.sh provision            segreti, CA locale e certificati di Postgres e Kafka (idempotente, regola 20)
 #   vetrina.sh preflight [--offline]
-#                                   controlli prima dell'avvio: configurazione, architettura arm64 dell'host e delle
-#                                   immagini, permessi dei segreti, certificati, nessun segreto nell'ambiente
+#                                   controlli prima dell'avvio: configurazione, architettura dell'host e delle immagini,
+#                                   permessi dei segreti, certificati, nessun segreto nell'ambiente
 #   vetrina.sh up                   preflight e avvio (docker compose up -d --wait)
 #   vetrina.sh down                 arresto, volumi conservati
-#   vetrina.sh reset                azzeramento settimanale (Q-624): volumi di Postgres e Kafka ricreati, realm
-#                                   reimportato, overlay del realm, account operatore; nessun backup
+#   vetrina.sh reset                azzeramento (Q-624), a mano: volumi di Postgres e Kafka ricreati, realm reimportato,
+#                                   overlay del realm, account operatore; nessun backup
 #   vetrina.sh idp-reset            ricrea da zero il database `idp` di Keycloak (non quello dell'hub): Keycloak
 #                                   reimporta i realm e gli overlay si riapplicano (ADR-051 decisione 10, Q-672);
 #                                   lo fa da solo `codespace` a ogni avvio
@@ -28,13 +28,14 @@
 #   vetrina.sh operators            account operatore nominativi da operators.list (Q-618), password temporanee in un
 #                                   file 0600, poi verifica della MFA (apply-overlay.sh --check-operators)
 #   vetrina.sh programma            configurazione di programma da seed/ con il token di un operatore (Q-617, Q-626):
-#                                   passo interattivo (Device Authorization Grant con MFA), mai nel timer (Q-630)
+#                                   passo interattivo (Device Authorization Grant con MFA, Q-630)
 #   vetrina.sh compose <argomenti>  docker compose con i file e il progetto della vetrina (ps, logs …)
 #
-# Configurazione: file KEY=VALORE (LH_VETRINA_CONFIG, default /etc/loyaltyhub-vetrina/vetrina.env; modello in
-# vetrina.env.example). Solo le chiavi ammesse, nessun segreto. I segreti stanno in $LH_VETRINA_DIR/secrets e
+# Configurazione: file KEY=VALORE (LH_VETRINA_CONFIG, default /etc/loyaltyhub-vetrina/vetrina.env; lo scrive
+# `vetrina.sh codespace`, modello in vetrina.env.example). Solo le chiavi ammesse, nessun segreto. I segreti stanno in $LH_VETRINA_DIR/secrets e
 # $LH_VETRINA_DIR/tls, file 0600 creati da `provision`; lo script non stampa mai un valore, solo nomi e percorsi.
-# Utenti di test (ADR-051 decisione 1): solo nel codespace; sull'host fisso gli overlay si applicano senza utenti.
+# Utenti di test (ADR-051 decisione 1): solo con CODESPACES=true, impostata da GitHub; altrove gli overlay si applicano
+# senza utenti.
 # Uscita: 0 ok · 1 controllo o comando fallito · 2 uso o configurazione non validi.
 set -euo pipefail
 umask 077
@@ -53,6 +54,8 @@ CONTAINER_UID=1000
 POSTGRES_UID=999
 
 # Chiavi ammesse nel file di configurazione (nessun segreto).
+# LH_VETRINA_MODE e LH_VETRINA_PUBLIC_ADDRESS restano ammesse solo per i file già scritti (regola 14): la prima vale
+# solo `codespace`, la seconda solo 127.0.0.1 e non ha altro effetto. `codespace` non le scrive più.
 CONFIG_KEYS=(LH_VETRINA_MODE LH_IMAGE LH_VETRINA_DIR LH_VETRINA_WEB_HOST LH_VETRINA_IDP_HOST LH_VETRINA_PUBLIC_ADDRESS LH_HUB_DEMO_URL LH_BIND_ADDRESS
             LH_VETRINA_ADMIN_HOST)
 # Segreti generati sull'host: nome del file e forma (password = 32 caratteri url-safe; key = 32 byte in base64).
@@ -68,7 +71,7 @@ CODESPACE_IDP_PORT=8001
 # Il suo indirizzo e' l'attributo `frontendUrl` del realm master (Q-670, ADR-051 decisione 8); le console dei realm
 # `loyaltyhub` e `loyaltyhub-members` stanno invece sull'indirizzo pubblico della porta 8001.
 CODESPACE_ADMIN_PORT=8180
-# Volumi azzerati ogni settimana (Q-624). I volumi del proxy (certificati ACME) restano.
+# Volumi azzerati dall'azzeramento (Q-624).
 RESET_VOLUMES=(lh-ref-postgres lh-ref-kafka)
 # Validità dei certificati: CA 10 anni, foglie 397 giorni, rinnovo quando ne mancano meno di 30.
 CA_DAYS=3650
@@ -109,10 +112,11 @@ load_config() {
 }
 
 validate_config() {
-  LH_VETRINA_MODE="${LH_VETRINA_MODE:-host}"
+  # Unica modalità: il codespace (ADR-050, ADR-051 decisione 5). La chiave resta ammessa per i file già scritti.
+  LH_VETRINA_MODE="${LH_VETRINA_MODE:-codespace}"
   case "$LH_VETRINA_MODE" in
-    host|codespace) export LH_VETRINA_MODE ;;
-    *) usage_error "LH_VETRINA_MODE deve essere host o codespace" ;;
+    codespace) export LH_VETRINA_MODE ;;
+    *) usage_error "LH_VETRINA_MODE ammette solo codespace, l'unica modalità supportata (ADR-051 decisione 5)" ;;
   esac
   local host_re='^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$'
   [ -n "${LH_IMAGE:-}" ] || usage_error "LH_IMAGE obbligatoria (immagine unica pubblicata, meglio con @sha256)"
@@ -120,23 +124,15 @@ validate_config() {
   [[ "${LH_VETRINA_WEB_HOST:-}" =~ $host_re ]] || usage_error "LH_VETRINA_WEB_HOST non è un nome DNS valido (minuscolo, senza schema né percorso)"
   [[ "${LH_VETRINA_IDP_HOST:-}" =~ $host_re ]] || usage_error "LH_VETRINA_IDP_HOST non è un nome DNS valido (minuscolo, senza schema né percorso)"
   [ "$LH_VETRINA_WEB_HOST" != "$LH_VETRINA_IDP_HOST" ] || usage_error "LH_VETRINA_WEB_HOST e LH_VETRINA_IDP_HOST devono essere diversi (Q-620: due nomi)"
-  local ip_re='^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$'
-  [[ "${LH_VETRINA_PUBLIC_ADDRESS:-}" =~ $ip_re ]] || usage_error "LH_VETRINA_PUBLIC_ADDRESS deve essere un indirizzo IPv4 dell'host (l'indirizzo privato dell'istanza)"
-  local o
-  for o in "${BASH_REMATCH[@]:1}"; do [ "$o" -le 255 ] || usage_error "LH_VETRINA_PUBLIC_ADDRESS non valido"; done
-  if [ "$LH_VETRINA_MODE" = codespace ]; then
-    # Nel codespace il proxy ascolta solo su loopback: l'inoltro delle porte di GitHub è l'unica via d'ingresso (Q-661).
-    [ "$LH_VETRINA_PUBLIC_ADDRESS" = 127.0.0.1 ] || usage_error "LH_VETRINA_PUBLIC_ADDRESS deve essere 127.0.0.1 nel codespace"
-    [[ "$LH_VETRINA_WEB_HOST" == *"-$CODESPACE_WEB_PORT."* ]] || usage_error "LH_VETRINA_WEB_HOST nel codespace è <nome>-$CODESPACE_WEB_PORT.<dominio di inoltro>"
-    [[ "$LH_VETRINA_IDP_HOST" == *"-$CODESPACE_IDP_PORT."* ]] || usage_error "LH_VETRINA_IDP_HOST nel codespace è <nome>-$CODESPACE_IDP_PORT.<dominio di inoltro>"
-    [[ "${LH_VETRINA_ADMIN_HOST:-}" =~ $host_re ]] && [[ "$LH_VETRINA_ADMIN_HOST" == *"-$CODESPACE_ADMIN_PORT."* ]] \
-      || usage_error "LH_VETRINA_ADMIN_HOST nel codespace è <nome>-$CODESPACE_ADMIN_PORT.<dominio di inoltro> (frontendUrl del realm master, Q-670)"
-  else
-    case "$LH_VETRINA_PUBLIC_ADDRESS" in
-      0.0.0.0|127.*) usage_error "LH_VETRINA_PUBLIC_ADDRESS non può essere 0.0.0.0 né loopback: indica l'indirizzo dell'interfaccia dell'host" ;;
-    esac
-  fi
-  # Web e Keycloak parlano HTTP in chiaro: solo loopback, davanti c'è il proxy (ADR-049).
+  # Chiave dei file scritti prima di V12: se presente deve essere 127.0.0.1, il proxy ascolta solo su loopback (Q-661).
+  [ -z "${LH_VETRINA_PUBLIC_ADDRESS:-}" ] || [ "$LH_VETRINA_PUBLIC_ADDRESS" = 127.0.0.1 ] \
+    || usage_error "LH_VETRINA_PUBLIC_ADDRESS, se presente, deve essere 127.0.0.1: il proxy ascolta solo su loopback"
+  # Nel codespace l'inoltro delle porte di GitHub è l'unica via d'ingresso (Q-661).
+  [[ "$LH_VETRINA_WEB_HOST" == *"-$CODESPACE_WEB_PORT."* ]] || usage_error "LH_VETRINA_WEB_HOST nel codespace è <nome>-$CODESPACE_WEB_PORT.<dominio di inoltro>"
+  [[ "$LH_VETRINA_IDP_HOST" == *"-$CODESPACE_IDP_PORT."* ]] || usage_error "LH_VETRINA_IDP_HOST nel codespace è <nome>-$CODESPACE_IDP_PORT.<dominio di inoltro>"
+  [[ "${LH_VETRINA_ADMIN_HOST:-}" =~ $host_re ]] && [[ "$LH_VETRINA_ADMIN_HOST" == *"-$CODESPACE_ADMIN_PORT."* ]] \
+    || usage_error "LH_VETRINA_ADMIN_HOST nel codespace è <nome>-$CODESPACE_ADMIN_PORT.<dominio di inoltro> (frontendUrl del realm master, Q-670)"
+  # Web e Keycloak parlano HTTP in chiaro: solo loopback, davanti c'è il proxy (ADR-049, ADR-050).
   if [ -n "${LH_BIND_ADDRESS:-}" ] && [ "$LH_BIND_ADDRESS" != "127.0.0.1" ]; then
     usage_error "LH_BIND_ADDRESS deve essere 127.0.0.1 nella vetrina (web e idp solo dietro il proxy)"
   fi
@@ -160,19 +156,16 @@ compose() {
   # Ambiente pulito dalle variabili di segreto anche se l'operatore le ha esportate: l'overlay le forza comunque a vuoto.
   local unset_args=() v
   for v in "${SECRET_ENV[@]}"; do unset_args+=(-u "$v"); done
-  local files=(-f "$REFERENCE" -f "$OVERLAY")
-  # Nel codespace KC_HOSTNAME_ADMIN non si imposta (Q-670, opzione A): l'overlay lo toglie con un valore nullo, che
-  # Compose risolverebbe dall'ambiente del processo; lo si toglie anche da li' perche' una variabile esportata a mano
-  # non riporti la console dei due realm sull'indirizzo privato.
-  if [ "${LH_VETRINA_MODE:-host}" = codespace ]; then
-    files+=(-f "$CODESPACE_OVERLAY")
-    unset_args+=(-u KC_HOSTNAME_ADMIN)
-  fi
+  local files=(-f "$REFERENCE" -f "$OVERLAY" -f "$CODESPACE_OVERLAY")
+  # KC_HOSTNAME_ADMIN non si imposta (Q-670, opzione A): l'overlay lo toglie con un valore nullo, che Compose
+  # risolverebbe dall'ambiente del processo; lo si toglie anche da li' perche' una variabile esportata a mano non
+  # riporti la console dei due realm sull'indirizzo privato.
+  unset_args+=(-u KC_HOSTNAME_ADMIN)
   # Utenti di test (Q-676, ADR-051): hub e web li accettano solo con LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test,
   # che passano soltanto alla vetrina dentro un GitHub Codespace (CODESPACES=true, impostata da GitHub). Altrove le due
   # variabili sono forzate a vuoto, anche se esportate a mano: un utente con LH_TEST_USER resta rifiutato.
   local test_env=(LH_TEST_USERS_ALLOWED= LH_ENVIRONMENT=)
-  if [ "${LH_VETRINA_MODE:-host}" = codespace ] && [ "${CODESPACES:-}" = true ]; then
+  if [ "${CODESPACES:-}" = true ]; then
     test_env=(LH_TEST_USERS_ALLOWED=true LH_ENVIRONMENT=test)
   fi
   env "${unset_args[@]}" "${test_env[@]}" docker compose --project-name "$PROJECT" "${files[@]}" "$@"
@@ -353,11 +346,11 @@ cmd_preflight() {
   local offline=0
   [ "${1:-}" = "--offline" ] && offline=1
   local ko=0
-  # 1. Architettura dell'host: un host fisso è arm64 per default (ADR-049, LH_VETRINA_EXPECTED_ARCH per un altro host);
-  #    il codespace ha l'architettura che GitHub assegna (amd64), e le immagini devono averne la variante (ADR-050).
+  # 1. Architettura dell'host: il codespace ha quella che GitHub assegna (amd64) e le immagini devono averne la
+  #    variante (ADR-050); LH_VETRINA_EXPECTED_ARCH impone un'architettura attesa (prove).
   local arch expected
   arch="$(uname -m)"
-  if [ "$LH_VETRINA_MODE" = codespace ]; then expected="${LH_VETRINA_EXPECTED_ARCH:-$arch}"; else expected="${LH_VETRINA_EXPECTED_ARCH:-aarch64}"; fi
+  expected="${LH_VETRINA_EXPECTED_ARCH:-$arch}"
   if [ "$arch" = "$expected" ] || { [ "$expected" = aarch64 ] && [ "$arch" = arm64 ]; }; then
     info "architettura dell'host: $arch"
   else
@@ -395,12 +388,7 @@ cmd_preflight() {
     fi
   done
   [ "$ko" = 0 ] || die "controlli preliminari falliti (sopra l'elenco)"
-  # 4. Indirizzo pubblicato dal proxy: deve essere di un'interfaccia dell'host.
-  if command -v ip >/dev/null 2>&1; then
-    ip -o -4 addr show | grep -q "inet ${LH_VETRINA_PUBLIC_ADDRESS}/" \
-      || die "LH_VETRINA_PUBLIC_ADDRESS ($LH_VETRINA_PUBLIC_ADDRESS) non è un indirizzo di questo host"
-  fi
-  # 5. Memoria: lo stack ha limiti per circa 6,5 GB (ADR-049: 5-7 GB su 12).
+  # 4. Memoria: lo stack ha limiti per circa 6,5 GB (ADR-049: 5-7 GB).
   if [ -r /proc/meminfo ]; then
     local kb
     kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)"
@@ -408,7 +396,7 @@ cmd_preflight() {
       echo "Avviso: memoria dell'host sotto 8 GB ($((kb / 1024)) MB): i limiti dei container sommano circa 6,5 GB." >&2
     fi
   fi
-  # 6. Compose valido con l'overlay, poi immagini per l'architettura dell'host (serve il registro: --offline lo salta).
+  # 5. Compose valido con l'overlay, poi immagini per l'architettura dell'host (serve il registro: --offline lo salta).
   need docker
   compose config -q || die "docker compose config fallito con l'overlay di vetrina"
   if [ "$offline" = 0 ]; then
@@ -453,13 +441,11 @@ cmd_codespace() {
   # Configurazione rigenerata a ogni avvio: il nome del codespace non cambia, l'immagine può cambiare.
   {
     echo "# Generato da vetrina.sh codespace (ADR-050): non modificare a mano, si riscrive a ogni avvio."
-    echo "LH_VETRINA_MODE=codespace"
     echo "LH_IMAGE=$LH_IMAGE"
     echo "LH_VETRINA_DIR=$dir"
     echo "LH_VETRINA_WEB_HOST=$name-$CODESPACE_WEB_PORT.$domain"
     echo "LH_VETRINA_IDP_HOST=$name-$CODESPACE_IDP_PORT.$domain"
     echo "LH_VETRINA_ADMIN_HOST=$name-$CODESPACE_ADMIN_PORT.$domain"
-    echo "LH_VETRINA_PUBLIC_ADDRESS=127.0.0.1"
     echo "LH_HUB_DEMO_URL=${LH_HUB_DEMO_URL:-}"
     echo "LH_BIND_ADDRESS=127.0.0.1"
   } | write_atomic "$CONFIG"
@@ -495,9 +481,9 @@ cmd_codespace() {
 }
 
 # Utenti di test (ADR-051 decisione 1, Q-676): solo dentro un GitHub Codespace, lo stesso criterio che passa a hub e web
-# LH_TEST_USERS_ALLOWED (compose()). Sull'host fisso gli overlay si applicano senza account di test: l'hub li
-# rifiuterebbe comunque, ma non devono nemmeno esistere in Keycloak con una password pubblica.
-test_users_allowed() { [ "${LH_VETRINA_MODE:-host}" = codespace ] && [ "${CODESPACES:-}" = true ]; }
+# LH_TEST_USERS_ALLOWED (compose()). Altrove gli overlay si applicano senza account di test: l'hub li rifiuterebbe
+# comunque, ma non devono nemmeno esistere in Keycloak con una password pubblica.
+test_users_allowed() { [ "${CODESPACES:-}" = true ]; }
 
 apply_realm_overlay() {
   local mode="${1:-}" pw args=()
@@ -505,11 +491,9 @@ apply_realm_overlay() {
   test_users_allowed || args+=(--no-test-users)
   IFS= read -r pw < "$LH_VETRINA_DIR/secrets/idp-admin-password" || [ -n "$pw" ]
   # La password va solo nell'ambiente del processo figlio (mai negli argomenti, mai stampata).
-  # Nel codespace il realm master riceve come frontendUrl l'indirizzo privato della porta 8180 (Q-670): l'indirizzo e'
-  # dinamico, quindi lo si passa qui e non sta in master.json. Altrove la variabile e' vuota e il realm non si tocca.
-  local master_frontend=""
-  [ "${LH_VETRINA_MODE:-host}" = codespace ] && master_frontend="https://$LH_VETRINA_ADMIN_HOST"
-  MASTER_FRONTEND_URL="$master_frontend" KC_BOOTSTRAP_ADMIN_PASSWORD="$pw" KEYCLOAK_URL="$KEYCLOAK_LOCAL" \
+  # Il realm master riceve come frontendUrl l'indirizzo privato della porta 8180 (Q-670): l'indirizzo e'
+  # dinamico, quindi lo si passa qui e non sta in master.json.
+  MASTER_FRONTEND_URL="https://$LH_VETRINA_ADMIN_HOST" KC_BOOTSTRAP_ADMIN_PASSWORD="$pw" KEYCLOAK_URL="$KEYCLOAK_LOCAL" \
     "$REPO_ROOT/deploy/idp/vetrina/apply-overlay.sh" ${args[@]+"${args[@]}"}
 }
 

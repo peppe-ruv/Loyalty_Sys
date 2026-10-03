@@ -553,9 +553,9 @@ jobs:
       - name: Compose di riferimento con l'overlay di vetrina valido (M8.14c)
         run: >-
           LH_IMAGE=ghcr.io/example/loyaltyhub:ci LH_VETRINA_DIR=/etc/loyaltyhub-vetrina
-          LH_VETRINA_WEB_HOST=web-vetrina.example.org LH_VETRINA_IDP_HOST=idp-vetrina.example.org
-          LH_VETRINA_PUBLIC_ADDRESS=10.0.0.10
-          docker compose -f deploy/compose/reference.yml -f deploy/vetrina/compose.vetrina.yml config -q
+          LH_VETRINA_WEB_HOST=web-vetrina-8000.app.github.dev LH_VETRINA_IDP_HOST=idp-vetrina-8001.app.github.dev
+          docker compose -f deploy/compose/reference.yml -f deploy/vetrina/compose.vetrina.yml
+          -f deploy/vetrina/compose.codespace.yml config -q
       - name: Compose di riferimento con l'overlay dello smoke enterprise valido (M8.14 V6)
         run: >-
           LH_IMAGE=ghcr.io/example/loyaltyhub:ci LH_CI_UID=1001 LH_CI_GID=1001 LH_CI_TLS_DIR=/tmp/lh-smoke-enterprise/tls
@@ -821,7 +821,7 @@ jobs:
           sbom: false
           tags: lh-image:ci
       # Il proxy di prova serve web.lh.test e idp.lh.test su 127.0.0.1:8443: gli stessi URL https per il runner e per
-      # i container (alias di rete del proxy), come nella vetrina (Q-420).
+      # i container (alias di rete del proxy, che la vetrina non usa più: lì c'è l'inoltro di GitHub), Q-420.
       - name: Nomi del proxy di prova
         run: echo "127.0.0.1 web.lh.test idp.lh.test" | sudo tee -a /etc/hosts
       - name: Compose enterprise con l'overlay di test del realm

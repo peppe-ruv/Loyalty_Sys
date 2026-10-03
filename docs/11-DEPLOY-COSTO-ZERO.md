@@ -97,7 +97,7 @@ Attese oneste: **avvio a freddo 60–150 s** per servizio su 0,1 CPU; il Demo Hu
 **Conseguenza della sospensione** (RNF-06): un servizio addormentato non consuma. Al risveglio recupera dal proprio offset (retention 3 giorni). Per questo "Accendi la demo" sveglia **tutti** i servizi, e l'UI mostra "in elaborazione" finché il fatto non arriva.
 
 ## 7. Servizi Render (dal pannello, senza Blueprint)
-Il repository non contiene un `render.yaml` (Q-623, decisa il 2026-10-01): i servizi Render della demo si creano e si gestiscono dal pannello o con il connettore, e le loro variabili sono elencate in §8. Il blocco seguente è solo il riferimento della configurazione da riprodurre, scritto nella sintassi Blueprint; un `render.yaml` si aggiunge solo se la vetrina passerà a Render (oggi Q-615 = A, Oracle Cloud).
+Il repository non contiene un `render.yaml` (Q-623, decisa il 2026-10-01): i servizi Render della demo si creano e si gestiscono dal pannello o con il connettore, e le loro variabili sono elencate in §8. Il blocco seguente è solo il riferimento della configurazione da riprodurre, scritto nella sintassi Blueprint; un `render.yaml` si aggiunge solo se la vetrina passerà a Render (oggi la vetrina gira in un GitHub Codespace, ADR-050).
 
 ```yaml
 envVarGroups:
@@ -157,7 +157,7 @@ services:
 | `NEXT_PUBLIC_REPO_URL` | web | link nel Demo Hub |
 | `LH_HUB_ENTERPRISE_URL` | **web demo** (server) | origine `https` della vetrina enterprise (§17, ADR-049, F2-DIST-09), senza percorso. Letta solo lato server, senza `NEXT_PUBLIC_`: si cambia senza ricostruire. Vuota o assente (il caso normale, anche in locale) ⇒ il pulsante «Modalità Enterprise» di HUB-01 è nascosto, senza avvisi. Valorizzata ma non valida (non `https`, con percorso, non un URL) ⇒ pulsante nascosto e un avviso nel log del server |
 | `LH_HUB_DEMO_URL` | **web vetrina** (server), solo `enterprise` | origine `https` della demo, per il collegamento di ritorno in HUB-02 (§17, ADR-049); vuota ⇒ nessun collegamento |
-| `LH_VETRINA_WEB_HOST`, `LH_VETRINA_IDP_HOST`, `LH_VETRINA_PUBLIC_ADDRESS`, `LH_VETRINA_DIR` | **host vetrina** (`/etc/loyaltyhub-vetrina/vetrina.env`, letto da `deploy/vetrina/vetrina.sh`) | i due nomi DNS del proxy TLS (Q-620), l'indirizzo privato dell'istanza su cui il proxy pubblica 80 e 443, la cartella di segreti, CA locale e certificati (§17). Nessun segreto nel file: i segreti li genera `vetrina.sh provision` in file `0600` |
+| `LH_VETRINA_WEB_HOST`, `LH_VETRINA_IDP_HOST`, `LH_VETRINA_ADMIN_HOST`, `LH_VETRINA_DIR` | **codespace della vetrina** (`/etc/loyaltyhub-vetrina/vetrina.env`, scritto da `vetrina.sh codespace` e letto da `deploy/vetrina/vetrina.sh`) | gli indirizzi dell'inoltro delle porte di GitHub per web (8000), Keycloak (8001) e console del realm `master` (8180, privata), la cartella di segreti, CA locale e certificati (§17). Nessun segreto nel file: i segreti li genera `vetrina.sh provision` in file `0600` |
 | `LH_INGESTION_URL` | **insight** | solo per *riprocessa* DLQ (M7) |
 | `LH_PROFILE` | **web** (server) | assente o `demo`: identità simulata (docs/07 §4), nessuna variabile OIDC; `enterprise`: login OIDC obbligatorio (docs/07 §4-bis); qualunque altro valore ⇒ il web non parte (`INSECURE_CONFIG`) |
 | `LH_OIDC_ISSUER` | **web** (server), solo `enterprise` | emittente OIDC, es. `https://idp.example.org/realms/loyaltyhub`; `https` obbligatorio (`http` solo verso `localhost`) |

@@ -1,34 +1,16 @@
 # Overlay della vetrina enterprise in un GitHub Codespace acceso su richiesta (F2-DIST-09, ADR-050, M8.14 V7, Q-661).
 #
 # Si usa SOLO dopo deploy/compose/reference.yml e deploy/vetrina/compose.vetrina.yml e SOLO tramite
-# `deploy/vetrina/vetrina.sh` con LH_VETRINA_MODE=codespace (lo scrive `vetrina.sh codespace`, avviato dal dev container
+# `deploy/vetrina/vetrina.sh` (`vetrina.sh codespace`, avviato dal dev container
 # .devcontainer/vetrina). Runbook: deploy/vetrina/README.md, sezione «Vetrina in un codespace».
 #
-# Cosa cambia rispetto all'host fisso (ADR-049):
-# - niente IP pubblico né ACME: il TLS lo termina l'inoltro delle porte di GitHub su
-#   https://<codespace>-<porta>.<dominio di inoltro>. Il proxy resta, ma in HTTP su due porte di loopback, 8000 (web) e
-#   8001 (Keycloak), rese pubbliche nel codespace: apre solo i due realm di vetrina e le loro console (404 su `master`) e
-#   aggiunge le intestazioni di sicurezza;
-# - niente alias di rete: i nomi pubblici puntano a GitHub, non al proxy. Web e hub raggiungono l'emittente con lo
-#   stesso URL del browser, passando dall'inoltro delle porte (Q-420), con un certificato pubblico verificato;
+# Cosa fa (ADR-050), oltre al proxy HTTP su 8000 e 8001 dichiarato in compose.vetrina.yml (il TLS lo termina l'inoltro
+# delle porte di GitHub su https://<codespace>-<porta>.<dominio di inoltro>):
 # - le console di Keycloak dei realm `loyaltyhub` e `loyaltyhub-members` stanno sull'indirizzo pubblico della porta 8001
 #   (Q-670); quella del realm `master` solo sulla porta 8180 privata (solo il proprietario del codespace);
-# - tutto il resto (TLS verso bus e database con la CA locale, segreti da file, profilo fisso) resta identico.
+# - utenti di test e healthcheck con Node per hub e web (sotto);
+# - tutto il resto (TLS verso bus e database con la CA locale, segreti da file, profilo fisso) sta nel compose base.
 services:
-  proxy:
-    # HTTP in chiaro solo verso l'inoltro delle porte del codespace, su porte non privilegiate. NET_BIND_SERVICE resta
-    # nell'insieme limite dell'overlay: il binario caddy ha la file capability cap_net_bind_service e senza il kernel ne
-    # rifiuta l'esecuzione ("exec /usr/bin/caddy: operation not permitted", visto nello smoke enterprise in CI).
-    ports: !override
-      - "127.0.0.1:8000:8000"
-      - "127.0.0.1:8001:8001"
-    volumes: !override
-      - ../vetrina/caddy/Caddyfile.codespace:/etc/caddy/Caddyfile:ro
-      - lh-vetrina-caddy-data:/data
-      - lh-vetrina-caddy-config:/config
-    networks: !override
-      default: {}
-
   # Console di Keycloak (ADR-051 decisione 8, Q-670, opzione A). KC_HOSTNAME_ADMIN NON si imposta: il compose base
   # (compose.vetrina.yml) lo fissa a http://127.0.0.1:8180 e qui `KC_HOSTNAME_ADMIN: null` lo sovrascrive con un
   # valore nullo, cosi' Compose non lo passa al contenitore; vetrina.sh toglie la variabile anche dalla shell
