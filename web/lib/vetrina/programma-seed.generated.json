@@ -1524,12 +1524,7 @@
             "value": "directdebit"
           }
         ]
-      },
-      "expectedMembers": [
-        "MBR-000004",
-        "MBR-000005",
-        "MBR-000011"
-      ]
+      }
     },
     {
       "code": "SEG-NOT-EBILL",
@@ -1550,16 +1545,7 @@
             "value": "ebill"
           }
         ]
-      },
-      "expectedMembers": [
-        "MBR-000001",
-        "MBR-000002",
-        "MBR-000003",
-        "MBR-000006",
-        "MBR-000007",
-        "MBR-000009",
-        "MBR-000010"
-      ]
+      }
     },
     {
       "code": "SEG-AT-RISK",
@@ -1580,10 +1566,7 @@
             "value": 45
           }
         ]
-      },
-      "expectedMembers": [
-        "MBR-000006"
-      ]
+      }
     },
     {
       "code": "SEG-TORINO",
@@ -1599,20 +1582,13 @@
             "value": "Torino"
           }
         ]
-      },
-      "expectedMembers": [
-        "MBR-000004"
-      ]
+      }
     },
     {
       "code": "SEG-VIP-EVENT",
       "name": "Invitati all'evento riservato",
       "description": "Elenco manuale degli invitati all'anteprima dell'evento riservato.",
-      "type": "STATIC",
-      "expectedMembers": [
-        "MBR-000004",
-        "MBR-000005"
-      ]
+      "type": "STATIC"
     }
   ],
   "badges": [

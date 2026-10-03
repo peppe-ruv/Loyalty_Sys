@@ -340,7 +340,7 @@ export function loadProgramSeed(dir) {
 
 /** Testo dello snapshot per il web: JSON stabile (chiavi nell'ordine del seed), senza `_note` né elenchi di membri (`memberIds` dei segmenti statici: mai nel web). Il controllo di deriva lo confronta byte per byte. */
 export function serializeSeedSnapshot(seed) {
-  return `${JSON.stringify(seed, (key, value) => (key === '_note' || key === 'memberIds' ? undefined : value), 2)}\n`;
+  return `${JSON.stringify(seed, (key, value) => (key === '_note' || key === 'memberIds' || key === 'expectedMembers' ? undefined : value), 2)}\n`;
 }
 
 /** Percorso dello snapshot generato (letto dal web e da scripts/check-vetrina.mjs). */

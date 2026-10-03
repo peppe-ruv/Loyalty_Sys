@@ -110,10 +110,19 @@ const view = (job: Job): JobView => ({
 export function resetJobsForTests(): void {
   const holder = globalThis as Holder;
   delete holder[JOBS_KEY];
+  previewCache.clear();
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Chiamate all'hub con il token dell'operatore
+
+/** L'IdP non risponde: nome proprio, così `describeError` del nucleo riporta il testo italiano e non un errore di rete. */
+class IdpUnavailableNowError extends Error {
+  constructor() {
+    super("accesso momentaneamente non verificabile: riprova tra poco");
+    this.name = "IdpUnavailableNowError";
+  }
+}
 
 class SessionGoneError extends Error {
   constructor() {
@@ -133,7 +142,7 @@ export function hubApi(bff: Bff, sessionId: string, doFetch: typeof fetch = fetc
       try {
         session = await freshSession(sessionId, { store: bff.store, oidc: bff.oidc, inflight: bff.inflight });
       } catch (err) {
-        if (err instanceof IdpUnavailableError) throw new Error("accesso momentaneamente non verificabile: riprova tra poco");
+        if (err instanceof IdpUnavailableError) throw new IdpUnavailableNowError();
         throw err;
       }
       if (!session) throw new SessionGoneError();
@@ -275,9 +284,11 @@ function startJob(bff: Bff, sessionId: string, actor: string, scope: Scope, doFe
     id: crypto.randomUUID(), scope, status: "running", phase: "planning", done: 0, total: 0, message: "Avvio", actor,
     startedAt: new Date().toISOString(), finishedAt: null, result: null, sessionId,
   };
+  previewCache.clear();
   store.current = job;
   store.recent = [job, ...store.recent].slice(0, 5);
   void runJob(job, hubApi(bff, sessionId, doFetch)).then(() => {
+    previewCache.clear();
     if (job.status === "done") store.lastRun = { finishedAt: job.finishedAt ?? new Date().toISOString(), by: job.actor, scope: job.scope };
   });
   return job;
@@ -292,6 +303,29 @@ export function boxState(summary: ProgramSummary, job: JobView | null): BoxState
   if (summary.stories.state === "ready") return "stories-ready";
   if (summary.stories.state === "present") return "complete";
   return "stories-waiting";
+}
+
+// SPEC-GAP: Q-722 («caricato da / il» e l'elenco dei lavori vengono dalla memoria del processo e si perdono a ogni riavvio del web)
+const PREVIEW_TTL_MS = 5000;
+type PreviewEntry = { at: number; actor: string; value: Promise<PreviewView | null> };
+const previewCache = new Map<string, PreviewEntry>();
+
+/** Anteprima con cache di ~5 s per sessione e raggruppamento delle richieste concorrenti (leggere costa una decina di chiamate). */
+function cachedPreview(bff: Bff, sessionId: string, actor: string, doFetch?: typeof fetch): Promise<PreviewView | null> {
+  const hit = previewCache.get(sessionId);
+  if (hit && hit.actor === actor && Date.now() - hit.at < PREVIEW_TTL_MS) return hit.value;
+  const value = buildPreview(bff, sessionId, actor, doFetch);
+  const entry: PreviewEntry = { at: Date.now(), actor, value };
+  previewCache.set(sessionId, entry);
+  if (previewCache.size > 50) for (const [k, v] of previewCache) if (Date.now() - v.at > PREVIEW_TTL_MS) previewCache.delete(k);
+  // Un esito vuoto o fallito non si tiene: il prossimo tentativo rilegge.
+  const drop = () => { if (previewCache.get(sessionId) === entry) previewCache.delete(sessionId); };
+  value.then((v) => { if (!v) drop(); }, drop);
+  return value;
+}
+
+export function clearPreviewCacheForTests(): void {
+  previewCache.clear();
 }
 
 async function buildPreview(bff: Bff, sessionId: string, actor: string, doFetch?: typeof fetch): Promise<PreviewView | null> {
@@ -349,11 +383,12 @@ export function handleGet(req: NextRequest, doFetch?: typeof fetch): Promise<Nex
   return guarded(req, async ({ bff, sessionId, actor }) => {
     const jobId = req.nextUrl.searchParams.get("job");
     if (jobId !== null) {
-      const found = jobStore().recent.find((j) => j.id === jobId);
+      // Lo stato di un lavoro lo legge solo chi l'ha avviato (l'id restituito dal 409 non dà accesso al resto).
+      const found = jobStore().recent.find((j) => j.id === jobId && j.actor === actor);
       return found ? json(view(found)) : problem(404, "JOB_NOT_FOUND", "Lavoro sconosciuto", "Il lavoro non esiste più (il server è stato riavviato): ricontrolla lo stato.");
     }
     try {
-      const preview = await buildPreview(bff, sessionId, actor, doFetch);
+      const preview = await cachedPreview(bff, sessionId, actor, doFetch);
       if (!preview) {
         return problem(503, "HUB_UNAVAILABLE", "Servizi non raggiungibili", "Qualche servizio non risponde (forse si sta svegliando): riprova tra poco.");
       }

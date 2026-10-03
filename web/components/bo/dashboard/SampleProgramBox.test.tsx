@@ -39,7 +39,7 @@ function preview(over: Partial<PreviewView> = {}, stories: Partial<PreviewView["
       rewardsCreate: 14,
       campaignsCreate: 15,
       excluded: [{ what: "Webhook", why: "destinazione di rete in uscita" }],
-      stories: { state: "waiting", reasons: ["in attesa delle campagne attive (CMP-PURCHASE-BASE)"], waitingFor: ["CMP-PURCHASE-BASE"], rows: 38, totalRows: 38, jobId: null,
+      stories: { state: "waiting", reasons: ["in attesa delle campagne attive (CMP-PURCHASE-BASE)"], waitingFor: ["CMP-PURCHASE-BASE"], rows: 38, totalRows: 38, jobId: null, incompleteJobIds: [],
         members: [{ username: "anna.rossi", name: "Anna Rossi", rows: 2, state: "ready" }, { username: "marco.bianchi", name: "Marco Bianchi", rows: 14, state: "ready" }, { username: "giulia.ferri", name: "Giulia Ferri", rows: 22, state: "missing" }],
         ...stories },
     },
@@ -216,16 +216,62 @@ describe("anteprima e avvio", () => {
     expect(await screen.findByRole("dialog", { name: s.previewTitle })).toBeInTheDocument();
   });
 
-  it("409 «già in corso»: si segue il lavoro che c'è, senza errori", async () => {
+  it("409 «già in corso» (anche di un altro operatore): il pannello si chiude e il riquadro mostra «in corso» senza leggere il lavoro altrui", async () => {
+    let running = false;
     handler = (url, init) => {
-      if (init?.method === "POST") return { status: 409, body: { code: "JOB_RUNNING", jobId: "J9" } };
-      if (url.includes("job=J9")) return { status: 200, body: job({ id: "J9" }) };
+      if (init?.method === "POST") {
+        running = true;
+        return { status: 409, body: { code: "JOB_RUNNING", jobId: "J9" } };
+      }
+      if (url.includes("?job=")) return { status: 404, body: { code: "JOB_NOT_FOUND" } };
+      return { status: 200, body: running ? preview({ box: "running", job: job({ id: "J9", actor: "altro.admin" }) }) : preview() };
+    };
+    renderBox();
+    fireEvent.click(await screen.findByRole("button", { name: s.load }));
+    fireEvent.click(await screen.findByRole("button", { name: s.confirm(40) }));
+    expect(await screen.findByText(s.runningTitle)).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes("?job="))).toBe(false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("errore nella lettura dell'avanzamento: avviso con «Controlla di nuovo» e nessuna raffica di richieste", async () => {
+    let jobReads = 0;
+    handler = (url, init) => {
+      if (init?.method === "POST") return { status: 202, body: { jobId: "J3" } };
+      if (url.includes("?job=")) {
+        jobReads++;
+        return { status: 500, body: { code: "X" } };
+      }
       return { status: 200, body: preview() };
     };
     renderBox();
     fireEvent.click(await screen.findByRole("button", { name: s.load }));
     fireEvent.click(await screen.findByRole("button", { name: s.confirm(40) }));
-    expect(await screen.findByTestId("sample-running")).toBeInTheDocument();
+    const notice = await screen.findByTestId("sample-job-read-error");
+    expect(within(notice).getByRole("button", { name: s.retry })).toBeInTheDocument();
+    const reads = jobReads;
+    await new Promise((r) => setTimeout(r, 1800));
+    expect(jobReads).toBe(reads);
+  });
+
+  it("anteprima: il focus entra nel pannello, Esc chiude e il focus torna al pulsante", async () => {
+    handler = () => ({ status: 200, body: preview() });
+    renderBox();
+    const button = await screen.findByRole("button", { name: s.load });
+    button.focus();
+    fireEvent.click(button);
+    const dialog = await screen.findByRole("dialog", { name: s.previewTitle });
+    await waitFor(() => expect(dialog).toHaveFocus());
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(button).toHaveFocus();
+  });
+
+  it("storie in attesa: il testo spiega invia-approva-pubblica e il link porta alle campagne", async () => {
+    handler = () => ({ status: 200, body: preview({ box: "stories-waiting" }) });
+    renderBox();
+    expect(await screen.findByText(/invia in approvazione da Campagne e Catalogo/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: s.linkCampaigns })).toHaveAttribute("href", "/backoffice/campaigns");
   });
 
   it("storie: anteprima con i membri (uno non registrato) e import da avviare con scope «stories»", async () => {

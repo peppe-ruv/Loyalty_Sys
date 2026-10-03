@@ -27,6 +27,7 @@ const ENV = {
 const SERVICES = ["INGESTION", "MEMBER", "CAMPAIGN", "WALLET", "REWARD", "GAMIFICATION", "ENGAGEMENT", "INSIGHT"];
 const MEMBERS = { "anna.rossi": "MBR-000101", "marco.bianchi": "MBR-000102", "giulia.ferri": "MBR-000103" };
 const ADMIN: SessionUser = { sub: "kc-admin", sid: "s1", username: "marta.admin", name: "Marta Villa", roles: ["ADMIN"], role: "ADMIN", kind: "operator" };
+const ADMIN2: SessionUser = { sub: "kc-admin2", sid: "s9", username: "altro.admin", name: "Altro Admin", roles: ["ADMIN"], role: "ADMIN", kind: "operator" };
 const MARKETING: SessionUser = { sub: "kc-mkt", sid: "s2", username: "luca.marketing", name: "Luca Serra", roles: ["MARKETING"], role: "MARKETING", kind: "operator" };
 const MEMBER: SessionUser = { sub: "kc-m", sid: "s3", username: "anna.rossi", name: null, roles: ["MEMBER"], role: "ANALYST", kind: "member" };
 
@@ -167,7 +168,7 @@ describe("anteprima", () => {
     expect(body.box).toBe("pending");
     expect(body.summary.actor).toBe("marta.admin");
     expect(body.summary.create).toBeGreaterThan(60);
-    expect(body.summary.campaignsCreate).toBe(15);
+    expect(body.summary.campaignsCreate).toBe(13);
     expect(body.summary.rewardsCreate).toBeGreaterThan(0);
     expect(body.summary.stories.state).toBe("waiting");
     expect(body.summary.excluded.length).toBeGreaterThan(5);
@@ -182,6 +183,35 @@ describe("anteprima", () => {
     const res = await get(cookie);
     expect(res.status).toBe(503);
     expect((await res.json()).code).toBe("HUB_UNAVAILABLE");
+  });
+
+  it("anteprima: richieste concorrenti e ripetute entro pochi secondi leggono l'hub una volta sola", async () => {
+    const { fetchMock } = useHub();
+    const { cookie } = await login(ADMIN);
+    const [a, b] = await Promise.all([get(cookie), get(cookie)]);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    const after = fetchMock.mock.calls.length;
+    expect((await get(cookie)).status).toBe(200);
+    expect(fetchMock.mock.calls.length).toBe(after);
+    const currencies = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/v1/currencies")).length;
+    expect(currencies).toBe(1);
+  });
+
+  it("lo stato di un lavoro lo legge solo chi l'ha avviato", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    useHub({}, { gate: () => gate });
+    const owner = await login(ADMIN);
+    const other = await login(ADMIN2);
+    const first = await post(owner.cookie, owner.csrf);
+    const { jobId } = (await first.json()) as { jobId: string };
+    const conflict = await post(other.cookie, other.csrf);
+    expect(conflict.status).toBe(409);
+    expect((await get(other.cookie, `?job=${jobId}`)).status).toBe(404);
+    expect((await get(owner.cookie, `?job=${jobId}`)).status).toBe(200);
+    release();
+    await runToEnd(owner.cookie, jobId);
   });
 
   it("lavoro sconosciuto: 404 JOB_NOT_FOUND", async () => {
@@ -206,7 +236,7 @@ describe("caricamento del programma", () => {
     expect(job.result?.created).toBeGreaterThan(60);
     expect(job.result?.auditVerified).toBe(job.result?.created);
     expect(job.result?.auditTotal).toBe(job.result?.created);
-    expect(job.result?.campaignsDraft).toBe(15);
+    expect(job.result?.campaignsDraft).toBe(13);
     expect(job.result?.rewardsDraft).toBeGreaterThan(0);
     expect(hub.writes().every((c) => c.method === "POST" || c.method === "PUT")).toBe(true);
     expect(hub.writes().some((c) => c.path.includes("transitions") || c.path === "/v1/imports")).toBe(false);

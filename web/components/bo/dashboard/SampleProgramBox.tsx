@@ -15,6 +15,7 @@ import type { JobView, PreviewView, Scope } from "@/lib/vetrina/programma";
 
 const s = t.sampleProgram;
 const POLL_MS = 1500;
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 class HttpError extends Error {
   constructor(
@@ -64,7 +65,7 @@ function Box() {
   });
 
   // Un lavoro già in corso (pagina ricaricata): lo si riprende.
-  const runningId = preview.data?.job?.id ?? null;
+  const runningId = preview.data?.job && preview.data.job.actor === preview.data.summary.actor ? preview.data.job.id : null;
   useEffect(() => {
     if (runningId && jobId === null) setJobId(runningId);
   }, [runningId, jobId]);
@@ -75,7 +76,8 @@ function Box() {
     enabled: jobId !== null,
     retry: false,
     refetchOnWindowFocus: false,
-    refetchInterval: (q) => (q.state.data?.status === "running" || q.state.data === undefined ? POLL_MS : false),
+    // Si ferma se la lettura è in errore: niente raffiche, l'operatore sceglie «Controlla di nuovo».
+    refetchInterval: (q) => (q.state.status === "error" ? false : q.state.data?.status === "running" || q.state.data === undefined ? POLL_MS : false),
   });
 
   // Finito (bene o male): l'anteprima si rilegge, così il riquadro riflette lo stato vero.
@@ -106,6 +108,10 @@ function Box() {
           scope={dialog}
           preview={preview.data}
           onClose={() => setDialog(null)}
+          onRunningElsewhere={() => {
+            setDialog(null);
+            recheck();
+          }}
           onStarted={(id) => {
             setDialog(null);
             refreshedFor.current = null;
@@ -129,6 +135,7 @@ function Body({
   // Un lavoro (in corso o appena finito) ha la precedenza sullo stato del programma.
   if (jobId !== null) {
     if (job.error?.status === 404) return <Notice title={s.errorTitle} text={s.jobLost} action={s.recheck} onAction={onRecheck} />;
+    if (job.isError) return <Notice title={s.errorTitle} text={s.jobReadError} action={s.retry} onAction={() => void job.refetch()} testId="sample-job-read-error" secondary={{ label: s.recheck, onClick: onRecheck }} />;
     if (job.data) return <JobPanel job={job.data} onRetry={() => onOpen(job.data.scope)} onRecheck={onRecheck} />;
     return <p role="status" className="text-sm text-[var(--color-bo-ink-2)]">{s.starting}</p>;
   }
@@ -161,8 +168,9 @@ function Body({
       );
     case "stories-ready":
       return (
-        <Head title={s.storiesReadyTitle} text={s.storiesReadyText}>
+        <Head title={s.storiesReadyTitle} text={p.summary.stories.incompleteJobIds.length ? `${s.storiesReadyText} ${s.storiesIncomplete}` : s.storiesReadyText}>
           <Primary onClick={() => onOpen("stories")}>{s.loadStories}</Primary>
+          {p.summary.stories.incompleteJobIds.length ? <Links imports /> : null}
         </Head>
       );
     case "stories-waiting":
@@ -173,7 +181,7 @@ function Body({
               <li key={r}>{r}</li>
             ))}
           </ul>
-          <Links approvals />
+          <Links campaigns catalogue approvals />
           <Secondary onClick={onRecheck}>{s.recheck}</Secondary>
         </Head>
       );
@@ -207,14 +215,17 @@ function Head({ title, text, children }: { title: string; text: string; children
   );
 }
 
-function Notice({ title, text, action, onAction, testId }: { title: string; text: string; action: string; onAction: () => void; testId?: string }) {
+function Notice({ title, text, action, onAction, testId, secondary }: { title: string; text: string; action: string; onAction: () => void; testId?: string; secondary?: { label: string; onClick: () => void } }) {
   return (
     <div role="alert" data-testid={testId}>
       <h2 id="sample-program-title" className="text-sm font-semibold text-[var(--color-bo-ink)]">
         {title}
       </h2>
       <p className="mb-3 mt-1 text-sm text-[var(--color-bo-ink-2)]">{text}</p>
-      <Secondary onClick={onAction}>{action}</Secondary>
+      <div className="flex flex-wrap gap-3">
+        <Secondary onClick={onAction}>{action}</Secondary>
+        {secondary ? <Secondary onClick={secondary.onClick}>{secondary.label}</Secondary> : null}
+      </div>
     </div>
   );
 }
@@ -235,10 +246,11 @@ function Secondary({ children, onClick }: { children: React.ReactNode; onClick: 
   );
 }
 
-function Links({ approvals = false, catalogue = false, audit = false, imports = false }: { approvals?: boolean; catalogue?: boolean; audit?: boolean; imports?: boolean }) {
+function Links({ approvals = false, campaigns = false, catalogue = false, audit = false, imports = false }: { approvals?: boolean; campaigns?: boolean; catalogue?: boolean; audit?: boolean; imports?: boolean }) {
   const cls = "text-sm underline text-[var(--color-bo-ink)]";
   return (
     <p className="flex flex-wrap gap-x-4 gap-y-1">
+      {campaigns ? <Link href="/backoffice/campaigns" className={cls}>{s.linkCampaigns}</Link> : null}
       {approvals ? <Link href="/backoffice/governance/approvals" className={cls}>{s.linkApprovals}</Link> : null}
       {catalogue ? <Link href="/backoffice/rewards" className={cls}>{s.linkCatalogue}</Link> : null}
       {imports ? <Link href="/backoffice/observe/imports" className={cls}>{s.linkImports}</Link> : null}
@@ -288,7 +300,7 @@ function JobPanel({ job, onRetry, onRecheck }: { job: JobView; onRetry: () => vo
           <p className="mb-2 mt-1 text-sm text-[var(--color-bo-ink)]">{s.approvalNote(r.rewardsDraft, r.campaignsDraft)}</p>
         ) : null}
         <div className="mt-2 flex flex-wrap items-center gap-4">
-          <Links approvals={!stories} catalogue={!stories} imports audit />
+          <Links campaigns={!stories} catalogue={!stories} approvals={!stories} imports audit />
           <Secondary onClick={onRecheck}>{s.recheck}</Secondary>
         </div>
       </div>
@@ -321,9 +333,43 @@ function JobPanel({ job, onRetry, onRecheck }: { job: JobView; onRetry: () => vo
 }
 
 /** Pannello di anteprima (mockup sezione 2): niente si scrive finché non confermi. */
-function PreviewDialog({ scope, preview, onClose, onStarted }: { scope: Scope; preview: PreviewView; onClose: () => void; onStarted: (jobId: string) => void }) {
+function PreviewDialog({ scope, preview, onClose, onStarted, onRunningElsewhere }: { scope: Scope; preview: PreviewView; onClose: () => void; onStarted: (jobId: string) => void; onRunningElsewhere: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  // Come il foglio laterale (components/bo/SideSheet.tsx): focus nel pannello all'apertura, Esc chiude, il focus torna
+  // dov'era; Tab resta dentro il pannello.
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    panel.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        closeRef.current();
+        return;
+      }
+      if (e.key !== "Tab" || !panel.current) return;
+      const items = Array.from(panel.current.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === panel.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (previous && previous !== document.body && previous.isConnected) previous.focus();
+    };
+  }, []);
   const sum = preview.summary;
   const stories = scope === "stories";
   const writes = stories ? 1 : sum.create;
@@ -335,8 +381,10 @@ function PreviewDialog({ scope, preview, onClose, onStarted }: { scope: Scope; p
       const res = await call<{ jobId: string }>("/api/vetrina/programma", { method: "POST", body: JSON.stringify({ scope }) });
       onStarted(res.jobId);
     } catch (e) {
-      if (e instanceof HttpError && e.status === 409 && typeof e.extra.jobId === "string") {
-        onStarted(e.extra.jobId);
+      if (e instanceof HttpError && e.status === 409) {
+        // Un lavoro è già in corso (anche di un altro operatore): lo stato di un lavoro lo legge solo chi l'ha avviato,
+        // quindi si chiude il pannello e si rilegge l'anteprima, che lo mostra come «in corso».
+        onRunningElsewhere();
         return;
       }
       setError(e instanceof HttpError && e.status === 403 ? s.startForbidden : s.startError);
@@ -350,6 +398,8 @@ function PreviewDialog({ scope, preview, onClose, onStarted }: { scope: Scope; p
         role="dialog"
         aria-modal="true"
         aria-labelledby="sample-preview-title"
+        ref={panel}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[var(--color-bo-border)] bg-white p-5 shadow-lg"
       >

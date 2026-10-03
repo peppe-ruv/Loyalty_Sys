@@ -11,6 +11,7 @@ export class ApiError extends Error {
 export const SERVICES: readonly string[];
 export const PROGRAM_SERVICES: readonly string[];
 export const STORY_SOURCE_CODE: string;
+export const STORY_FILE_NAME: string;
 export const STORY_SOURCE_URN: string;
 export const NOT_INCLUDED: readonly (readonly [string, string])[];
 export const NOT_INCLUDED_PROGRAM: readonly (readonly [string, string])[];
@@ -155,6 +156,8 @@ export interface StoriesPlan {
   rows: number;
   totalRows: number;
   jobId: string | null;
+  /** Import conclusi dell'elenco che non hanno accettato tutte le righe (rapporto da aprire, ritentabili). */
+  incompleteJobIds: string[];
   /** Utente → id del membro risolto: SOLO in memoria, mai nelle risposte. */
   resolved: Map<string, string>;
 }
@@ -193,6 +196,7 @@ export interface ProgramSummary {
     rows: number;
     totalRows: number;
     jobId: string | null;
+    incompleteJobIds: string[];
     members: StoriesPlan["members"];
   };
 }

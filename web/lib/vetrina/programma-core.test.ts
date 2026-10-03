@@ -15,6 +15,8 @@ import {
   PROGRAM_SCOPE,
   planProgram,
   planStories,
+  describeError,
+  STORY_FILE_NAME,
   resolveStoryTime,
   STORY_SOURCE_URN,
   summarizeProgram,
@@ -187,12 +189,15 @@ describe("piano della configurazione", () => {
     expect(plan.some((i) => i.entity === "sources" && i.key === "vetrina-test")).toBe(false);
   });
 
-  it("con le opzioni: 15 campagne LIVE non di sistema da creare, le altre escluse col motivo; fonte vetrina-test con elenco esplicito", async () => {
+  it("con le opzioni: 13 campagne LIVE non di sistema da creare, le altre escluse col motivo; fonte vetrina-test con elenco esplicito", async () => {
     const hub = makeHub();
     const { plan } = await planProgram({ seed: SEED, api: api(hub), now: NOW });
     const campaigns = plan.filter((i) => i.entity === "campaigns");
-    expect(campaigns.filter((i) => i.action === "create")).toHaveLength(15);
-    expect(campaigns.filter((i) => i.action === "skip").map((i) => i.key).sort()).toEqual(["CMP-BLACK-FRIDAY", "CMP-IW-PRIZE-COUPON", "CMP-IW-PRIZE-POINTS", "CMP-REVIEW", "CMP-SUMMER-QUIZ"]);
+    expect(campaigns.filter((i) => i.action === "create")).toHaveLength(13);
+    expect(campaigns.filter((i) => i.action === "skip").map((i) => i.key).sort()).toEqual(["CMP-BLACK-FRIDAY", "CMP-GOLD-PURCHASE-PLAY", "CMP-IW-PRIZE-COUPON", "CMP-IW-PRIZE-POINTS", "CMP-REVIEW", "CMP-SUMMER-QUIZ", "CMP-SURVEY"]);
+    // Le giocate richiamano un concorso che qui non si crea: pubblicate finirebbero in DLQ (CONTEST_NOT_FOUND).
+    const survey = campaigns.find((i) => i.key === "CMP-SURVEY");
+    expect(survey?.reason).toMatch(/dipendenza non disponibile: contests:IW-AUTUNNO/);
     for (const c of campaigns.filter((i) => i.action === "create")) {
       const body = c.body as Record<string, unknown>;
       expect(body.status).toBeUndefined(); // sempre DRAFT: la POST non accetta lo stato
@@ -356,5 +361,70 @@ describe("lettura fallita", () => {
     const hub = makeHub({ fail: ["/v1/campaigns"] });
     const s = await planStories({ seed: SEED, api: api(hub), plan: [] });
     expect(s.state).toBe("error");
+  });
+});
+
+describe("revisione V10", () => {
+  it("un effetto ISSUE_COUPON con un premio nominato dipende da quel premio", async () => {
+    const seed = JSON.parse(JSON.stringify(SEED)) as ProgramSeed;
+    const camp = (seed as unknown as { campaigns: { code: string; effects: unknown[] }[] }).campaigns.find((c) => c.code === "CMP-APP-DAILY")!;
+    camp.effects = [{ type: "ISSUE_COUPON", rewardCode: "RWD-NON-ESISTE" }];
+    const { plan } = await planProgram({ seed, api: api(makeHub()), now: NOW });
+    expect(plan.find((i) => i.entity === "campaigns" && i.key === "CMP-APP-DAILY")?.reason).toMatch(/dipendenza non disponibile: rewards:RWD-NON-ESISTE/);
+  });
+
+  it("describeError: testo nostro per gli errori non di rete, codice per quelli di rete", () => {
+    expect(describeError(new Error("accesso momentaneamente non verificabile: riprova tra poco"))).toBe("accesso momentaneamente non verificabile: riprova tra poco");
+    expect(describeError(Object.assign(new Error("x"), { name: "TimeoutError" }))).toBe("timeout");
+    expect(describeError(new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } }))).toBe("ECONNREFUSED");
+  });
+
+  it("applyPlan si ferma alla prima sessione scaduta, senza segnare voci come fallite", async () => {
+    const hub = makeHub();
+    const { plan, ctx } = await buildPlan({ seed: SEED, api: api(hub), now: NOW, options: { campaigns: true, vetrinaSource: true } });
+    let calls = 0;
+    const gone = new Api({
+      transport: async () => {
+        calls++;
+        throw Object.assign(new Error("la sessione dell'operatore è scaduta"), { name: "SessionGoneError" });
+      },
+      scope: PROGRAM_SCOPE,
+    });
+    await expect(applyPlan({ plan, ctx, api: gone })).rejects.toMatchObject({ name: "SessionGoneError" });
+    expect(calls).toBe(1);
+  });
+
+  describe("storie: quali import contano", () => {
+    async function base() {
+      const hub = makeHub({ members: MEMBERS });
+      hub2Types(hub);
+      hub.lists["/v1/sources"].push({ code: "vetrina-test" });
+      for (const code of ["CMP-APP-DAILY", "CMP-PURCHASE-BASE", "CMP-SELF-READING"]) {
+        hub.lists["/v1/campaigns"].push({ code });
+        hub.state.campaignsLive.push(code);
+      }
+      return hub;
+    }
+    const job = (id: string, over: Record<string, unknown>) => ({ id, status: "DONE", rowsTotal: 38, rowsDone: 38, counts: { accepted: 38, duplicate: 0, rejected: 0, unmatched: 0, invalid: 0 }, defaultSource: "vetrina-test", fileName: STORY_FILE_NAME, createdAt: "2026-10-02T10:00:00Z", reads: 0, ...over });
+
+    it("un import di un'altra riga della stessa fonte (V11) non è «le storie»", async () => {
+      const hub = await base();
+      hub.imports.set("01JAAAAAAAAAAAAAAAAAAAAAA1", job("01JAAAAAAAAAAAAAAAAAAAAAA1", { fileName: "una-riga.ndjson", rowsTotal: 38 }));
+      const planned = await planProgram({ seed: SEED, api: api(hub), now: NOW });
+      expect(planned.stories.state).toBe("ready");
+    });
+
+    it("presente solo se accepted + duplicate = righe; altrimenti ritentabile con chiave nuova", async () => {
+      const hub = await base();
+      hub.imports.set("01JAAAAAAAAAAAAAAAAAAAAAA1", job("01JAAAAAAAAAAAAAAAAAAAAAA1", { counts: { accepted: 30, duplicate: 0, rejected: 5, unmatched: 3, invalid: 0 } }));
+      const planned = await planProgram({ seed: SEED, api: api(hub), now: NOW });
+      expect(planned.stories.state).toBe("ready");
+      expect(planned.stories.incompleteJobIds).toEqual(["01JAAAAAAAAAAAAAAAAAAAAAA1"]);
+      await applyStories({ seed: SEED, api: api(hub), stories: planned.stories, now: NOW, sleep });
+      expect(hub.writes()[0].headers?.["Idempotency-Key"]).toMatch(/^[0-9a-f]{64}-r1$/);
+      const ok = await base();
+      ok.imports.set("01JAAAAAAAAAAAAAAAAAAAAAA2", job("01JAAAAAAAAAAAAAAAAAAAAAA2", { counts: { accepted: 20, duplicate: 18, rejected: 0, unmatched: 0, invalid: 0 } }));
+      expect((await planProgram({ seed: SEED, api: api(ok), now: NOW })).stories.state).toBe("present");
+    });
   });
 });

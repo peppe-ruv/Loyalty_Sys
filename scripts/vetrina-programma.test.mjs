@@ -640,5 +640,5 @@ test('V10: --emit-seed non si combina con altro lavoro e lo snapshot esce dal se
   const text = serializeSeedSnapshot(seed);
   assert.ok(text.endsWith('\n'));
   assert.doesNotMatch(text, /"_note"/, 'le note dei file non finiscono nello snapshot');
-  assert.doesNotMatch(text, /"memberIds"/, 'nessun elenco di membri nello snapshot');
+  assert.doesNotMatch(text, /"memberIds"|"expectedMembers"/, "nessun elenco di membri nello snapshot");
 });

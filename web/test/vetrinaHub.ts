@@ -56,7 +56,7 @@ export function makeHub(opts: FakeHubOptions = {}) {
   const calls: FakeCall[] = [];
   const lists: Record<string, Record<string, unknown>[]> = Object.fromEntries(Object.keys(COLLECTIONS).map((p) => [p, []]));
   const audit: { id: string; entityType: string; entityId: string; action: string; actorName: string; actorRole: string }[] = [];
-  const imports = new Map<string, { id: string; status: string; rowsTotal: number; rowsDone: number; counts: Record<string, number>; defaultSource: string; createdAt: string; reads: number }>();
+  const imports = new Map<string, { id: string; status: string; rowsTotal: number; rowsDone: number; counts: Record<string, number>; defaultSource: string; fileName: string; createdAt: string; reads: number }>();
   const idempotent = new Map<string, string>();
   let seq = 0;
   let attrs: unknown[] = [];
@@ -94,7 +94,7 @@ export function makeHub(opts: FakeHubOptions = {}) {
         const step = opts.importStep ?? 0;
         job.rowsDone = step === 0 ? job.rowsTotal : Math.min(job.rowsTotal, job.reads * step);
         job.status = job.rowsDone >= job.rowsTotal ? (opts.importStatus ?? "DONE") : "RUNNING";
-        if (job.status === "DONE") job.counts = opts.importCounts ?? { accepted: job.rowsTotal, duplicate: 0, rejected: 0, unmatched: 0, invalid: 0 };
+        if (job.status === "DONE" && Object.keys(job.counts).length === 0) job.counts = opts.importCounts ?? { accepted: job.rowsTotal, duplicate: 0, rejected: 0, unmatched: 0, invalid: 0 };
         return { status: 200, body: { job: { ...job } } };
       }
       if (path === "/v1/audit") {
@@ -109,7 +109,7 @@ export function makeHub(opts: FakeHubOptions = {}) {
       if (existing) return { status: 202, body: { ...imports.get(existing) } };
       const id = `01J${String(++seq).padStart(23, "0")}`;
       const rows = (o.multipart?.file.text ?? "").split("\n").filter(Boolean).length;
-      imports.set(id, { id, status: "QUEUED", rowsTotal: rows, rowsDone: 0, counts: {}, defaultSource: o.multipart?.fields?.source ?? "", createdAt: new Date().toISOString(), reads: 0 });
+      imports.set(id, { id, status: "QUEUED", rowsTotal: rows, rowsDone: 0, counts: {}, defaultSource: o.multipart?.fields?.source ?? "", fileName: o.multipart?.file.name ?? "", createdAt: new Date().toISOString(), reads: 0 });
       idempotent.set(key, id);
       record("import", id);
       return { status: 202, body: { id, status: "QUEUED" } };

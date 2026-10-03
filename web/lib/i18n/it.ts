@@ -185,7 +185,7 @@ export const it = {
     storiesReadyText: "Le campagne sono attive. Carica le storie di Anna, Marco e Giulia (acquisti, accessi, il livello di Giulia vicino a Gold).",
     loadStories: "Carica le storie",
     storiesWaitingTitle: "Programma caricato: le storie aspettano",
-    storiesWaitingText: "Le storie di Anna, Marco e Giulia si caricano quando ci sono i prerequisiti qui sotto.",
+    storiesWaitingText: "Le storie di Anna, Marco e Giulia si caricano quando ci sono i prerequisiti qui sotto: invia in approvazione da Campagne e Catalogo, un altro operatore approva, poi pubblica le campagne.",
     completeTitle: "Programma di esempio caricato",
     completeText: "Valuta, livelli, azioni, premi e campagne in bozza, segmenti, badge e storie dei tre membri di test sono al loro posto.",
     completeBy: (when: string, by: string) => `Caricato il ${when} da ${by}.`,
@@ -220,8 +220,11 @@ export const it = {
     doneStoriesSummary: (rows: number, verified: number, total: number, actor: string) =>
       `${rows} righe importate, ${verified}/${total} voci di audit a nome di ${actor} verificate. I punti arrivano entro un minuto.`,
     approvalNote: (rewards: number, campaigns: number) =>
-      `${rewards} premi e ${campaigns} campagne in bozza aspettano l'approvazione di un altro operatore (Elena o un altro ADMIN).`,
+      `${rewards} premi e ${campaigns} campagne sono in bozza: invia in approvazione da Campagne e Catalogo, un altro operatore approva, poi pubblica le campagne.`,
     linkApprovals: "Vai alle Approvazioni",
+    storiesIncomplete: "Un import precedente delle storie non ha accettato tutte le righe: aprilo per il rapporto, oppure riprova (le righe già accettate non si duplicano).",
+    linkCampaigns: "Apri le campagne",
+    jobReadError: "Non riesco a leggere l'avanzamento. Il caricamento potrebbe essere comunque in corso.",
     linkAudit: "Apri l'audit",
     linkCatalogue: "Apri il catalogo premi",
     linkImports: "Apri gli import",

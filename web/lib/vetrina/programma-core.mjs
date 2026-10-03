@@ -53,6 +53,7 @@ export const SERVICES = ['ingestion', 'member', 'wallet', 'reward', 'gamificatio
 export const PROGRAM_SERVICES = [...SERVICES, 'campaign'];
 
 /** Fonte di test della vetrina (Q-722): codice per il modulo dell'import, URN su ogni riga (la forma breve è INVALID, Q-258). */
+export const STORY_FILE_NAME = 'vetrina-storie.ndjson';
 export const STORY_SOURCE_CODE = 'vetrina-test';
 export const STORY_SOURCE_URN = `urn:loyaltyhub:source:${STORY_SOURCE_CODE}`;
 
@@ -330,9 +331,17 @@ const CAMPAIGNS_SPEC = {
   build: (s) => {
     if (s.system) return { skip: 'campagna di sistema (instant win): la POST non crea campagne di sistema' };
     if (s.status !== 'LIVE') return { skip: `nel seed è ${s.status}: richiede un passaggio di approvazione o è conclusa, non si crea` };
-    const templates = (s.effects ?? []).filter((e) => e.type === 'SEND_MESSAGE' && e.templateCode).map((e) => `message-templates:${e.templateCode}`);
+    // Dipendenze degli effetti: template dei messaggi, premio del coupon e concorso delle giocate. I concorsi non si creano
+    // da qui (nessuna API di creazione nel perimetro): una campagna che li richiama pubblicata finirebbe in DLQ con
+    // CONTEST_NOT_FOUND, quindi si riporta come saltata («dipendenza non disponibile»).
+    const needs = [];
+    for (const e of s.effects ?? []) {
+      if (e.type === 'SEND_MESSAGE' && e.templateCode) needs.push(`message-templates:${e.templateCode}`);
+      if (e.type === 'GRANT_PLAYS' && e.contestCode) needs.push(`contests:${e.contestCode}`);
+      if (e.type === 'ISSUE_COUPON' && e.rewardCode) needs.push(`rewards:${e.rewardCode}`);
+    }
     return {
-      needs: templates,
+      needs: [...new Set(needs)],
       body: pick(s, ['code', 'name', 'description', 'memberDescription', 'icon', 'triggerActionTypes', 'audience', 'conditions', 'effects', 'limits', 'schedule',
         'priority', 'exclusiveGroup', 'visibleInPortal', 'labels', 'requiresLegal']),
     };
@@ -471,7 +480,11 @@ async function planTheme(ctx) {
 
 export function describeError(e) {
   if (e instanceof ApiError) return e.message;
-  return e?.name === 'TimeoutError' ? 'timeout' : (e?.cause?.code ?? e?.code ?? e?.name ?? 'errore di rete');
+  if (e?.name === 'TimeoutError') return 'timeout';
+  if (e?.cause?.code ?? e?.code) return String(e.cause?.code ?? e.code);
+  // Errori nostri (sessione scaduta, IdP non raggiungibile, regole del piano): il testo è già italiano e senza dettagli di rete.
+  if (e instanceof Error && e.message && !(e instanceof TypeError)) return e.message;
+  return e?.name ?? 'errore di rete';
 }
 
 /**
@@ -531,6 +544,9 @@ export async function applyPlan({ plan, ctx, api, log, onProgress }) {
       if (e instanceof ApiError && e.status === 409) {
         // Creato nel frattempo da un'altra esecuzione: stato voluto raggiunto, nessuna voce di audit attesa da noi.
         item.result = 'already';
+      } else if (e?.name === 'SessionGoneError') {
+        // Sessione dell'operatore scaduta: inutile continuare, ogni chiamata successiva fallirebbe allo stesso modo.
+        throw e;
       } else {
         item.result = 'failed';
         item.error = describeError(e);
@@ -695,7 +711,7 @@ export async function buildStoryFile(vetrinaTest, members, now) {
     });
   }
   const text = lines.length ? `${lines.join('\n')}\n` : '';
-  return { name: 'vetrina-storie.ndjson', type: 'application/x-ndjson', text, rows: lines.length, sha256: await sha256Hex(text) };
+  return { name: STORY_FILE_NAME, type: 'application/x-ndjson', text, rows: lines.length, sha256: await sha256Hex(text) };
 }
 
 /**
@@ -707,7 +723,7 @@ export async function planStories({ seed, api, plan = [], offline = false }) {
   const vt = seed.vetrinaTest;
   const needs = campaignsNeededByStories(seed);
   const members = vt.stories.map((s) => ({ username: s.username, name: s.name, rows: s.rows.length, state: 'unknown' }));
-  const out = { state: 'waiting', reasons: [], needs, waitingFor: [], members, rows: 0, totalRows: members.reduce((n, m) => n + m.rows, 0), jobId: null, resolved: new Map() };
+  const out = { state: 'waiting', reasons: [], needs, waitingFor: [], members, rows: 0, totalRows: members.reduce((n, m) => n + m.rows, 0), jobId: null, incompleteJobIds: [], resolved: new Map() };
   if (offline) return { ...out, state: 'offline', reasons: ['piano dal solo seed: nessuna lettura'] };
   try {
     const campaigns = asItems((await api.request('campaign', 'GET', '/v1/campaigns')).body);
@@ -725,10 +741,19 @@ export async function planStories({ seed, api, plan = [], offline = false }) {
       }
     }
     const jobs = asItems((await api.request('ingestion', 'GET', '/v1/imports', { query: { size: '50' } })).body)
-      .filter((j) => j.defaultSource === STORY_SOURCE_CODE);
+      // Solo l'import delle storie: altri lavori della stessa fonte (V11, una riga) non vanno scambiati per questo.
+      .filter((j) => j.defaultSource === STORY_SOURCE_CODE && j.fileName === STORY_FILE_NAME);
     const active = jobs.find((j) => j.status === 'QUEUED' || j.status === 'RUNNING');
     if (active) out.jobId = active.id;
-    const done = jobs.find((j) => j.status === 'DONE' && j.rowsTotal === out.rows && out.rows > 0);
+    // «Presente» solo se un lavoro concluso ha accettato (o riconosciuto già presenti) tutte le righe: un import con
+    // righe rifiutate o non abbinate non conta, e si offre di riprovare (con il rapporto dell'import per capire perché).
+    let done = null;
+    for (const j of jobs.filter((x) => x.status === 'DONE').slice(0, 5)) {
+      const d = (await api.request('ingestion', 'GET', `/v1/imports/${encodeURIComponent(j.id)}`)).body?.job ?? j;
+      const c = d.counts ?? {};
+      if (out.rows > 0 && d.rowsTotal === out.rows && (c.accepted ?? 0) + (c.duplicate ?? 0) === d.rowsTotal) { done = d; break; }
+      out.incompleteJobIds.push(j.id);
+    }
     const sourceThere = plan.some((i) => i.entity === 'sources' && i.key === STORY_SOURCE_CODE && i.action === 'present');
     if (out.waitingFor.length) out.reasons.push(`in attesa delle campagne attive (${out.waitingFor.join(', ')})`);
     if (!sourceThere) out.reasons.push(`in attesa della fonte ${STORY_SOURCE_CODE}`);
@@ -738,6 +763,12 @@ export async function planStories({ seed, api, plan = [], offline = false }) {
   } catch (e) {
     return { ...out, state: 'error', reasons: [`lettura fallita: ${describeError(e)}`] };
   }
+}
+
+/** Dopo un import incompleto la stessa chiave restituirebbe lo stesso lavoro: la si cambia, gli eventi già accettati risultano duplicati. */
+function retryKey(sha, stories) {
+  const n = stories.incompleteJobIds?.length ?? 0;
+  return n ? `${sha}-r${n}` : sha;
 }
 
 /**
@@ -752,7 +783,7 @@ export async function applyStories({ seed, api, stories, now, onProgress, sleep 
   if (!file.rows) throw new Error('nessuna riga da caricare');
   const job = stories.jobId ? { id: stories.jobId } : (await api.request('ingestion', 'POST', '/v1/imports', {
     multipart: { file: { name: file.name, type: file.type, text: file.text }, fields: { kind: 'EVENTS', source: STORY_SOURCE_CODE } },
-    headers: { 'Idempotency-Key': file.sha256 },
+    headers: { 'Idempotency-Key': retryKey(file.sha256, stories) },
   })).body;
   if (typeof job?.id !== 'string') throw new Error('risposta dell\'import non riconosciuta');
   const jobId = job.id;
@@ -814,6 +845,7 @@ export function summarizeProgram({ plan, stories, actor }) {
       rows: stories.rows,
       totalRows: stories.totalRows,
       jobId: stories.jobId,
+      incompleteJobIds: stories.incompleteJobIds ?? [],
       members: stories.members,
     },
   };
