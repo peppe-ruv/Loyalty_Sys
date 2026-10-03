@@ -323,6 +323,114 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # Fuzz breve delle API nelle PR (F2-QA-07, ADR-053 decisione 3, Q-692 A, Q-694). CONSULTIVO come `security` e `mutation`:
+  # non è tra i controlli obbligatori del ruleset (e non va aggiunto a scripts/setup-branch-protection.sh). Solo sulle
+  # pull request; gira in parallelo agli altri job, dentro il budget di 25 minuti per PR (Q-694). Stesso script della
+  # corsa notturna (security-nightly.yml): scripts/security-fuzz.sh sulle OpenAPI di contracts/api, contro l'hub demo
+  # costruito da questo commit in una rete Docker senza uscita, ma solo sulle specifiche dei servizi toccati dalla PR
+  # (services/<nome>/ oppure contracts/api/<nome>.openapi.yaml), al massimo 5 minuti ciascuna e 15 in tutto (l'immagine e
+  # l'avvio del bersaglio occupano il resto del timeout). Controlli: nessun 5xx e risposta conforme allo schema.
+  # Nessun servizio toccato: il job esce verde senza avviare nulla. Nessun segreto: l'identità è quella demo (X-LH-Actor).
+  fuzz:
+    name: fuzz API (consultivo)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      LH_FUZZ_OUT: target/security/fuzz-pr
+      LH_FUZZ_MAX_TIME: "300"
+      LH_FUZZ_TOTAL_MAX_TIME: "900"
+      LH_FUZZ_CHECKS: not_a_server_error,response_schema_conformance
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # il diff rispetto a origin/$BASE_REF serve intero
+      - name: Servizi toccati
+        id: services
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only "origin/$BASE_REF...HEAD")
+          services=""
+          for dir in services/*/; do
+            name=$(basename "$dir")
+            # Il servizio è toccato se cambiano i suoi file o la sua OpenAPI; serve una specifica da provare.
+            if [ -f "contracts/api/${name}.openapi.yaml" ] \
+              && grep -Eq "^(services/${name}/|contracts/api/${name}\.openapi\.yaml$)" <<< "$files"; then
+              services="${services:+$services,}$name"
+            fi
+          done
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          if [ -z "$services" ]; then
+            echo "Nessun servizio toccato: nessuna richiesta inviata."
+            echo "### Fuzz API (consultivo)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Nessun servizio toccato da questa PR: nessuna richiesta inviata." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Servizi toccati: $services"
+          fi
+      - uses: actions/setup-node@v7
+        if: steps.services.outputs.services != ''
+        with:
+          node-version: "22"
+      - name: Dipendenze degli script
+        if: steps.services.outputs.services != ''
+        run: npm --prefix scripts ci --omit=dev
+      - name: Set up Docker Buildx
+        if: steps.services.outputs.services != ''
+        uses: docker/setup-buildx-action@v4
+      # L'immagine unica del commit (ruolo hub), come nel workflow notturno; non si pubblica.
+      - name: Build image (linux/amd64)
+        if: steps.services.outputs.services != ''
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/image/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: lh-image:dast
+      - name: Bersaglio isolato
+        if: steps.services.outputs.services != ''
+        run: bash scripts/security-target.sh up
+      - name: Fuzzing con Schemathesis (servizi toccati)
+        if: steps.services.outputs.services != ''
+        env:
+          LH_FUZZ_SERVICES: ${{ steps.services.outputs.services }}
+        run: bash scripts/security-fuzz.sh
+      # Richieste generate ed errori per servizio, dai rapporti JSON (il riepilogo di fuzz-summary elenca operazioni e difetti).
+      - name: Riepilogo (richieste ed errori)
+        if: ${{ !cancelled() && steps.services.outputs.services != '' }}
+        run: |
+          {
+            echo "### Fuzz API (consultivo): richieste ed errori"
+            echo ""
+            echo "Servizi toccati: \`${{ steps.services.outputs.services }}\`. Controlli: \`${LH_FUZZ_CHECKS}\`; tetto ${LH_FUZZ_MAX_TIME} s per servizio."
+            echo ""
+            echo "| Servizio | Richieste generate | Difetti trovati | Errori di rete o timeout |"
+            echo "|---|---|---|---|"
+            for report in "$LH_FUZZ_OUT"/*/report.json; do
+              [ -f "$report" ] || continue
+              name=$(basename "$(dirname "$report")")
+              jq -r --arg n "$name" '"| \($n) | \(.test_cases.generated // 0) | \(.test_cases.unique_failures // 0) | \([.errors[]?.count] | add // 0) |"' "$report"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Log del bersaglio
+        if: ${{ failure() && steps.services.outputs.services != '' }}
+        run: bash scripts/security-target.sh logs
+      - name: Report del fuzzing
+        if: ${{ !cancelled() && steps.services.outputs.services != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-report
+          path: target/security/fuzz-pr/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Smonta il bersaglio
+        if: ${{ always() && steps.services.outputs.services != '' }}
+        run: bash scripts/security-target.sh down
+
   web:
     name: web (Next.js)
     needs: changes
