@@ -218,6 +218,37 @@
             </statelessTestsetReporter>
           </configuration>
         </plugin>
+        <!-- Mutation testing sul diff (F2-QA-07, ADR-053 decisione 2, Q-691). Solo pluginManagement: nessuna execution
+             sul ciclo di vita, quindi `./mvnw verify` non cambia. Si lancia con `bash scripts/mutation.sh java`, che
+             passa -DtargetClasses con le sole classi cambiate rispetto a origin/main. Consultivo: nessuna soglia. -->
+        <plugin>
+          <groupId>org.pitest</groupId>
+          <artifactId>pitest-maven</artifactId>
+          <version>1.30.0</version>
+          <dependencies>
+            <!-- Motore JUnit Platform: esegue JUnit 5 e jqwik (le classi *Properties). -->
+            <dependency>
+              <groupId>org.pitest</groupId>
+              <artifactId>pitest-junit5-plugin</artifactId>
+              <version>1.2.3</version>
+            </dependency>
+          </dependencies>
+          <configuration>
+            <!-- I test d'integrazione (*IT: EmbeddedKafka, Zonky) sono troppo lenti per la mutazione. -->
+            <excludedTestClasses>
+              <param>*IT</param>
+            </excludedTestClasses>
+            <outputFormats>
+              <outputFormat>XML</outputFormat>
+              <outputFormat>HTML</outputFormat>
+            </outputFormats>
+            <timestampedReports>false</timestampedReports>
+            <threads>2</threads>
+            <timeoutConstant>8000</timeoutConstant>
+            <failWhenNoMutations>false</failWhenNoMutations>
+            <mutationThreshold>0</mutationThreshold>
+          </configuration>
+        </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>

@@ -44,3 +44,6 @@ e2e/cypress/screenshots/
 e2e/cypress/videos/
 e2e/cypress/downloads/
 e2e/cypress-run.log
+
+# --- Mutation testing (F2-QA-07): report PIT/Stryker, mai committati ---
+web/reports/

@@ -275,6 +275,54 @@ jobs:
         # mai nel log. Eccezioni solo in .gitleaks.toml, con giustificazione.
         run: gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts="--full-history HEAD" .
 
+  # Mutation testing sul diff (F2-QA-07, ADR-053 decisione 2, Q-691, Q-694). CONSULTIVO: non è tra i controlli
+  # obbligatori del ruleset (e non va aggiunto a scripts/setup-branch-protection.sh) finché M9 non si chiude; poi
+  # diventerà obbligatorio con almeno il 70 % di mutanti uccisi sul diff. Solo sulle pull request e solo se cambia
+  # backend o web; gira in parallelo agli altri job. Timeout 20 minuti (Q-691) dentro il budget di 25 per PR (Q-694).
+  mutation:
+    name: mutation (consultivo)
+    needs: changes
+    if: github.event_name == 'pull_request' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # il diff rispetto a origin/main serve intero
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Dipendenze web
+        if: needs.changes.outputs.web == 'true'
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: PIT (Java) e Stryker (web) sulle sole classi e file cambiati
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        # Non fallisce per la soglia: stampa il rapporto di mutanti uccisi nel riepilogo del job.
+        run: bash scripts/mutation.sh all "origin/$BASE_REF"
+      - name: Report HTML
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-report
+          path: |
+            **/target/pit-reports/
+            web/reports/mutation/
+            target/mutation/summary.md
+          if-no-files-found: ignore
+          retention-days: 14
+
   web:
     name: web (Next.js)
     needs: changes

@@ -353,7 +353,7 @@ Fino a M7 la proprietà `loyaltyhub.approval.enabled=false` consente `DRAFT → 
 | API | slice test dei controller: validazione, errori RFC 9457, ruoli | MockMvc |
 | E2E | `scripts/smoke.sh` su docker compose: `SCN-SMOKE` → saldo atteso entro 15 s | bash + curl + jq |
 | Proprietà (da ADR-053) | ogni regola numerata di `docs/03` toccata da una fetta: invarianti su input generati (saldo = Σ lotti, FIFO, limiti mai superati); seme stampato, controesempio trovato ⇒ test a esempi permanente | jqwik (Java), fast-check (web) |
-| Mutazione (da ADR-053) | classi e file cambiati dalla PR: i test devono uccidere i mutanti (soglia in Q-691) | PIT, Stryker, job `mutation` |
+| Mutazione (da ADR-053) | classi e file cambiati dalla PR: i test devono uccidere i mutanti (soglia in Q-691) | PIT, Stryker, job `mutation` (in locale: `bash scripts/mutation.sh java\|web\|all`) |
 | Fuzz API (da ADR-053) | OpenAPI dei servizi toccati dalla PR: nessun `5xx`, risposte conformi allo schema | Schemathesis (`scripts/security-fuzz.sh`) |
 
 Copertura: nessuna soglia numerica; **obbligatorio** un test per ogni regola numerata in `docs/03` e per ogni handler. I test non dipendono dai seed (creano i propri dati), tranne lo smoke.
