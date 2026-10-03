@@ -141,6 +141,11 @@ jobs:
       # ID unici in docs/15: due fette parallele non possono registrare lo stesso Q-nnn (ADR-047).
       - name: Domande aperte con ID unici
         run: node --test scripts/check-questions.test.mjs && node scripts/check-questions.mjs
+      # Copione di collaudo di release (ADR-052, Q-680, F2-QA-06): ID `CL-<AREA>-NNN` unici, campi obbligatori,
+      # ID di specifica esistenti in docs/, ogni scrittura di configurazione coperta da un passo di audit, nessuna
+      # credenziale ricopiata, modello del rapporto allineato ai passi.
+      - name: Copione di collaudo coerente
+        run: node --test scripts/check-collaudo.test.mjs && node scripts/check-collaudo.mjs
       # Pagine Mintlify del backlog generate da docs/17 e dallo snapshot delle evidenze (M8.9b, ADR-040): --check
       # verifica solo la struttura, quindi non dipende da docs/14, dal testbook, dai test o dai seed.
       - name: Pagine generate allineate (docs-sync)

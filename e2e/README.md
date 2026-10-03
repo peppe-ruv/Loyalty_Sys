@@ -103,3 +103,23 @@ La **record key** non sta in nessun file (regola 20, Q-712): solo nel segreto de
 `.github/workflows/collaudo.yml` (ADR-052 decisione 3, Q-683) parte a mano (`workflow_dispatch`) e sui tag `v*.0.0`, con permessi di sola lettura. Alza lo stesso stack del job `e2e-pr` (compose `enterprise` con l'overlay di test del realm, `scripts/smoke-enterprise.sh up`), esegue `pnpm test` e, anche se le journey falliscono, salva i log di ogni container con `bash scripts/smoke-enterprise.sh dump DIR` (`docker compose logs --timestamps`, un file `<servizio>.log` per container).
 
 Prima del caricamento gitleaks controlla la cartella dei log (`gitleaks dir`, configurazione `.gitleaks.toml`, `--redact`). Se segnala qualcosa i log non si caricano e il job fallisce (regola 20). Altrimenti si caricano come artefatto `collaudo-log-<run_id>` (14 giorni), accanto al report Playwright `collaudo-report-<run_id>`. Il riepilogo del job riporta l'esito delle journey, il numero di container, l'artefatto e il risultato di gitleaks. I log vengono dallo stack di CI, mai dalla vetrina.
+
+## Collaudo di release con un agente nel browser
+
+La cartella `collaudo/` è il livello 2 della strategia di test (ADR-052 decisione 2, Q-680…Q-685, M9 T2, F2-QA-06): non è un test automatico e non è un cancello. Prima di ogni major release un agente nel browser esegue un copione sulla **vetrina enterprise** con le sole credenziali di test pubbliche, e scrive un rapporto. Il collaudo è consultivo: il proprietario decide il rilascio.
+
+| File | A cosa serve |
+| --- | --- |
+| `collaudo/copione.md` | Circa quaranta passi con ID `CL-<AREA>-NNN` in cinque aree: `HUB` (accensione e riquadro Enterprise), `BO` (un operatore per ruolo), `PT` (Anna, Marco, Giulia), `KC` (console dei due realm, `master` chiuso), `AUD` (ogni scrittura di configurazione in Audit con l'attore reale). Ogni passo ha utente di test, precondizioni, azioni, esito atteso, evidenze e ID di specifica. Le credenziali non sono nel copione: stanno nel runbook `deploy/vetrina/README.md`. |
+| `collaudo/AVVIO.md` | Quando si esegue, prerequisiti, il prompt di avvio per una sessione cloud di Claude (Chromium senza interfaccia) e il percorso alternativo con Claude in Chrome. |
+| `collaudo/rapporto-modello.md` | Modello del rapporto: esito per passo (`OK`, `KO`, `BLOCCATO`, `N/A`), evidenze, difetti e verdetto. Ogni rapporto è un file `collaudo/rapporti/<vX.0.0>.md` portato nel repository con una pull request. |
+
+Ogni difetto è una issue GitHub con l'etichetta `collaudo` e l'ID del passo; si chiude solo con un test deterministico che lo riproduce (una journey Playwright in `tests/` o una riga del testbook) e con la correzione, così il collaudo alimenta il cancello (Q-685).
+
+```bash
+# Controllo di forma del copione: ID unici, campi obbligatori, ID di specifica esistenti,
+# scritture di configurazione coperte da un passo di audit, nessuna credenziale ricopiata
+node --test scripts/check-collaudo.test.mjs && node scripts/check-collaudo.mjs
+```
+
+Lo stesso controllo gira nel job `guard` di `ci.yml`. Il workflow `collaudo` (livello 3) è un'altra cosa: alza lo stack di CI e conserva i log dei container; il collaudo del livello 2 gira invece sulla vetrina.

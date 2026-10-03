@@ -97,6 +97,73 @@ Il piano gratuito di Cypress Cloud limita i risultati registrati ogni mese. Oltr
 Il collaudo usa solo le credenziali di test pubbliche della vetrina, descritte in [Vetrina enterprise](/concetti/vetrina-enterprise). Non usare mai credenziali di un'altra installazione.
 </Warning>
 
+## Come si avvia il collaudo di release
+
+Il collaudo del livello 2 segue un copione scritto nel repository. Il copione dice, passo per passo, con quale utente di test entrare, cosa fare, cosa aspettarsi e quali prove raccogliere. Così due esecuzioni diverse cercano le stesse cose, anche se non sono mai identiche.
+
+### Prerequisiti
+
+- La candidata `build-<sha>` è sulla vetrina (vedi [Vetrina enterprise](/concetti/vetrina-enterprise)) e il livello 1 è verde.
+- La rete dell'ambiente cloud di Claude ammette gli indirizzi `*.app.github.dev` della vetrina.
+- Hai a disposizione una sessione cloud di Claude in un thread del progetto. In alternativa, Claude in Chrome nella tua scheda del browser.
+
+### Primi passi
+
+1. Apri `e2e/collaudo/AVVIO.md` nel repository e copia il prompt di avvio.
+2. Sostituisci la versione (`vX.0.0`) e la candidata (`build-<sha>`).
+3. Incolla il prompt in una sessione cloud di Claude. Non devi tenere aperto nulla: l'agente accende la vetrina dal Demo Hub se è spenta e guida un browser senza interfaccia.
+4. Attendi la pull request `test(collaudo): rapporto vX.0.0`. Contiene il rapporto, con un esito per ogni passo, le evidenze, i difetti e il verdetto.
+5. Leggi il verdetto e decidi tu il rilascio: il collaudo è consultivo.
+
+Se la rete cloud non raggiunge la vetrina, o se vuoi guardare il collaudo mentre gira, usa Claude in Chrome: lo stesso prompt, nella tua scheda, con una finestra in incognito per ogni utente.
+
+```mermaid
+flowchart TD
+  accTitle: Esecuzione del collaudo di release
+  accDescr: Il proprietario incolla il prompt di avvio in una sessione cloud di Claude. L'agente accende o trova accesa la vetrina dal Demo Hub, esegue il copione area per area con un utente di test alla volta e raccoglie esito, console, rete e screenshot per ogni passo. Scrive il rapporto e apre una pull request. Per ogni passo fallito apre una issue con l'etichetta collaudo, che si chiude solo con un test deterministico e la correzione. Il proprietario legge il verdetto e decide il rilascio. Se la rete cloud non raggiunge la vetrina, il percorso alternativo è Claude in Chrome nella scheda del proprietario.
+  OWN[Proprietario<br/>incolla il prompt di AVVIO.md] --> NET{Rete cloud<br/>raggiunge la vetrina?}
+  NET -->|sì| AG[Sessione cloud di Claude<br/>Chromium senza interfaccia]
+  NET -->|no| ALT[Claude in Chrome<br/>nella scheda del proprietario]
+  AG --> ON[Accende o trova accesa<br/>la vetrina da HUB-01]
+  ALT --> ON
+  ON --> RUN[Esegue copione.md<br/>HUB, BO, PT, KC, AUD]
+  RUN --> EV[Per ogni passo: esito, console,<br/>rete, screenshot, audit]
+  EV --> REP[Rapporto in una pull request<br/>e2e/collaudo/rapporti/]
+  EV -->|passo fallito| ISS[Issue con etichetta collaudo<br/>e ID CL-…]
+  ISS --> TEST[Test deterministico<br/>e correzione]
+  REP --> VER{Verdetto letto<br/>dal proprietario}
+  VER --> TAG[Decisione di rilascio]
+```
+
+### Cosa copre il copione
+
+Il copione `e2e/collaudo/copione.md` ha circa quaranta passi con ID `CL-<AREA>-NNN`, in cinque aree. Ogni passo dichiara l'utente di test, le precondizioni, le azioni, l'esito atteso, le evidenze da raccogliere e gli ID delle specifiche che verifica.
+
+| Area | Cosa verifica | Utenti di test |
+| --- | --- | --- |
+| `HUB` | Accensione della vetrina dal riquadro «Modalità Enterprise» della demo pubblica, HUB-02, schede degli utenti di test | nessuno |
+| `BO` | Un operatore per ruolo, con login, OTP, azioni consentite e azioni negate; il percorso di una campagna e di un premio dalla bozza alla pubblicazione con i quattro occhi | `marta.admin`, `luca.marketing`, `elena.legal`, `paolo.care`, `sara.analyst` |
+| `PT` | Saldo, livello, un'azione che dà punti e il riscatto di un premio; il membro viene solo dal token | `anna.rossi`, `marco.bianchi`, `giulia.ferri` |
+| `KC` | Console dei due realm pubbliche ma limitate, realm `master` chiuso al pubblico | `vetrina.admin`, `membri.admin` |
+| `AUD` | Ogni scrittura di configurazione fatta nei passi `BO` compare in Audit con l'attore reale | `sara.analyst` in sola lettura |
+
+<Warning>
+Il collaudo usa solo le credenziali di test pubbliche della vetrina. Le trovi nel runbook `deploy/vetrina/README.md` e in [Vetrina enterprise](/concetti/vetrina-enterprise): il copione non le ricopia. Non scrivere mai password, seme OTP, cookie o token nel rapporto o nelle issue.
+</Warning>
+
+### Cosa succede ai difetti
+
+Ogni passo che non dà l'esito atteso diventa una issue GitHub con l'etichetta `collaudo` e l'ID del passo nel titolo. La issue si chiude solo con un test deterministico che riproduce il difetto, una journey Playwright o una riga del testbook, e con la correzione. Così il collaudo esplorativo fa crescere il cancello del livello 1 a ogni release.
+
+### Verifica del copione
+
+Il controllo `scripts/check-collaudo.mjs`, nel job `guard` di ogni pull request, tiene il copione in ordine: ID unici, campi obbligatori in ogni passo, ID di specifica che esistono in `docs/`, ogni scrittura di configurazione coperta da un passo di audit e nessuna credenziale ricopiata.
+
+```bash
+# Verifica il copione, il prompt di avvio e il modello del rapporto
+node --test scripts/check-collaudo.test.mjs && node scripts/check-collaudo.mjs
+```
+
 ## Stato
 
-L'harness Playwright (M9.1) esiste: sta in `e2e/` e il job `e2e-pr` lo esegue sul compose `enterprise`, con il login vero di Keycloak e la MFA. Per ora copre quattro prove e il job è consultivo: non è ancora tra i controlli obbligatori del merge. Accanto, nello stesso pacchetto, Cypress (M9.8a, ADR-054) prova la demo pubblica in profilo `demo` ogni cinque giorni e a richiesta, con la registrazione su Cypress Cloud: sta fuori dalle pull request e non è un livello del cancello. Il workflow `collaudo` (M9 T3, Q-683) alza lo stack `enterprise`, esegue le journey Playwright e allega come artefatto, conservato 14 giorni, i log di ogni container, caricati solo se gitleaks non trova segreti; parte a mano e sui tag `v*.0.0`. Il copione di collaudo, il `correlationId` negli errori e i quattro controlli per i bug non noti si aggiungono in fette successive. Il job `mutation` (F2-QA-07) è consultivo: su ogni pull request lancia PIT sulle classi Java e Stryker sui file del web cambiati rispetto a `main` (`bash scripts/mutation.sh all`) e scrive nel riepilogo i mutanti uccisi e sopravvissuti; diventerà obbligatorio, con almeno il 70 % di mutanti uccisi sul diff, alla chiusura di M9. Il job `fuzz` (F2-QA-07, Q-692) è consultivo: su ogni pull request riusa `scripts/security-fuzz.sh` del collaudo notturno sulle sole OpenAPI dei servizi toccati, al massimo cinque minuti per servizio, cerca risposte `5xx` e risposte fuori schema, scrive nel riepilogo servizi, richieste ed errori e conserva il report 14 giorni; se nessun servizio cambia esce verde senza richieste. Le scelte sui controlli sono le domande Q-690…Q-694, decise il 2026-10-02. Le scelte di dettaglio sono le domande Q-680…Q-685, decise il 2026-10-02.
+L'harness Playwright (M9.1) esiste: sta in `e2e/` e il job `e2e-pr` lo esegue sul compose `enterprise`, con il login vero di Keycloak e la MFA. Per ora copre quattro prove e il job è consultivo: non è ancora tra i controlli obbligatori del merge. Accanto, nello stesso pacchetto, Cypress (M9.8a, ADR-054) prova la demo pubblica in profilo `demo` ogni cinque giorni e a richiesta, con la registrazione su Cypress Cloud: sta fuori dalle pull request e non è un livello del cancello. Il workflow `collaudo` (M9 T3, Q-683) alza lo stack `enterprise`, esegue le journey Playwright e allega come artefatto, conservato 14 giorni, i log di ogni container, caricati solo se gitleaks non trova segreti; parte a mano e sui tag `v*.0.0`. Il copione di collaudo (M9 T2, `e2e/collaudo/`) esiste, con il prompt di avvio, il modello del rapporto e il controllo `scripts/check-collaudo.mjs` nel job `guard`. Il `correlationId` negli errori e i quattro controlli per i bug non noti si aggiungono in fette successive. Il job `mutation` (F2-QA-07) è consultivo: su ogni pull request lancia PIT sulle classi Java e Stryker sui file del web cambiati rispetto a `main` (`bash scripts/mutation.sh all`) e scrive nel riepilogo i mutanti uccisi e sopravvissuti; diventerà obbligatorio, con almeno il 70 % di mutanti uccisi sul diff, alla chiusura di M9. Il job `fuzz` (F2-QA-07, Q-692) è consultivo: su ogni pull request riusa `scripts/security-fuzz.sh` del collaudo notturno sulle sole OpenAPI dei servizi toccati, al massimo cinque minuti per servizio, cerca risposte `5xx` e risposte fuori schema, scrive nel riepilogo servizi, richieste ed errori e conserva il report 14 giorni; se nessun servizio cambia esce verde senza richieste. Le scelte sui controlli sono le domande Q-690…Q-694, decise il 2026-10-02. Le scelte di dettaglio sono le domande Q-680…Q-685, decise il 2026-10-02.
