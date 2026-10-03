@@ -6,6 +6,8 @@ import type { PortalCampaign, PortalProfile, ProfileField } from "@/lib/api/type
 import { usePending } from "@/components/portal/PendingContext";
 import { usePortalApi } from "@/components/portal/MemberContext";
 import { QueryState } from "@/components/shared/QueryState";
+import { errorCodeOf, InlineErrorCode } from "@/components/shared/ErrorNotice";
+import { it } from "@/lib/i18n/it";
 import { completenessPct, missingFieldsSentence } from "@/lib/member/profile";
 import { cn } from "@/lib/cn";
 
@@ -124,9 +126,21 @@ function ProfileForm({
           <Consent label="Offerte su misura (profilazione)" checked={draft.profiling} disabled={!editing} onChange={(v) => setDraft((d) => ({ ...d, profiling: v }))} />
         </div>
         {save.isError ? (
-          <p className="mt-2 text-xs text-red-700">
-            {save.error.code === "VERSION_CONFLICT" ? "I dati sono cambiati nel frattempo: ricarica la pagina." : save.error.code === "EMAIL_TAKEN" ? "Questa e-mail è già usata da un altro iscritto." : save.error.detail}
-          </p>
+          <div role="alert" className="mt-2 text-xs text-red-700">
+            <p>
+              {save.error.code === "VERSION_CONFLICT"
+                ? "I dati sono cambiati nel frattempo: ricarica la pagina."
+                : save.error.code === "EMAIL_TAKEN"
+                  ? "Questa e-mail è già usata da un altro iscritto."
+                  : save.error.status >= 500
+                    ? it.errorCode.portalHint
+                    : save.error.detail}
+            </p>
+            {/* Guasto o rifiuto inatteso: codice in piccolo (C1). Errori attesi e di campo: nessun codice (B1). */}
+            {save.error.code === "VERSION_CONFLICT" || save.error.code === "EMAIL_TAKEN" ? null : (
+              <InlineErrorCode code={errorCodeOf(save.error)} className="mt-1 opacity-80" />
+            )}
+          </div>
         ) : null}
         <div className="mt-3 flex items-center justify-end gap-2">
           {message && !editing ? <span className="mr-auto text-xs text-emerald-700">{message}</span> : null}

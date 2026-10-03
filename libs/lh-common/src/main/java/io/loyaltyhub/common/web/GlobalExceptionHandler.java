@@ -14,7 +14,8 @@ import java.util.List;
 
 /**
  * Traduce le eccezioni in {@code application/problem+json} (RFC 9457, docs/06 §2).
- * {@code type = urn:loyaltyhub:problem:<suffix>}, più le proprietà {@code code} e {@code errors}.
+ * {@code type = urn:loyaltyhub:problem:<suffix>}, più le proprietà {@code code}, {@code errors} e {@code correlationId}
+ * (il codice dell'errore della richiesta, {@link CorrelationIdFilter}).
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -25,6 +26,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(LhException.class)
     public ResponseEntity<ProblemDetail> onLhException(LhException ex, HttpServletRequest request) {
+        if (ex.status().is5xxServerError()) {
+            // Un guasto, non un errore del client: riga a livello error con lo stack, col codice dell'errore nell'MDC.
+            log.error("Errore {} su {}: {}", ex.status().value(), request != null ? request.getRequestURI() : "?",
+                    ex.code(), ex);
+        }
         ProblemDetail pd = base(ex.status(), ex.typeSuffix(), title(ex.status()), ex.getMessage(), request);
         pd.setProperty("code", ex.code());
         if (!ex.errors().isEmpty()) {
@@ -171,7 +177,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({org.springframework.dao.DataAccessResourceFailureException.class,
             org.springframework.transaction.CannotCreateTransactionException.class})
     public ResponseEntity<ProblemDetail> onDependencyDown(Exception ex, HttpServletRequest request) {
-        log.warn("Dipendenza non raggiungibile su {}: {}", request != null ? request.getRequestURI() : "?", ex.toString());
+        // 5xx: livello error con lo stack, così la riga contiene il codice dell'errore (ADR-052 decisione 3).
+        log.error("Dipendenza non raggiungibile su {}", request != null ? request.getRequestURI() : "?", ex);
         ProblemDetail pd = base(HttpStatus.SERVICE_UNAVAILABLE, "dependency-unavailable",
                 title(HttpStatus.SERVICE_UNAVAILABLE), "Database non raggiungibile: riprova tra poco", request);
         pd.setProperty("code", "DEPENDENCY_UNAVAILABLE");
@@ -220,6 +227,12 @@ public class GlobalExceptionHandler {
         pd.setTitle(title);
         if (request != null) {
             pd.setInstance(URI.create(request.getRequestURI()));
+        }
+        // Codice dell'errore (ADR-052 decisione 3, Q-716): quello della richiesta, lo stesso delle righe di log. Campo
+        // opzionale, mai dati personali; assente fuori da una richiesta filtrata da CorrelationIdFilter.
+        String correlationId = org.slf4j.MDC.get(CorrelationIdFilter.MDC_KEY);
+        if (correlationId != null) {
+            pd.setProperty("correlationId", correlationId);
         }
         return pd;
     }

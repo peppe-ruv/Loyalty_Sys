@@ -179,7 +179,7 @@ Il layout del portale legge `GET /portal/theme` e imposta le variabili CSS sull'
 |---|---|
 | **Loading** | skeleton della forma finale (mai spinner a pagina intera); tabelle: 8 righe scheletro |
 | **Empty** | icona tenue + frase che spiega *perché* è vuoto + azione primaria (es. "Nessuna campagna in bozza. Crea la prima") |
-| **Error** | riquadro in linea con `title` del problema RFC 9457, `detail`, `correlationId` copiabile, "Riprova" |
+| **Error** | riquadro in linea (F2-QA-06, Q-716): su un guasto (5xx o 4xx inatteso) `title` e `detail` del problema RFC 9457 (sui 5xx: «Il servizio *wallet* non ha risposto correttamente» con il suggerimento di riprovare), l'etichetta **«Codice dell'errore»** col `correlationId` della risposta (corpo, altrimenti intestazione `X-Correlation-Id`), «Riprova» primario e **«Copia il codice»**, che conferma con «Codice copiato» annunciato ai lettori di schermo (`role="status"`). Un errore di salvataggio usa lo stesso riquadro in testa al modulo, con i campi ancora compilati. Gli errori di validazione dei campi (422 con `errors[]`) non mostrano il codice: restano sui campi (B1). Nel portale il codice sta in piccolo sotto il messaggio, con «Copia il codice» (C1) |
 | **Degraded** (`SERVICE_ASLEEP`) | riquadro ambra: "Il servizio *wallet* si sta svegliando…" con barra indeterminata; riprova automatica ogni 5 s fino a 90 s; il resto della pagina resta usabile |
 | **Forbidden** | azione disabilitata + tooltip "Richiede ruolo LEGAL"; pagina intera vietata → schermata con invito a cambiare persona |
 | **Validation** | errori di campo dal backend (`errors[]` del problema) mappati sui campi del form |

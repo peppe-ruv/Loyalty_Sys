@@ -7,6 +7,20 @@ export const it = {
     repo: "Repository",
     demoBanner: "Ambiente dimostrativo: dati fittizi, nessuna autenticazione.",
   },
+  // Codice dell'errore (F2-QA-06, ADR-052 decisione 3, Q-684, Q-716): lo stesso testo in backoffice e portale.
+  errorCode: {
+    label: "Codice dell'errore",
+    /** Etichetta breve del portale, sotto il messaggio (C1). */
+    labelShort: "Codice",
+    copy: "Copia il codice",
+    copied: "Codice copiato",
+    selected: "Codice selezionato: copialo con Ctrl+C",
+    retry: "Riprova",
+    serviceTitle: (service: string) => `Il servizio ${service} non ha risposto correttamente`,
+    serviceHint: "Riprova tra poco. Se l'errore si ripete, comunica il codice a chi gestisce la piattaforma.",
+    actionHint: "I dati che hai inserito sono ancora nel modulo. Riprova; se l'errore si ripete, comunica il codice.",
+    portalHint: "Riprova tra qualche istante. Se il problema continua, contatta l'assistenza e indica questo codice.",
+  },
   hub: {
     statusTitle: "Stato dei servizi",
     wake: "Accendi la demo",
@@ -296,6 +310,7 @@ export const it = {
     toHome: "Sei già iscritto: apro la Home…",
     errorTitle: "Non riesco ad aprire il tuo portale.",
     retry: "Riprova",
+    saveFailedTitle: "Non riesco a salvare il tuo profilo.",
     joinTitle: (first: string) => (first ? `Ciao ${first}, completa l'iscrizione` : "Completa l'iscrizione"),
     joinLead: "Ti manca solo il profilo del programma. Riceverai 100 punti di benvenuto.",
     welcomeTitle: (first: string) => (first ? `Benvenuta, ${first}` : "Benvenuta"),
