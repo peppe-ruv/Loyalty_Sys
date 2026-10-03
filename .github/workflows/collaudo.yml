@@ -29,9 +29,10 @@ jobs:
     name: collaudo (stack enterprise, log dei container)
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    env:
-      LOG_DIR: ${{ runner.temp }}/collaudo-log
     steps:
+      # Il contesto `runner` non esiste a livello di job: LOG_DIR si fissa nel primo passo.
+      - name: Cartella dei log
+        run: echo "LOG_DIR=${RUNNER_TEMP}/collaudo-log" >> "$GITHUB_ENV"
       - name: Spazio su disco
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
