@@ -7,6 +7,8 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "test:mock": "playwright test -c playwright.mock.config.ts",
+    "test:unit": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test journeys/*.test.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p cypress/tsconfig.json",
     "cy:run": "cypress run",
     "cy:open": "cypress open"

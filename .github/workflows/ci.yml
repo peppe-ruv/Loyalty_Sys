@@ -895,12 +895,35 @@ jobs:
       - name: Typecheck dell'harness
         working-directory: e2e
         run: pnpm typecheck
+      # Prove dell'harness delle journey casuali senza stack (ADR-053, Q-693): il generatore dà sempre gli stessi passi
+      # per lo stesso seme, e il runner con le sue invarianti si prova contro uno stack simulato.
+      - name: Journey casuali, prove del generatore e del runner
+        working-directory: e2e
+        run: pnpm test:unit && pnpm test:mock
+      # Seme principale delle 20 journey casuali (ADR-053 decisione 4, Q-693): scelto qui, prima della corsa, così è nel
+      # riepilogo anche se la corsa si interrompe, e rigiocabile con LH_JOURNEY_SEED. Journey e azioni per journey:
+      # 20 x 8; se non stanno nei 15 minuti del passo si riducono le azioni, mai si salta il controllo (Q-694).
+      - name: Seme delle journey casuali
+        run: |
+          seed="$(python3 -c 'import secrets; print(secrets.randbelow(4294967295) + 1)')"
+          {
+            echo "LH_JOURNEY_SEED=${seed}"
+            echo "LH_JOURNEY_COUNT=20"
+            echo "LH_JOURNEY_STEPS=8"
+          } >> "$GITHUB_ENV"
+          echo "Seme principale delle journey casuali: ${seed}"
       - name: Journey Playwright
         timeout-minutes: 15
         working-directory: e2e
         run: pnpm test
+      # Seme, esito e semi falliti delle journey casuali nel riepilogo del job (anche se la corsa è fallita o interrotta).
+      - name: Riepilogo delle journey casuali
+        if: ${{ always() }}
+        working-directory: e2e
+        run: node journeys/riepilogo.mjs >> "$GITHUB_STEP_SUMMARY"
       # Il report HTML e le tracce dei test falliti (il progetto `setup` e la spec del membro non ne producono). La
-      # sessione dell'operatore sta fuori da queste cartelle. Lo stack è effimero e viene distrutto al termine.
+      # sessione dell'operatore sta fuori da queste cartelle. Lo stack è effimero e viene distrutto al termine. Con le
+      # tracce vanno i semi falliti (`journeys/regressioni/*.json`: seme e passi, senza dati personali né credenziali).
       - name: Report Playwright
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
@@ -910,6 +933,7 @@ jobs:
             e2e/playwright-report/
             e2e/test-results/
             !e2e/test-results/**/*-setup/**
+            e2e/journeys/regressioni/*.json
           retention-days: 14
           if-no-files-found: ignore
       - name: Diagnostica
