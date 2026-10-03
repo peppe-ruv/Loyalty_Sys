@@ -381,7 +381,7 @@ export function criteriaAttributeKeys(criteria, attributeDefs) {
  * accetta lo stato; lo script non invia, non approva, non pubblica: regola 22). Le altre si riportano come escluse.
  * Attiva solo con l'opzione `campaigns` di `buildPlan` (la riga di comando non le tocca).
  */
-// SPEC-GAP: Q-723 (default A: campagne in DRAFT, storie in attesa che siano LIVE; decisione con Giuseppe in sospeso)
+// Q-723 deciso (Giuseppe, 2026-10-03, A): campagne in DRAFT, storie in attesa che siano LIVE
 const CAMPAIGNS_SPEC = {
   id: 'campaigns', service: 'campaign', file: 'campaigns', list: '/v1/campaigns', keyOf: (x) => x.code,
   create: '/v1/campaigns', audit: { type: 'CAMPAIGN' }, compareKeys: ['name'],
