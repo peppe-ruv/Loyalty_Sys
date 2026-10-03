@@ -5,6 +5,7 @@
 #   bash scripts/smoke-enterprise.sh up     # segreti e TLS di prova, compose enterprise, overlay di test del realm
 #   bash scripts/smoke-enterprise.sh run    # scripts/smoke-enterprise.mjs compose
 #   bash scripts/smoke-enterprise.sh logs   # diagnostica
+#   bash scripts/smoke-enterprise.sh dump DIR  # un file DIR/<servizio>.log per container (compose logs --timestamps)
 #   bash scripts/smoke-enterprise.sh down   # smonta tutto e cancella segreti e certificati
 #
 # Prerequisiti: Docker con compose, openssl, python3, curl, Node 22, l'immagine unica in LH_IMAGE (default
@@ -220,6 +221,23 @@ for name, c in sorted((h.get("components") or {}).items()):
   echo "::endgroup::"
 }
 
+# Un file per container con i log completi e i timestamp (workflow `collaudo`, ADR-052, Q-683). Cartella e file sono
+# 0700/0600; sullo standard output va solo il numero di file, mai il contenuto. Il controllo dei segreti (gitleaks)
+# e il caricamento dell'artefatto stanno nel workflow.
+dump() {
+  local out="${1:-}" svc n=0
+  [ -n "$out" ] || { echo "Uso: bash scripts/smoke-enterprise.sh dump DIR" >&2; exit 2; }
+  load_env
+  umask 077
+  mkdir -p "$out"
+  chmod 700 "$out"
+  for svc in $(compose ps -a --services 2>/dev/null); do
+    compose logs --no-color --timestamps "$svc" > "$out/${svc}.log" 2>&1 || true
+    n=$((n + 1))
+  done
+  echo "Log di ${n} container salvati."
+}
+
 down() {
   if [ -r "$ENV_FILE" ]; then
     compose down -v --remove-orphans > /dev/null 2>&1 || true
@@ -231,6 +249,7 @@ case "${1:-}" in
   up) up ;;
   run) run ;;
   logs) logs ;;
+  dump) dump "${2:-}" ;;
   down) down ;;
-  *) echo "Uso: bash scripts/smoke-enterprise.sh up | run | logs | down" >&2; exit 2 ;;
+  *) echo "Uso: bash scripts/smoke-enterprise.sh up | run | logs | dump DIR | down" >&2; exit 2 ;;
 esac
