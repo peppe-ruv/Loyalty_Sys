@@ -30,15 +30,15 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 
     private static final Pattern VALID = Pattern.compile("[A-Za-z0-9-]{1,64}");
 
-    /** Intestazione se ha una forma sicura, altrimenti un nuovo ULID. */
-    static String resolve(String incoming) {
+    /** Bonifica (semgrep lh-header-valore-da-richiesta): l'intestazione se ha forma sicura, altrimenti un nuovo ULID. */
+    static String sanitizeOrGenerate(String incoming) {
         return incoming != null && VALID.matcher(incoming).matches() ? incoming : Ulid.next();
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String id = resolve(request.getHeader(HEADER));
+        String id = sanitizeOrGenerate(request.getHeader(HEADER));
         MDC.put(MDC_KEY, id);
         response.setHeader(HEADER, id);
         try {
