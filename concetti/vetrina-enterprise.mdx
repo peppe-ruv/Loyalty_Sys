@@ -11,7 +11,7 @@ La vetrina è una prova da guardare, non un servizio di produzione: non è ad al
 </Note>
 
 <Note>
-**Stato.** L'architettura è decisa (ADR-049) e l'overlay per installare l'istanza è pronto (`deploy/vetrina/`, fetta M8.14c). Dal 2026-10-01 la vetrina si ospita in un GitHub Codespace acceso su richiesta (ADR-050), al posto dell'host Oracle Cloud: il dev container `.devcontainer/vetrina` la avvia e la configura da solo (fetta M8.14 V7), le altre parti arrivano con le fette di M8.14 (piano in `docs/18`). Il riquadro «Modalità Enterprise» della demo, con il pulsante di accensione, compare solo se il proprietario ha impostato le variabili di Vercel descritte in «Dal browser: accendi, scegli, entra».
+**Stato.** L'architettura è decisa (ADR-049) e l'overlay per installare l'istanza è pronto (`deploy/vetrina/`, fetta M8.14c). Dal 2026-10-01 la vetrina si ospita in un GitHub Codespace acceso su richiesta (ADR-050, ADR-051): il dev container `.devcontainer/vetrina` la avvia e la configura da solo (fetta M8.14 V7), le altre parti arrivano con le fette di M8.14 (piano in `docs/18`). Il riquadro «Modalità Enterprise» della demo, con il pulsante di accensione, compare solo se il proprietario ha impostato le variabili di Vercel descritte in «Dal browser: accendi, scegli, entra».
 </Note>
 
 <Warning>
@@ -47,7 +47,7 @@ flowchart LR
 | `hub` | container nel codespace, non esposto | Esegue le migrazioni all'avvio. |
 | `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina: registrazione chiusa, nessuna credenziale pubblicata e un client pubblico `lh-cli` (Device Authorization Grant, con consenso esplicito e ruoli limitati a quelli operatore) per la CLI dell'operatore (Q-626, decisa il 2026-09-30). L'OTP vale per gli account con `MFA_REQUIRED_ROLE` e lo script del realm fallisce per un operatore che non lo ha (Q-618, decisa il 2026-09-30). |
 | Postgres e Kafka | nel codespace, nel compose | Database e broker **propri**, mai condivisi con la demo. Il traffico verso entrambi è in TLS, con certificati di una CA locale generata nel codespace (Q-621): Postgres rifiuta le connessioni in chiaro, Kafka chiede il certificato del client. |
-| Inoltro delle porte | GitHub, due porte pubbliche | Unico ingresso, in https su `*.app.github.dev`: termina il TLS per `web` e `idp` (Q-661). Il reverse proxy con certificati ACME dell'overlay serve solo su un host fisso (Q-620). Del Keycloak espone i due realm di vetrina e le loro console; il realm `master` no (Q-670). |
+| Inoltro delle porte | GitHub, due porte pubbliche | Unico ingresso, in https su `*.app.github.dev`: termina il TLS per `web` e `idp` (Q-661). Del Keycloak espone i due realm di vetrina e le loro console; il realm `master` no (Q-670). |
 
 L'hosting è un GitHub Codespace del repository: il proprietario lo accende dal browser prima di una demo e si ferma da solo dopo un periodo di inattività. Resta a costo zero perché l'uso si blocca a fine quota gratuita (ADR-050, Q-660); un host sempre acceso è rimandato (TOBE-012). Il bus è un broker Kafka KRaft sullo stesso host, con gli stessi 5 topic della demo (Q-616).
 
@@ -179,13 +179,13 @@ Le modifiche fatte nelle console non arrivano ancora nell'audit del backoffice: 
 
 ## Azzeramento
 
-Nel codespace Keycloak riparte dalla configurazione del repository a **ogni avvio**: lo script ricrea il solo database `idp`, e ogni modifica fatta dalle console sparisce (ADR-051 decisione 10, Q-672). I dati dell'hub e i membri registrati restano, perché gli utenti di test hanno id fissi. Un codespace nuovo parte vuoto (Q-663). Lo stesso azzeramento si esegue a mano con `deploy/vetrina/vetrina.sh reset` o, su un host fisso, ogni lunedì con un timer, senza backup (Q-624): ricrea i dati, reimporta il realm e ricrea gli account operatore. Su un host fisso il certificato pubblico del proxy resta, così l'azzeramento non consuma le emissioni ACME. L'ultimo passo, la configurazione del programma, chiede l'approvazione di un operatore con MFA e quindi resta manuale (Q-630).
+Nel codespace Keycloak riparte dalla configurazione del repository a **ogni avvio**: lo script ricrea il solo database `idp`, e ogni modifica fatta dalle console sparisce (ADR-051 decisione 10, Q-672). I dati dell'hub e i membri registrati restano, perché gli utenti di test hanno id fissi. Un codespace nuovo parte vuoto (Q-663). Lo stesso azzeramento si esegue a mano con `deploy/vetrina/vetrina.sh reset`, senza backup (Q-663): ricrea i dati, reimporta il realm e ricrea gli account operatore. L'ultimo passo, la configurazione del programma, chiede l'approvazione di un operatore con MFA e quindi resta manuale (Q-630).
 
 ```mermaid
 flowchart TD
   accTitle: Azzeramento della vetrina enterprise
-  accDescr: A ogni azzeramento, cioè un codespace nuovo, il comando a mano o il timer settimanale su un host fisso, lo script rinnova i certificati interni in scadenza, ripete i controlli, ricrea i volumi di Postgres e Kafka, riavvia lo stack con il realm reimportato, applica l'overlay del realm e ricrea gli account operatore. La configurazione del programma la riapplica poi un operatore con il Device Authorization Grant e la MFA.
-  T[Codespace nuovo, reset a mano<br/>o timer su host fisso] --> P[provision: certificati interni<br/>rinnovati se scadono entro 30 giorni]
+  accDescr: A ogni azzeramento, cioè un codespace nuovo o il comando a mano, lo script rinnova i certificati interni in scadenza, ripete i controlli, ricrea i volumi di Postgres e Kafka, riavvia lo stack con il realm reimportato, applica l'overlay del realm e ricrea gli account operatore. La configurazione del programma la riapplica poi un operatore con il Device Authorization Grant e la MFA.
+  T[Codespace nuovo<br/>o reset a mano] --> P[provision: certificati interni<br/>rinnovati se scadono entro 30 giorni]
   P --> C[preflight: architettura, permessi 0600,<br/>certificati, nessun segreto nell'ambiente]
   C --> D[Volumi di Postgres e Kafka ricreati<br/>nessun backup]
   D --> U[Stack riavviato:<br/>Keycloak reimporta il realm]
@@ -197,10 +197,10 @@ flowchart TD
 ## Utenti di test
 
 <Warning>
-Ambiente di test, dati fittizi. Le credenziali qui sotto sono pubbliche e valgono solo nel codespace: su un host fisso non esistono. Non inserire mai dati personali veri.
+Ambiente di test, dati fittizi. Le credenziali qui sotto sono pubbliche e valgono solo nel codespace. Non inserire mai dati personali veri.
 </Warning>
 
-Con ADR-051 la vetrina si prova da browser, senza chiedere account al proprietario. La regola di Q-618, account nominativi con password temporanea, resta valida per un host fisso. Nel codespace gli utenti di test hanno id fissi e li ricrea lo script del realm a ogni avvio. Gli operatori hanno la MFA obbligatoria: servono password e codice OTP. Hub e web accettano credenziali fisse solo per chi ha il ruolo `LH_TEST_USER`, e solo con `LH_TEST_USERS_ALLOWED=true` e `LH_ENVIRONMENT=test`.
+Con ADR-051 la vetrina si prova da browser, senza chiedere account al proprietario. Nel codespace gli utenti di test hanno id fissi e li ricrea lo script del realm a ogni avvio. Gli operatori hanno la MFA obbligatoria: servono password e codice OTP. Hub e web accettano credenziali fisse solo per chi ha il ruolo `LH_TEST_USER`, e solo con `LH_TEST_USERS_ALLOWED=true` e `LH_ENVIRONMENT=test`.
 
 | Utente | Realm | Ruolo | Password |
 |---|---|---|---|

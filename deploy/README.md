@@ -470,16 +470,15 @@ produce `SIGNATURE_INVALID` né `PRODUCER_NOT_ALLOWED`), picchi di 401 e 403, ar
 ### Vetrina enterprise: overlay del compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, M8.14c)
 
 La vetrina enterprise ospitata (`docs/11 §17`) usa questo compose con l'overlay `deploy/vetrina/compose.vetrina.yml`,
-sempre attraverso `deploy/vetrina/vetrina.sh`. L'overlay aggiunge il reverse proxy con certificati ACME per due nomi
-(Q-620, unico componente nuovo e unico esposto), TLS verso Kafka e Postgres con una CA locale generata sull'host (Q-621),
-segreti solo da `<VAR>_FILE` con file `0600` (regola 20) e il profilo `enterprise` fisso. Il runbook per Oracle Cloud A1,
-con verifica arm64, provisioning, azzeramento settimanale (Q-624) e limiti noti, è in `deploy/vetrina/README.md`.
+sempre attraverso `deploy/vetrina/vetrina.sh`. L'overlay aggiunge il reverse proxy
+(unico componente nuovo e unico esposto; nel codespace in HTTP dietro l'inoltro delle porte di GitHub, Q-661), TLS verso Kafka e Postgres con una CA locale generata nel codespace (Q-621),
+segreti solo da `<VAR>_FILE` con file `0600` (regola 20) e il profilo `enterprise` fisso. Il runbook per il codespace
+(ADR-050), con avvio, console di Keycloak, utenti di test, azzeramento e limiti noti, è in `deploy/vetrina/README.md`.
 
 ```bash
-# Sull'host della vetrina, con la configurazione in /etc/loyaltyhub-vetrina/vetrina.env
-sudo deploy/vetrina/vetrina.sh provision   # segreti, CA locale e certificati (nessun valore stampato)
-sudo deploy/vetrina/vetrina.sh preflight   # arm64, permessi, certificati, compose valido
-sudo deploy/vetrina/vetrina.sh reset       # primo avvio o azzeramento: stack, realm, overlay, operatori
+# Nel terminale del codespace della vetrina (lo avvia da solo .devcontainer/vetrina; ADR-050)
+sudo --preserve-env=LH_VETRINA_CONFIG bash deploy/vetrina/vetrina.sh preflight   # architettura, permessi, certificati, compose valido
+sudo --preserve-env=LH_VETRINA_CONFIG bash deploy/vetrina/vetrina.sh reset       # azzeramento: stack, realm, overlay, operatori
 ```
 
 Verifica: `node --test scripts/check-vetrina.mjs` (job `seed`).
