@@ -895,6 +895,77 @@ if (Array.isArray(templatesSeed)) {
   }
 }
 
+// Fonte di test e storie della vetrina (V10, Q-722, docs/10 §2): seed SOLO della vetrina enterprise (non è in sources.json
+// e nessun servizio lo carica con il profilo demo). Si controlla che sia coerente con gli altri seed e con le regole delle
+// campagne: tipi ammessi esistenti e mai vuoti, membri di members.json, date entro la finestra di ingestion (1–29 giorni),
+// limiti delle campagne rispettati e STS attesi = quelli che le regole producono (livello e distanza da Gold di docs/10 §2).
+{
+  const vt = readSeed("vetrina-test.json");
+  if (vt) {
+    const W = "vetrina-test.json";
+    const types = new Set((readSeed("event-types.json") ?? []).map((x) => x.code));
+    const members = readSeed("members.json") ?? [];
+    const campaigns = (readSeed("campaigns.json") ?? []).filter((c) => c.status === "LIVE" && !c.system);
+    const tiers = [...(readSeed("tiers.json") ?? [])].sort((a, b) => a.thresholdSts - b.thresholdSts);
+    const src = vt.source ?? {};
+    if (src.code !== "vetrina-test") errors.push(`${W}: la fonte deve chiamarsi vetrina-test`);
+    if (src.kind !== "HTTP") errors.push(`${W}: la fonte di test deve essere HTTP`);
+    if ((readSeed("sources.json") ?? []).some((s) => s.code === src.code)) errors.push(`${W}: ${src.code} non deve stare in sources.json (comparirebbe in BO-09 della demo)`);
+    const allowed = src.allowedTypes ?? [];
+    if (!Array.isArray(allowed) || allowed.length === 0) errors.push(`${W}: allowedTypes deve essere un elenco esplicito e non vuoto (mai aperta a tutti i tipi)`);
+    if (new Set(allowed).size !== allowed.length) errors.push(`${W}: allowedTypes con doppioni`);
+    for (const t of allowed) if (!types.has(t)) errors.push(`${W}: tipo azione ammesso inesistente ${t}`);
+    const stsOf = (rows) => {
+      let sts = 0;
+      for (const r of rows) {
+        for (const c of campaigns.filter((x) => (x.triggerActionTypes ?? []).includes(r.type))) {
+          const rulesOk = (c.conditions?.rules ?? []).every((q) => q.cmp === "gte" && q.field.startsWith("data.") && Number(r.data?.[q.field.slice(5)] ?? 0) >= q.value);
+          if (!rulesOk || (c.audience?.all === false)) continue;
+          for (const e of c.effects ?? []) {
+            if (e.type !== "GRANT_POINTS" || e.currency !== "STS") continue;
+            sts += e.mode === "FIXED" ? e.value : Math.floor(Math.floor(Number(r.data?.[String(e.amountField).slice(5)] ?? 0) / e.unitStep) * e.value);
+          }
+        }
+      }
+      return sts;
+    };
+    const tierAt = (sts) => [...tiers].reverse().find((t) => sts >= t.thresholdSts)?.code;
+    for (const st of vt.stories ?? []) {
+      const w = `${W}: ${st.username}`;
+      const member = members.find((m) => String(m.email).toLowerCase() === String(st.email).toLowerCase());
+      if (!member) errors.push(`${w}: l'e-mail ${st.email} non è di un membro di members.json`);
+      else if (`${member.firstName} ${member.lastName}` !== st.name) errors.push(`${w}: il nome non coincide con members.json`);
+      const perDay = new Map();
+      const logins = new Set();
+      let readings = 0;
+      for (const r of st.rows ?? []) {
+        if (!allowed.includes(r.type)) errors.push(`${w}: tipo ${r.type} non ammesso dalla fonte`);
+        const m = /^@today-(\d{1,2})d(?:T\d{2}:\d{2})?$/.exec(r.at ?? "");
+        if (!m || Number(m[1]) < 1 || Number(m[1]) > 29) errors.push(`${w}: data ${r.at} fuori dalla forma @today-NdTHH:MM con N da 1 a 29 (finestra di ingestion, 30 giorni)`);
+        const day = m?.[1];
+        if (r.type === "purchase.completed") perDay.set(day, (perDay.get(day) ?? 0) + 1);
+        if (r.type === "app.login.daily") {
+          if (logins.has(day)) errors.push(`${w}: due accessi giornalieri lo stesso giorno (CMP-APP-DAILY: 1 al giorno)`);
+          logins.add(day);
+        }
+        if (r.type === "selfreading.submitted") readings++;
+      }
+      for (const [day, n] of perDay) if (n > 3) errors.push(`${w}: ${n} acquisti lo stesso giorno (CMP-PURCHASE-BASE: massimo 3 al giorno), giorno -${day}`);
+      if (readings > 1) errors.push(`${w}: più di un'autolettura (CMP-SELF-READING: 1 al mese, le date relative non garantiscono mesi diversi)`);
+      const sts = stsOf(st.rows ?? []);
+      if (sts !== st.expectedSts) errors.push(`${w}: expectedSts ${st.expectedSts}, le regole delle campagne danno ${sts}`);
+      if (tierAt(sts) !== st.expectedTier) errors.push(`${w}: expectedTier ${st.expectedTier}, a ${sts} STS il livello è ${tierAt(sts)}`);
+    }
+    const giulia = (vt.stories ?? []).find((s) => s.username === "giulia.ferri");
+    const gold = tiers.find((t) => t.code === "GOLD");
+    if (!giulia || !gold || gold.thresholdSts - giulia.expectedSts !== 120) errors.push(`${W}: Giulia deve restare a 120 STS da GOLD (docs/10 §2, SCN-TIER-UP)`);
+    const marco = (vt.stories ?? []).find((s) => s.username === "marco.bianchi");
+    if (marco?.rows.some((r) => ["ebill.activated", "directdebit.activated"].includes(r.type))) errors.push(`${W}: Marco non deve avere bolletta digitale né domiciliazione (SCN-DIGITAL)`);
+    const anna = (vt.stories ?? []).find((s) => s.username === "anna.rossi");
+    if (anna?.rows.some((r) => r.type === "member.profile.completed")) errors.push(`${W}: Anna non deve completare il profilo (SCN-ONBOARDING)`);
+  }
+}
+
 for (const w of warnings) console.warn(`⚠ ${w}`);
 if (errors.length > 0) {
   for (const e of errors) console.error(`✗ ${e}`);

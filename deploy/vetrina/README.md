@@ -61,7 +61,7 @@ Il dev container del codespace è in `.devcontainer/vetrina/` (`devcontainer.jso
 2. Attendi la fine di `avvio.sh` (il terminale *Creation log*, oppure `sudo cat /workspaces/.loyaltyhub-vetrina/avvio.log`). Al primo avvio servono alcuni minuti per scaricare le immagini e avviare Keycloak e Kafka.
 3. Se lo script avvisa che non riesce a rendere pubbliche le porte, nel pannello *Porte* fai clic destro su 8000 e 8001, *Visibilità della porta → Pubblica*. Le altre porte restano private.
 4. L'indirizzo della vetrina è `https://<nome del codespace>-8000.app.github.dev`. Mettilo in `LH_HUB_ENTERPRISE_URL` della demo per il pulsante di HUB-01: il nome del codespace non cambia finché non lo cancelli.
-5. Al primo avvio, o dopo un azzeramento, applica il programma dal terminale del codespace: `sudo --preserve-env=LH_VETRINA_CONFIG env "PATH=$PATH" bash deploy/vetrina/vetrina.sh programma` (`PATH` serve a trovare Node.js) (Q-630). Le password temporanee degli operatori sono in `/workspaces/.loyaltyhub-vetrina/operator-passwords.txt` (leggile con `sudo cat`): consegnale fuori banda e cancella il file.
+5. Al primo avvio, o dopo un azzeramento, applica il programma con il pulsante **Carica il programma di esempio** del backoffice (V10, Q-673) o, come ripiego, dal terminale del codespace: `sudo --preserve-env=LH_VETRINA_CONFIG env "PATH=$PATH" bash deploy/vetrina/vetrina.sh programma` (`PATH` serve a trovare Node.js) (Q-630). Le password temporanee degli operatori sono in `/workspaces/.loyaltyhub-vetrina/operator-passwords.txt` (leggile con `sudo cat`): consegnale fuori banda e cancella il file.
 
 Fermare e riaccendere il codespace conserva dati e account. Un codespace nuovo parte vuoto; per azzerare quello attuale usa `sudo --preserve-env=LH_VETRINA_CONFIG bash deploy/vetrina/vetrina.sh reset`.
 
@@ -237,7 +237,7 @@ I certificati interni durano 397 giorni e l'azzeramento li rinnova quando ne man
 - **Segreti leggibili dall'utente del codespace.** Nel codespace l'uid 1000 dei container coincide con l'utente `vscode`: chi apre il terminale del codespace, cioè solo il proprietario, può leggere i file di `secrets/`.
 - **Pagina di avviso di GitHub.** Al primo accesso da un browser a una porta pubblica GitHub può mostrare una pagina di conferma prima della vetrina.
 - **Non è HA.** Un codespace, un broker, un Postgres e una replica del web; gli obiettivi di ADR-036 non valgono.
-- **Azzeramento non del tutto automatico** (Q-630): il programma si riapplica a mano con `vetrina.sh programma`.
+- **Azzeramento non del tutto automatico** (Q-630): il programma si riapplica a mano, con il pulsante del backoffice (V10) o, come ripiego, con `vetrina.sh programma` (che non crea campagne né storie).
 - **HTTP in chiaro dentro la rete compose** tra proxy, web, Keycloak e hub, dentro lo stesso codespace (TOBE-011). Bus e database sono in TLS.
 - **Guardia TLS nel container, non nell'hub** (Q-631): la rifiuta l'entrypoint dell'overlay, non ancora il codice dell'hub.
 - **Tempo reale in BO-24** in stato *degraded* finché non arriva il proxy SSE nel BFF (Q-622).

@@ -58,6 +58,8 @@ Vincoli: **GOLD + PLATINUM = 4** (Davide, Francesca, Stefano, Sofia); ogni membr
 
 **Personas del backoffice** (`personas.json`): `marta.admin` Marta Villa `ADMIN` · `luca.marketing` Luca Serra `MARKETING` · `elena.legal` Elena Riva `LEGAL` · `paolo.care` Paolo Neri `CARE` · `sara.analyst` Sara Longo `ANALYST`. Ognuna ha una riga "cosa posso fare" per il selettore.
 
+**Storie dei membri di prova** (`vetrina-test.json`, `F2-DIST-09`): fonte `vetrina-test` e righe di evento per i tre membri della vetrina enterprise, caricate dal pulsante "Carica il programma di esempio" in un solo import. Date relative (`@today-NdTHH:MM`, N da 1 a 29). Totali attesi: Anna 2 righe, 0 STS, BASE; Marco 14 righe, 1.420 STS, SILVER; Giulia 22 righe, 2.880 STS, SILVER (120 sotto GOLD, soglia 3.000). Il pulsante usa un'istantanea generata da `seed/` (`web/lib/vetrina/programma-seed.generated.json`), perché l'immagine web non contiene `seed/`; `scripts/check-vetrina.mjs` ne verifica l'allineamento. I PTS non coincidono con quelli di questo documento (Q-724).
+
 ## 3. Programma: fonti, tipi azione, livelli, valute, segmenti
 
 - **Fonti** (`sources.json`): `crm`, `app`, `ecommerce`, `billing`, `partner` (abilitate) · `internal` (ponte) · `simulator` (demo). Tipi ammessi per fonte come in `docs/05 §3`.
@@ -230,3 +232,4 @@ Generatore con seme fisso per 90 giorni di `metric_daily` (`synthetic=true`): ba
 10. `event-types.json`: lo schema di `data` dei tipi con un contratto coincide con `contracts/events/action/<tipo>.schema.json` (precedenza 2); `sampleData` e passi di scenario non negativi hanno i campi obbligatori.
 11. `inbound-history.json` (storico di BO-26, ingestion §6): 40 righe `hist-*` degli ultimi 3 giorni con tutti gli esiti; gli `ACCEPTED` sono azioni di `activity-history.json` (stesso membro, tipo e istante) ammesse dalla fonte; i `DUPLICATE` reinviano un `ACCEPTED`; fonti, tipi e membri esistono salvo dove l'esito dichiara il contrario (`SOURCE_DISABLED`, `UNKNOWN_TYPE`, `UNMATCHED`).
 12. `import-history.json` (storico di BO-32, §8.2): formato `CSV`/`NDJSON`/`JSON`, fonte esistente, `createdBy` nella forma `RUOLO:username` con ruolo ADMIN o CARE; ogni riga è `{eventId, status}` di un ingresso di `inbound-history.json` della stessa fonte (usato una sola volta, i ripetuti in ordine) oppure `{invalid}` con il motivo; almeno una riga non accettata per lavoro.
+13. `vetrina-test.json` (storie dei membri di prova): fonte `vetrina-test` HTTP abilitata con tipi espliciti; date da 1 a 29 giorni fa; al massimo 3 acquisti al giorno e un accesso al giorno per membro; al massimo una lettura; gli STS ricalcolati dalle regole delle campagne e il tier coincidono con quelli dichiarati; Giulia resta 120 STS sotto GOLD.

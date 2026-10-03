@@ -131,3 +131,11 @@ export const MEMBER_USERS_ROLES: readonly Role[] = ["ADMIN", "CARE"];
 export function canSeeMemberUsers(role: Role): boolean {
   return MEMBER_USERS_ROLES.includes(role);
 }
+
+/**
+ * «Carica il programma di esempio» (V10, ADR-051, BO-01): riquadro della Dashboard solo per ADMIN, solo nel profilo
+ * enterprise e solo nell'ambiente di test dichiarato (`testMode() !== null`, Q-676, calcolato dal layout server).
+ */
+export function canSeeSampleProgram(role: Role, mode: "demo" | "enterprise", testEnvironment: boolean): boolean {
+  return mode === "enterprise" && role === "ADMIN" && testEnvironment;
+}

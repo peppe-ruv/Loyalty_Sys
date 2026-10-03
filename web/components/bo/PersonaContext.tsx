@@ -20,6 +20,11 @@ export interface BoPersona {
    * NEXT_PUBLIC.
    */
   memberUsersUrl?: string | null;
+  /**
+   * «Carica il programma di esempio» (V10, ADR-051): solo ADMIN in enterprise nell'ambiente di test dichiarato (Q-676).
+   * Lo calcola il layout server (`testMode()` è solo server); assente = non si mostra il riquadro.
+   */
+  sampleProgram?: boolean;
 }
 
 const PersonaContext = createContext<BoPersona>({

@@ -24,39 +24,30 @@
 //
 // Uso: node scripts/vetrina-programma.mjs --base-url <url> --token-file <file> [--apply | --verify-audit --since <istante>]
 //      node scripts/vetrina-programma.mjs --offline            (piano dal solo seed, senza rete né token)
+//      node scripts/vetrina-programma.mjs --emit-seed           (rigenera lo snapshot del seed per il web, vedi sotto)
 // Test: node --test scripts/vetrina-programma.test.mjs
+//
+// V10 (ADR-051, Q-722, Q-723): il NUCLEO PURO (piano, scrittura, verifica dell'audit) sta in web/lib/vetrina/programma-core.mjs
+// ed è lo stesso che usa il BFF del web per il pulsante «Carica il programma di esempio» del backoffice. Qui restano solo le
+// parti della riga di comando: argomenti, file del token, device flow, controllo degli URL, lettura del seed dal filesystem,
+// stampa. La riga di comando NON crea campagne, fonte di test né storie (ambito CLI_SCOPE, invariato da M8.14d): sono del
+// programma dal backoffice, che le crea in DRAFT e le verifica nell'audit con l'operatore del token.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  Api, ApiError, applyPlan, assertAllowedRequest, buildPlan, CLI_SCOPE, criteriaAttributeKeys, describeError, fetchTransport, isRealActor,
+  NOT_INCLUDED, resolveSeedDate, safeJson, SERVICES, UsageError, verifyAudit,
+} from '../web/lib/vetrina/programma-core.mjs';
+
+// Il resto del codice e i test importano questi simboli da qui, com'erano prima dello spostamento nel nucleo.
+export { Api, ApiError, applyPlan, assertAllowedRequest, buildPlan, criteriaAttributeKeys, isRealActor, NOT_INCLUDED, resolveSeedDate, SERVICES, UsageError, verifyAudit };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-
-/** Errore di uso o di configurazione (uscita 2): nessuna richiesta è partita. */
-export class UsageError extends Error {}
-
-/** Risposta non 2xx di un servizio. `code` è il codice RFC 9457 se c'è. */
-export class ApiError extends Error {
-  constructor(status, code, detail) {
-    super(`HTTP ${status}${code ? ` ${code}` : ''}${detail ? `: ${detail}` : ''}`);
-    this.status = status;
-    this.code = code;
-  }
-}
-
-/** Servizi toccati e nome della variabile d'ambiente con l'URL (come il web: LH_SVC_<NOME>_URL, docs/11 §8). */
-export const SERVICES = ['ingestion', 'member', 'wallet', 'reward', 'gamification', 'engagement', 'insight'];
+const WEB_SEED_SNAPSHOT = path.resolve(HERE, '..', 'web', 'lib', 'vetrina', 'programma-seed.generated.json');
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
-/** Entità di seed che per scelta NON si applicano, con il motivo (stampate nel piano). */
-export const NOT_INCLUDED = [
-  ['members.json, wallets.json, activity-history.json, redemptions.json, inbox.json, gamification-history.json', 'dati dei membri, movimenti, lotti, vincite, richieste, messaggi: mai (regola 9, docs/11 §11)'],
-  ['campaigns.json, contests.json, contents.json', 'oggetti con flusso di approvazione (regola 22: lo script non approva né pubblica); Q-617 non li include'],
-  ['editions.json', 'POST /v1/editions crea sempre in stato PLANNED e lo stato ACTIVE/CLOSED non si imposta da API: un\'edizione in stato sbagliato sarebbe peggio di nessuna'],
-  ['webhooks.json', 'destinazione di rete in uscita e segreto (docs/18: «nuova destinazione di rete in uscita» → STOP); il seed porta un segreto'],
-  ['scenarios.json, import-history.json, inbound-history.json, insight-synthetic.json', 'scenari e storici della demo: dati di prova, /v1/demo non esiste in enterprise'],
-  ['coupon generati (size/consumed di coupon-pools.json)', 'i coupon sono dati operativi: si crea solo il pool (code, prefix, validityDays)'],
-];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Validazione di URL e argomenti
@@ -85,7 +76,7 @@ export function validateBaseUrl(raw, { allowHttp = false, label = 'URL' } = {}) 
 }
 
 const VALUE_OPTIONS = new Set(['--base-url', '--token-file', '--issuer', '--client-id', '--seed-dir', '--audit-timeout', '--audit-interval', '--svc-url', '--since']);
-const FLAG_OPTIONS = new Set(['--apply', '--dry-run', '--offline', '--allow-http', '--verify-audit', '--help']);
+const FLAG_OPTIONS = new Set(['--apply', '--dry-run', '--offline', '--allow-http', '--verify-audit', '--emit-seed', '--help']);
 
 export function parseArgs(argv) {
   const opts = { apply: false, dryRun: false, offline: false, allowHttp: false, verifyAudit: false, help: false, svcUrl: {}, clientId: 'lh-cli', auditTimeout: 60, auditInterval: 2 };
@@ -153,6 +144,7 @@ Applica la configurazione di programma di seed/ a un'installazione enterprise co
   --seed-dir <dir>         cartella dei seed (predefinita: seed/ del repository)
   --audit-timeout <s>      attesa massima delle voci di audit dopo --apply (predefinito 60)
   --audit-interval <s>     intervallo tra due letture dell'audit (predefinito 2)
+  --emit-seed              rigenera web/lib/vetrina/programma-seed.generated.json da seed/ (lo snapshot del programma dal backoffice)
   --verify-audit           non scrive: verifica su GET /v1/audit le voci delle entità già presenti (regola 21);
                            serve dopo un --apply finito con audit mancante, perché una seconda esecuzione normale non verifica nulla
   --since <istante>        con --verify-audit: inizio (ISO 8601) dell'esecuzione --apply da verificare
@@ -281,14 +273,6 @@ async function jsonRequest(doFetch, url, init, what) {
   return body;
 }
 
-async function safeJson(res) {
-  try {
-    const text = await res.text();
-    return text ? JSON.parse(text) : null;
-  } catch {
-    return null;
-  }
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Uscita senza segreti
@@ -312,64 +296,8 @@ export function makeLogger(stdout, stderr) {
   };
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// Client delle API, con le sole richieste ammesse
 
-const READ_RESOURCES = /^\/v1\/(currencies|tiers|event-types|sources|internal-mappings|theme|message-templates|notification-rules|reward-categories|reward-bands|coupon-pools|rewards|attribute-definitions|segments|badges|achievements|leaderboards|audit)$/;
-const CREATE_RESOURCES = /^\/v1\/(event-types|sources|message-templates|notification-rules|reward-categories|reward-bands|coupon-pools|rewards|segments|achievements|badges|leaderboards)$/;
-const REPLACE_RESOURCES = /^\/v1\/(attribute-definitions|theme)$/;
 
-/** Difesa in profondità: solo queste richieste possono partire, mai membri, movimenti, demo, transizioni. */
-export function assertAllowedRequest(method, pathname, body) {
-  const ok = (method === 'GET' && READ_RESOURCES.test(pathname))
-    || (method === 'POST' && CREATE_RESOURCES.test(pathname))
-    || (method === 'PUT' && REPLACE_RESOURCES.test(pathname));
-  if (!ok) throw new Error(`richiesta non ammessa dallo script: ${method} ${pathname}`);
-  if (body !== undefined && /MBR-\d/.test(JSON.stringify(body))) {
-    throw new Error(`il corpo di ${method} ${pathname} contiene un identificativo di membro: i dati dei membri non si applicano`);
-  }
-}
-
-export class Api {
-  constructor({ targets, token, fetch: doFetch, timeoutMs = 30000 }) {
-    this.targets = targets;
-    this.token = token;
-    this.fetch = doFetch;
-    this.timeoutMs = timeoutMs;
-    this.writes = 0;
-  }
-
-  async request(service, method, pathname, { query, body } = {}) {
-    assertAllowedRequest(method, pathname, body);
-    const base = this.targets[service];
-    if (!base) throw new UsageError(`URL del servizio ${service} non configurato`);
-    const qs = query ? `?${new URLSearchParams(query).toString()}` : '';
-    const headers = { Accept: 'application/json', Authorization: `Bearer ${this.token}` };
-    const init = { method, headers, redirect: 'manual', signal: AbortSignal.timeout(this.timeoutMs) };
-    if (body !== undefined) {
-      headers['Content-Type'] = 'application/json';
-      init.body = JSON.stringify(body);
-    }
-    if (method !== 'GET') this.writes++;
-    const res = await this.fetch(`${base}${pathname}${qs}`, init);
-    if (res.status >= 300 && res.status < 400) throw new ApiError(res.status, 'REDIRECT', 'redirect non seguito');
-    const json = await safeJson(res);
-    if (!res.ok) {
-      const detail = typeof json?.detail === 'string' ? json.detail : typeof json?.message === 'string' ? json.message : '';
-      throw new ApiError(res.status, typeof json?.code === 'string' ? json.code : null, detail.slice(0, 200));
-    }
-    return { status: res.status, body: json };
-  }
-}
-
-function asItems(body) {
-  if (Array.isArray(body)) return body;
-  if (body && Array.isArray(body.items)) return body.items;
-  throw new Error('risposta di elenco non riconosciuta');
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Seed
 
 const SEED_FILES = ['currencies', 'tiers', 'event-types', 'sources', 'internal-mappings', 'theme', 'message-templates',
   'notification-rules', 'reward-categories', 'reward-bands', 'coupon-pools', 'rewards', 'attribute-definitions',
@@ -392,397 +320,34 @@ export function loadSeed(dir) {
   return seed;
 }
 
-/** Espressioni di data del seed (docs/10 §1) che servono alla configurazione: @now, @today, @today±Nd. */
-export function resolveSeedDate(value, now) {
-  if (typeof value !== 'string' || !value.startsWith('@')) return value ?? null;
-  if (value === '@now') return new Date(now).toISOString();
-  const m = /^@today(?:([+-])(\d{1,4})d)?$/.exec(value);
-  if (!m) throw new UsageError(`espressione di data non supportata dallo script: ${value}`);
-  const d = new Date(now);
-  d.setUTCHours(0, 0, 0, 0);
-  if (m[1]) d.setUTCDate(d.getUTCDate() + (m[1] === '-' ? -1 : 1) * Number(m[2]));
-  return d.toISOString();
-}
-
-const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => obj[k] !== undefined && obj[k] !== null).map((k) => [k, obj[k]]));
-
-function looseEqual(a, b) {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Piano: entità nell'ordine delle dipendenze
-
-const NO_CREATE = 'nessuna API di creazione (le PUT agiscono solo su righe già esistenti)';
-
-/** Specifiche delle collezioni standard: GET elenco, POST per creare ciò che manca. */
-const COLLECTIONS = [
-  {
-    id: 'event-types', service: 'ingestion', file: 'event-types', list: '/v1/event-types', keyOf: (x) => x.code,
-    create: '/v1/event-types', audit: { type: 'event_type' },
-    build: (s) => (s.origin === 'CUSTOM'
-      ? { body: pick(s, ['code', 'name', 'description', 'category', 'icon', 'dataSchema', 'sampleData', 'enabled']) }
-      : { skip: 'origine SYSTEM: la POST crea solo tipi CUSTOM e nessun\'altra API crea quelli di sistema' }),
-  },
-  {
-    id: 'sources', service: 'ingestion', file: 'sources', list: '/v1/sources', keyOf: (x) => x.code,
-    create: '/v1/sources', audit: { type: 'source' },
-    build: (s, ctx) => {
-      if (s.kind !== 'HTTP') return { skip: `fonte ${s.kind}: da API si creano solo fonti HTTP` };
-      const missing = (s.allowedTypes ?? []).filter((t) => !ctx.known.has(`event-types:${t}`));
-      if (missing.length) {
-        return { skip: 'tipi azione ammessi non presenti (quelli di sistema non si creano da API): senza, la fonte si aprirebbe a tutti i tipi' };
-      }
-      return { body: pick(s, ['code', 'name', 'kind', 'enabled', 'allowedTypes', 'description']) };
-    },
-  },
-  { id: 'currencies', service: 'wallet', file: 'currencies', list: '/v1/currencies', keyOf: (x) => x.code, create: null,
-    build: () => ({ skip: NO_CREATE }) },
-  { id: 'tiers', service: 'wallet', file: 'tiers', list: '/v1/tiers', keyOf: (x) => x.code, create: null,
-    build: () => ({ skip: NO_CREATE }) },
-  { id: 'internal-mappings', service: 'ingestion', file: 'internal-mappings', list: '/v1/internal-mappings', keyOf: (x) => x.factType.replace(/^(io\.loyaltyhub\.)?fact\./, ''), create: null,
-    build: () => ({ skip: NO_CREATE }) },
-  {
-    id: 'message-templates', service: 'engagement', file: 'message-templates', list: '/v1/message-templates', keyOf: (x) => x.code,
-    create: '/v1/message-templates', audit: { type: 'MESSAGE_TEMPLATE' },
-    build: (s) => ({ body: pick(s, ['code', 'name', 'channel', 'titleTpl', 'bodyTpl', 'icon', 'linkTarget', 'category']) }),
-  },
-  {
-    id: 'notification-rules', service: 'engagement', file: 'notification-rules', list: '/v1/notification-rules', keyOf: (x) => x.code,
-    create: '/v1/notification-rules', audit: { type: 'NOTIFICATION_RULE' },
-    build: (s) => ({ body: pick(s, ['code', 'factType', 'condition', 'templateCode', 'enabled']), needs: [`message-templates:${s.templateCode}`] }),
-  },
-  {
-    id: 'reward-categories', service: 'reward', file: 'reward-categories', list: '/v1/reward-categories', keyOf: (x) => x.code,
-    create: '/v1/reward-categories', audit: { type: 'REWARD_CATEGORY' },
-    build: (s) => ({ body: pick(s, ['code', 'name', 'icon', 'sortOrder']) }),
-  },
-  {
-    id: 'reward-bands', service: 'reward', file: 'reward-bands', list: '/v1/reward-bands', keyOf: (x) => x.code,
-    create: '/v1/reward-bands', audit: { type: 'REWARD_BAND' }, order: (a, b) => a.sortOrder - b.sortOrder,
-    build: (s) => ({ body: pick(s, ['code', 'name', 'pointsThreshold', 'color', 'sortOrder']) }),
-  },
-  {
-    // Solo il pool: size e consumed del seed sono coupon generati e usati, cioè dati operativi.
-    id: 'coupon-pools', service: 'reward', file: 'coupon-pools', list: '/v1/coupon-pools', keyOf: (x) => x.code,
-    create: '/v1/coupon-pools', audit: { type: 'COUPON_POOL' },
-    build: (s) => ({ body: pick(s, ['code', 'name', 'prefix', 'validityDays']) }),
-    remember: (item, ctx) => { if (item.response?.id) ctx.poolIds.set(item.key, item.response.id); },
-    rememberExisting: (x, ctx) => { if (x.id) ctx.poolIds.set(x.code, x.id); },
-  },
-  {
-    // Sempre DRAFT (regola 22): l'API ignora lo stato del seed e lo script non fa transizioni.
-    id: 'rewards', service: 'reward', file: 'rewards', list: '/v1/rewards', keyOf: (x) => x.code,
-    create: '/v1/rewards', audit: { type: 'REWARD' }, compareKeys: ['name', 'type', 'fulfilment'],
-    build: (s, ctx) => {
-      const needs = [`reward-categories:${s.category}`, `reward-bands:${s.band}`];
-      if (s.couponPool) needs.push(`coupon-pools:${s.couponPool}`);
-      const base = pick(s, ['code', 'name', 'description', 'terms', 'type', 'category', 'band', 'fulfilment', 'stockTotal', 'perMemberLimit', 'eligibleTiers', 'eligibleSegments']);
-      const validFrom = resolveSeedDate(s.validFrom, ctx.now);
-      return {
-        needs,
-        body: () => ({
-          ...base,
-          ...(validFrom ? { validFrom } : {}),
-          ...(s.couponPool ? { couponPoolId: ctx.poolIds.get(s.couponPool) ?? `<id di ${s.couponPool}>` } : {}),
-        }),
-      };
-    },
-  },
-  {
-    id: 'segments', service: 'member', file: 'segments', list: '/v1/segments', paged: true, keyOf: (x) => x.code,
-    create: '/v1/segments', audit: { type: 'SEGMENT' },
-    // SegmentService.create valida i criteri contro le definizioni degli attributi personalizzati: un segmento che
-    // usa `member.<attributo>` dipende dalla PUT degli attributi e, se questa manca o fallisce, si salta (non si tenta).
-    build: (s, ctx) => (s.type === 'DYNAMIC'
-      ? {
-        body: { ...pick(s, ['code', 'name', 'description', 'type', 'criteria']) },
-        needs: criteriaAttributeKeys(s.criteria, ctx.seed['attribute-definitions']).map((k) => `attribute-definitions:${k}`),
-      }
-      : { skip: `segmento ${s.type}: l'elenco è fatto di membri (MBR-*), dato dei membri` }),
-  },
-  {
-    id: 'badges', service: 'gamification', file: 'badges', list: '/v1/badges', keyOf: (x) => x.code,
-    create: '/v1/badges', audit: { type: 'BADGE' },
-    build: (s) => ({ body: pick(s, ['code', 'name', 'description', 'icon', 'color']) }),
-  },
-  {
-    id: 'achievements', service: 'gamification', file: 'achievements', list: '/v1/achievements', keyOf: (x) => x.code,
-    create: '/v1/achievements', audit: { type: 'ACHIEVEMENT' },
-    build: (s) => ({
-      body: pick(s, ['code', 'name', 'description', 'icon', 'actionTypes', 'filter', 'metric', 'sumField', 'streakUnit', 'target', 'period', 'repeatable', 'badgeCode']),
-      needs: s.badgeCode ? [`badges:${s.badgeCode}`] : [],
-    }),
-  },
-  {
-    id: 'leaderboards', service: 'gamification', file: 'leaderboards', list: '/v1/leaderboards', keyOf: (x) => x.code,
-    create: '/v1/leaderboards', audit: { type: 'LEADERBOARD' },
-    build: (s) => ({ body: pick(s, ['code', 'name', 'metric', 'actionTypes', 'period', 'topN', 'status']) }),
-  },
-];
-
-/** Attributi personalizzati del seed usati da un criterio (`member.<chiave>`), visitando anche i gruppi annidati. */
-export function criteriaAttributeKeys(criteria, attributeDefs) {
-  const custom = new Set((attributeDefs ?? []).map((a) => a.key));
-  const used = new Set();
-  const walk = (node) => {
-    if (!node || typeof node !== 'object') return;
-    if (typeof node.field === 'string' && node.field.startsWith('member.') && custom.has(node.field.slice(7))) used.add(node.field.slice(7));
-    for (const child of [...(Array.isArray(node.rules) ? node.rules : []), ...(Array.isArray(node.groups) ? node.groups : [])]) walk(child);
-  };
-  walk(criteria);
-  return [...used].sort();
-}
-
-/** Ordine di esecuzione: dipendenze prima (tipi azione → fonti, categorie/fasce/pool → premi, template → regole…). */
-const ORDER = ['event-types', 'sources', 'currencies', 'tiers', 'internal-mappings', 'theme', 'message-templates', 'notification-rules',
-  'reward-categories', 'reward-bands', 'coupon-pools', 'rewards', 'attribute-definitions', 'segments', 'badges', 'achievements', 'leaderboards'];
-
-async function listAll(api, spec) {
-  if (!spec.paged) return asItems((await api.request(spec.service, 'GET', spec.list)).body);
-  const out = [];
-  for (let page = 0; page < 200; page++) {
-    const body = (await api.request(spec.service, 'GET', spec.list, { query: { page: String(page), size: '100' } })).body;
-    const items = asItems(body);
-    out.push(...items);
-    const total = body?.page?.totalPages;
-    if (items.length === 0 || (typeof total === 'number' && page + 1 >= total) || (typeof total !== 'number' && items.length < 100)) break;
-  }
-  return out;
-}
-
-async function planCollection(ctx, spec) {
-  const items = [];
-  let existing = [];
-  if (!ctx.offline) {
-    try {
-      existing = await listAll(ctx.api, spec);
-    } catch (e) {
-      return [{ entity: spec.id, service: spec.service, key: '*', action: 'error', reason: `lettura fallita: ${describeError(e)}` }];
-    }
-  }
-  const byKey = new Map(existing.map((x) => [spec.keyOf(x), x]));
-  for (const x of existing) {
-    ctx.known.add(`${spec.id}:${spec.keyOf(x)}`);
-    spec.rememberExisting?.(x, ctx);
-  }
-  const seed = spec.order ? [...ctx.seed[spec.file]].sort(spec.order) : ctx.seed[spec.file];
-  for (const s of seed) {
-    const key = spec.keyOf(s);
-    const base = { entity: spec.id, service: spec.service, key };
-    const found = byKey.get(key);
-    if (found) {
-      const built = spec.build(s, ctx);
-      const body = typeof built.body === 'function' ? built.body(ctx) : built.body;
-      const keys = spec.compareKeys ?? Object.keys(body ?? {});
-      const differing = body ? keys.filter((k) => found[k] !== undefined && !looseEqual(found[k], body[k])) : [];
-      // Una voce presente e uguale al seed è candidata alla verifica dell'audit (--verify-audit); una divergente no.
-      items.push({
-        ...base, action: 'present', note: differing.length ? `diverge dal seed (${differing.join(', ')}), non modificato` : undefined,
-        audit: !differing.length && spec.audit ? { type: spec.audit.type, ids: [key], actions: ['CREATE', 'UPDATE'] } : undefined,
-      });
-      continue;
-    }
-    const built = spec.build(s, ctx);
-    if (built.skip) {
-      items.push({ ...base, action: 'skip', reason: built.skip });
-      continue;
-    }
-    const unmet = (built.needs ?? []).filter((n) => !ctx.known.has(n));
-    if (unmet.length) {
-      items.push({ ...base, action: 'skip', reason: `dipendenza non disponibile: ${unmet.join(', ')}` });
-      continue;
-    }
-    ctx.known.add(`${spec.id}:${key}`);
-    items.push({
-      ...base, action: 'create', method: 'POST', path: spec.create, body: built.body, needs: built.needs ?? [],
-      audit: { type: spec.audit.type, ids: [key], actions: ['CREATE', 'UPDATE'] },
-      remember: spec.remember,
-    });
-  }
-  return items;
-}
-
-/** Attributi personalizzati: la PUT sostituisce l'intero elenco, quindi si rimanda l'esistente più i mancanti. */
-async function planAttributes(ctx) {
-  const id = 'attribute-definitions';
-  let existing = [];
-  if (!ctx.offline) {
-    try {
-      existing = asItems((await ctx.api.request('member', 'GET', '/v1/attribute-definitions')).body);
-    } catch (e) {
-      return [{ entity: id, service: 'member', key: '*', action: 'error', reason: `lettura fallita: ${describeError(e)}` }];
-    }
-  }
-  const have = new Set(existing.map((a) => a.key));
-  const missing = ctx.seed[id].filter((a) => !have.has(a.key));
-  const present = ctx.seed[id].filter((a) => have.has(a.key));
-  for (const a of ctx.seed[id]) ctx.known.add(`${id}:${a.key}`);
-  // La PUT sostituisce l'elenco: un'unica voce di audit (entityId `all`) copre tutte le chiavi presenti.
-  const items = present.map((a) => ({ entity: id, service: 'member', key: a.key, action: 'present', audit: { type: 'attribute_definition', ids: ['all'], actions: ['UPDATE', 'CREATE'] } }));
-  if (missing.length) {
-    const merged = [...existing.map((a) => pick(a, ['key', 'label', 'type', 'options'])), ...missing.map((a) => pick(a, ['key', 'label', 'type', 'options']))];
-    items.push({
-      entity: id, service: 'member', key: 'all', action: 'create', method: 'PUT', path: '/v1/attribute-definitions', body: merged,
-      label: `${missing.length} attributi (${missing.map((a) => a.key).join(', ')})`,
-      provides: ctx.seed[id].map((a) => `${id}:${a.key}`),
-      audit: { type: 'attribute_definition', ids: ['all'], actions: ['UPDATE', 'CREATE'] },
-    });
-  }
-  return items;
-}
-
-/** Tema: GET risponde col tema Aurora se la riga manca (updatedAt nullo). Si scrive solo se mai salvato e diverso. */
-async function planTheme(ctx) {
-  const id = 'theme';
-  const s = ctx.seed.theme;
-  const body = { ...pick(s, ['programName', 'tagline', 'logoUrl', 'heroTitle', 'heroSubtitle', 'fontDisplay']), colors: s.colors, currencyNames: s.currencyNames };
-  if (ctx.offline) {
-    return [{ entity: id, service: 'engagement', key: 'default', action: 'create', method: 'PUT', path: '/v1/theme', body, audit: { type: 'THEME', ids: ['default'], actions: ['UPDATE', 'CREATE'] } }];
-  }
-  let current;
-  try {
-    current = (await ctx.api.request('engagement', 'GET', '/v1/theme')).body;
-  } catch (e) {
-    return [{ entity: id, service: 'engagement', key: 'default', action: 'error', reason: `lettura fallita: ${describeError(e)}` }];
-  }
-  const norm = (t) => JSON.stringify({
-    ...Object.fromEntries(['programName', 'tagline', 'logoUrl', 'heroTitle', 'heroSubtitle', 'fontDisplay'].map((k) => [k, t?.[k] ?? null])),
-    colors: Object.fromEntries(Object.entries(t?.colors ?? {}).sort().map(([k, v]) => [k, String(v).toUpperCase()])),
-    currencyNames: Object.fromEntries(Object.entries(t?.currencyNames ?? {}).sort()),
-  });
-  if (norm(current) === norm(body)) {
-    // Con `updatedAt` nullo il tema è quello di ripiego del servizio: nessuna scrittura, quindi nessuna voce di audit.
-    return [{ entity: id, service: 'engagement', key: 'default', action: 'present', audit: current?.updatedAt ? { type: 'THEME', ids: ['default'], actions: ['UPDATE', 'CREATE'] } : undefined }];
-  }
-  if (current?.updatedAt) {
-    return [{ entity: id, service: 'engagement', key: 'default', action: 'present', note: 'già personalizzato, diverge dal seed, non modificato' }];
-  }
-  return [{
-    entity: id, service: 'engagement', key: 'default', action: 'create', method: 'PUT', path: '/v1/theme', body: { ...body, version: current?.version ?? 0 },
-    audit: { type: 'THEME', ids: ['default'], actions: ['UPDATE', 'CREATE'] },
-  }];
-}
-
-function describeError(e) {
-  if (e instanceof ApiError) return e.message;
-  return e?.name === 'TimeoutError' ? 'timeout' : (e?.cause?.code ?? e?.code ?? e?.name ?? 'errore di rete');
-}
-
-export async function buildPlan({ seed, api, offline, now }) {
-  const ctx = { seed, api, offline, now, known: new Set(), poolIds: new Map() };
-  const byId = new Map(COLLECTIONS.map((c) => [c.id, c]));
-  const plan = [];
-  for (const id of ORDER) {
-    if (id === 'theme') plan.push(...await planTheme(ctx));
-    else if (id === 'attribute-definitions') plan.push(...await planAttributes(ctx));
-    else plan.push(...await planCollection(ctx, byId.get(id)));
-  }
-  // Un corpo che contiene un identificativo di membro non parte mai: lo si verifica già sul piano.
-  for (const item of plan) {
-    if (item.action !== 'create') continue;
-    assertAllowedRequest(item.method, item.path, typeof item.body === 'function' ? item.body(ctx) : item.body);
-  }
-  return { plan, ctx };
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Esecuzione e verifica dell'audit
-
-export async function applyPlan({ plan, ctx, api, log }) {
-  const failed = new Set();
-  const results = [];
-  for (const item of plan) {
-    if (item.action !== 'create') continue;
-    const dep = (item.needs ?? []).find((n) => failed.has(n));
-    if (dep) {
-      item.action = 'skip';
-      item.reason = `dipendenza non creata: ${dep}`;
-      continue;
-    }
-    try {
-      const body = typeof item.body === 'function' ? item.body(ctx) : item.body;
-      const res = await api.request(item.service, item.method, item.path, { body });
-      item.response = res.body;
-      item.result = 'created';
-      item.remember?.(item, ctx);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        // Creato nel frattempo da un'altra esecuzione: stato voluto raggiunto, nessuna voce di audit attesa da noi.
-        item.result = 'already';
-      } else {
-        item.result = 'failed';
-        item.error = describeError(e);
-        failed.add(`${item.entity}:${item.key}`);
-        for (const p of item.provides ?? []) failed.add(p);
-        log.err(`  ✗ ${item.entity} ${item.key}: ${item.error}`);
-      }
-    }
-    results.push(item);
-  }
-  return results;
-}
-
-const DENY_ACTORS = new Set(['', 'demo', 'system', 'anonymous', 'unknown', '-']);
-
-export function isRealActor(record) {
-  const name = String(record.actorName ?? '').trim().toLowerCase();
-  const role = String(record.actorRole ?? '').trim().toLowerCase();
-  return !DENY_ACTORS.has(name) && role !== 'system' && !name.startsWith('member:') && !name.startsWith('src-');
-}
-
 /**
- * Regola 21: per ogni voce da verificare deve esistere su GET /v1/audit (insight) una voce con lo stesso tipo e
- * identificativo dell'entità, successiva a `since`, con attore reale. Se dal token si conosce l'identità
- * dell'operatore (`expectedActor`), l'attore della voce deve essere proprio quella: la scrittura di un altro operatore
- * sulla stessa entità nella stessa finestra non vale. Senza identità (token opaco) si accetta ogni attore reale e
- * l'esito lo dichiara. L'API filtra per `entityType` e `entityId` (uguaglianza esatta): si legge un elenco per tipo
- * di entità (il filtro per identificativo costerebbe una richiesta per scrittura) e si abbina l'identificativo qui.
- * L'audit viaggia sul bus: si riprova fino al timeout.
+ * Seed del programma dal backoffice (V10): quello della riga di comando più le campagne e la fonte di test con le storie
+ * (seed/vetrina-test.json, Q-722). È ciò che il web impacchetta nello snapshot generato.
  */
-export async function verifyAudit({ api, items, since, expectedActor = null, timeoutSec, intervalSec, sleep }) {
-  const pending = new Map(items.map((item) => [`${item.entity}:${item.key}`, item]));
-  const problems = new Map();
-  const attempts = Math.max(1, Math.ceil(timeoutSec / Math.max(intervalSec, 0.001)) + 1);
-  for (let attempt = 0; attempt < attempts && pending.size; attempt++) {
-    if (attempt > 0) await sleep(intervalSec * 1000);
-    const byType = new Map();
-    for (const item of pending.values()) {
-      if (!byType.has(item.audit.type)) byType.set(item.audit.type, await fetchAudit(api, { since, entityType: item.audit.type }));
-    }
-    for (const [id, item] of [...pending]) {
-      const matching = byType.get(item.audit.type).filter((r) => item.audit.ids.includes(r.entityId)
-        && String(r.entityType ?? '').toLowerCase() === item.audit.type.toLowerCase()
-        && item.audit.actions.includes(String(r.action ?? '').toUpperCase()));
-      const real = matching.filter(isRealActor);
-      if (real.some((r) => expectedActor === null || String(r.actorName ?? '').trim() === expectedActor)) {
-        pending.delete(id);
-        problems.delete(id);
-      } else {
-        problems.set(id, !matching.length ? 'voce di audit mancante'
-          : real.length ? 'voce di audit di un altro attore, non dell\'operatore del token'
-            : 'voce di audit con attore non reale');
-      }
+export function loadProgramSeed(dir) {
+  const seed = loadSeed(dir);
+  for (const [name, key] of [['campaigns', 'campaigns'], ['vetrina-test', 'vetrinaTest']]) {
+    const file = path.join(dir, `${name}.json`);
+    try {
+      seed[key] = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (e) {
+      throw new UsageError(`seed non leggibile: ${file} (${e.code ?? 'JSON non valido'})`);
     }
   }
-  return { verified: items.length - pending.size, problems: [...pending.keys()].map((id) => ({ id, reason: problems.get(id) })) };
+  if (!Array.isArray(seed.campaigns) || !Array.isArray(seed.vetrinaTest?.stories) || !seed.vetrinaTest?.source) throw new UsageError('seed delle campagne o della fonte di test non valido');
+  return seed;
 }
 
-/**
- * Voci di audit di un tipo di entità dall'istante `since`, più recenti per prima. Un inserimento durante la lettura
- * sposta le pagine successive in avanti: ripete una voce già letta, non ne salta; si deduplica per `id`.
- */
-async function fetchAudit(api, { since, entityType }) {
-  const out = new Map();
-  for (let page = 0; page < 100; page++) {
-    const body = (await api.request('insight', 'GET', '/v1/audit', { query: { from: since.toISOString(), entityType, page: String(page), size: '100' } })).body;
-    const items = asItems(body);
-    for (const r of items) out.set(r.id ?? `${page}:${out.size}`, r);
-    const total = body?.page?.totalPages;
-    if (items.length === 0 || (typeof total === 'number' ? page + 1 >= total : items.length < 100)) break;
-  }
-  return [...out.values()];
+/** Testo dello snapshot per il web: JSON stabile (chiavi nell'ordine del seed), senza `_note` né elenchi di membri (`memberIds` dei segmenti statici: mai nel web). Il controllo di deriva lo confronta byte per byte. */
+export function serializeSeedSnapshot(seed) {
+  return `${JSON.stringify(seed, (key, value) => (key === '_note' || key === 'memberIds' || key === 'expectedMembers' ? undefined : value), 2)}\n`;
 }
+
+/** Percorso dello snapshot generato (letto dal web e da scripts/check-vetrina.mjs). */
+export const SEED_SNAPSHOT_FILE = WEB_SEED_SNAPSHOT;
+
+
+
 
 // ---------------------------------------------------------------------------------------------------------------
 // Stampa del piano
@@ -835,6 +400,13 @@ export async function main(argv, deps = {}) {
       log.out(HELP);
       return 0;
     }
+    if (opts.emitSeed) {
+      // Rigenera lo snapshot del seed che il web impacchetta (l'immagine del ruolo web non contiene seed/).
+      const text = serializeSeedSnapshot(loadProgramSeed(opts.seedDir ?? path.resolve(HERE, '..', 'seed')));
+      fs.writeFileSync(WEB_SEED_SNAPSHOT, text);
+      log.out(`Snapshot del seed scritto: ${path.relative(path.resolve(HERE, '..'), WEB_SEED_SNAPSHOT)} (${text.length} byte)`);
+      return 0;
+    }
     const seed = loadSeed(opts.seedDir ?? path.resolve(HERE, '..', 'seed'));
     const apply = opts.apply;
     let api = null;
@@ -846,7 +418,7 @@ export async function main(argv, deps = {}) {
       else if (opts.issuer) token = await deviceFlowToken({ issuer: opts.issuer, clientId: opts.clientId, allowHttp: opts.allowHttp, fetch: doFetch, sleep, log });
       else throw new UsageError('serve un token: --token-file <file> (o LH_OPERATOR_TOKEN_FILE) oppure --issuer <url> per il device flow');
       log.secret(token);
-      api = new Api({ targets, token, fetch: doFetch });
+      api = new Api({ transport: fetchTransport({ targets, getToken: () => token, fetch: doFetch }), scope: CLI_SCOPE });
     }
 
     const started = new Date(now());
