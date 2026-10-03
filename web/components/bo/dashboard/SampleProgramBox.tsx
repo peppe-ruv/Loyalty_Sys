@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
-import { csrfHeaders, redirectToLogin } from "@/lib/auth/browser";
+import { call, HttpError } from "@/lib/vetrina/client";
 import { it as t } from "@/lib/i18n/it";
 import { useBoPersona } from "@/components/bo/PersonaContext";
 import type { JobView, PreviewView, Scope } from "@/lib/vetrina/programma";
@@ -16,32 +16,6 @@ import type { JobView, PreviewView, Scope } from "@/lib/vetrina/programma";
 const s = t.sampleProgram;
 const POLL_MS = 1500;
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
-
-class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string | null,
-    readonly extra: Record<string, unknown> = {},
-  ) {
-    super(`HTTP ${status}`);
-  }
-}
-
-async function call<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    credentials: "same-origin",
-    headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}), ...csrfHeaders(init?.method), ...init?.headers },
-    cache: "no-store",
-  });
-  const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-  if (res.status === 401) {
-    redirectToLogin();
-    throw new HttpError(401, "UNAUTHENTICATED");
-  }
-  if (!res.ok) throw new HttpError(res.status, typeof body?.code === "string" ? body.code : null, body ?? {});
-  return body as T;
-}
 
 /** Il riquadro, solo se il layout lo ha abilitato (ADMIN, enterprise, ambiente di test). */
 export function SampleProgramBox() {

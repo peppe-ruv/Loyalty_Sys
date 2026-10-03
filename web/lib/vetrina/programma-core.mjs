@@ -56,24 +56,31 @@ export const PROGRAM_SERVICES = [...SERVICES, 'campaign'];
 export const STORY_FILE_NAME = 'vetrina-storie.ndjson';
 export const STORY_SOURCE_CODE = 'vetrina-test';
 export const STORY_SOURCE_URN = `urn:loyaltyhub:source:${STORY_SOURCE_CODE}`;
+/** V11: l'azione singola ha un file proprio. NON `vetrina-storie.ndjson`: V10 riconosce l'import delle storie da quel nome. */
+export const ACTION_FILE_NAME = 'vetrina-azione.ndjson';
 
 /** Ambito della riga di comando: invariato dalla fetta M8.14d (niente campagne, niente membri, niente import). */
 export const CLI_SCOPE = Object.freeze({ campaigns: false, stories: false });
 /** Ambito del programma dal backoffice (V10): in più campagne in DRAFT, ricerca dei membri di test e import delle storie. */
 export const PROGRAM_SCOPE = Object.freeze({ campaigns: true, stories: true });
+/** Ambito di «Invia un'azione» (V11): niente campagne; ricerca membri, import e lettura del portafoglio (saldo e livello). */
+export const ACTION_SCOPE = Object.freeze({ campaigns: false, stories: true, wallets: true, readOnly: true });
 
 const READ_RESOURCES = /^\/v1\/(currencies|tiers|event-types|sources|internal-mappings|theme|message-templates|notification-rules|reward-categories|reward-bands|coupon-pools|rewards|attribute-definitions|segments|badges|achievements|leaderboards|audit)$/;
 const CREATE_RESOURCES = /^\/v1\/(event-types|sources|message-templates|notification-rules|reward-categories|reward-bands|coupon-pools|rewards|segments|achievements|badges|leaderboards)$/;
 const REPLACE_RESOURCES = /^\/v1\/(attribute-definitions|theme)$/;
 // Solo con PROGRAM_SCOPE: elenco campagne (stato), ricerca dei membri di test, elenco e dettaglio degli import.
 const SCOPE_READ_CAMPAIGNS = /^\/v1\/campaigns$/;
+const SCOPE_READ_WALLETS = /^\/v1\/wallets\/[A-Za-z0-9-]{3,40}$/;
 const SCOPE_READ_STORIES = /^\/v1\/(members|imports|imports\/[A-Za-z0-9]{10,40})$/;
 
 /** Difesa in profondità: solo queste richieste possono partire, mai movimenti, demo, transizioni. */
 export function assertAllowedRequest(method, pathname, body, scope = CLI_SCOPE) {
+  if (scope.readOnly && method !== 'GET') throw new Error(`richiesta non ammessa dallo script: ${method} ${pathname}`);
   const ok = (method === 'GET' && (READ_RESOURCES.test(pathname)
       || (scope.campaigns && SCOPE_READ_CAMPAIGNS.test(pathname))
-      || (scope.stories && SCOPE_READ_STORIES.test(pathname))))
+      || (scope.stories && SCOPE_READ_STORIES.test(pathname))
+      || (scope.wallets && SCOPE_READ_WALLETS.test(pathname))))
     || (method === 'POST' && (CREATE_RESOURCES.test(pathname) || (scope.campaigns && pathname === '/v1/campaigns')))
     || (method === 'PUT' && REPLACE_RESOURCES.test(pathname));
   if (!ok) throw new Error(`richiesta non ammessa dallo script: ${method} ${pathname}`);
@@ -116,6 +123,52 @@ export function assertStoryImport(multipart, subjects) {
 }
 
 /**
+ * Azioni inviabili dalla fonte di test (V11, BO-32, Q-675). `valued` = ha un importo in euro. L'elenco è un
+ * sottoinsieme esplicito di `allowedTypes` della fonte `vetrina-test` (il controllo incrociato è nei test).
+ */
+export const ACTION_TYPES = [
+  { type: 'purchase.completed', label: 'Acquisto completato', valued: true },
+  { type: 'purchase.returned', label: 'Reso di un acquisto', valued: true },
+  { type: 'selfreading.submitted', label: 'Autolettura inviata', valued: false },
+  { type: 'app.login.daily', label: "Accesso giornaliero all'app", valued: false },
+  { type: 'review.submitted', label: 'Recensione inviata', valued: false },
+  { type: 'ebill.activated', label: 'Bolletta digitale attivata', valued: false },
+  { type: 'directdebit.activated', label: 'Domiciliazione attivata', valued: false },
+  { type: 'survey.completed', label: 'Sondaggio completato', valued: false },
+  { type: 'quiz.completed', label: 'Quiz completato', valued: false },
+  { type: 'newsletter.subscribed', label: 'Iscrizione alla newsletter', valued: false },
+];
+export const MAX_ACTION_AMOUNT = 10000;
+
+/**
+ * Lista bianca PROPRIA dell'azione singola (V11): `POST /v1/imports` EVENTS dalla fonte `vetrina-test`, file
+ * `vetrina-azione.ndjson` con UNA riga: fonte in forma di URN (Q-258), id `vt-act-…`, soggetto `member:<id>` tra i
+ * membri di test già risolti, tipo tra quelli inviabili. Il caller non può far passare nient'altro.
+ */
+export function assertActionImport(multipart, subjects) {
+  const fail = (why) => { throw new Error(`import dell'azione non ammesso: ${why}`); };
+  const fields = multipart?.fields ?? {};
+  const file = multipart?.file;
+  if (fields.kind !== 'EVENTS') fail('kind deve essere EVENTS');
+  if (fields.source !== STORY_SOURCE_CODE) fail(`la fonte deve essere ${STORY_SOURCE_CODE}`);
+  if (!file || typeof file.text !== 'string' || file.name !== ACTION_FILE_NAME) fail(`il file deve chiamarsi ${ACTION_FILE_NAME}`);
+  if (file.text.length > 4096) fail('file troppo grande');
+  if (!subjects || subjects.size === 0) fail('nessun membro di test risolto');
+  const lines = file.text.split('\n').filter((l) => l.trim() !== '');
+  if (lines.length !== 1) fail('serve una sola riga');
+  let ev;
+  try {
+    ev = JSON.parse(lines[0]);
+  } catch {
+    return fail('riga non JSON');
+  }
+  if (ev?.source !== STORY_SOURCE_URN) fail('la riga deve avere la fonte in forma di URN');
+  if (typeof ev.subject !== 'string' || !ev.subject.startsWith('member:') || !subjects.has(ev.subject.slice(7))) fail('soggetto fuori dai membri di test');
+  if (typeof ev.id !== 'string' || !/^vt-act-[a-f0-9]{16,32}$/.test(ev.id)) fail('id riga non nella forma vt-act-<id>');
+  if (!ACTION_TYPES.some((a) => a.type === ev.type)) fail('tipo di azione non inviabile');
+}
+
+/**
  * Trasporto HTTP su `fetch`: `(service, method, path, {query, body, multipart, headers}) → {status, body}`.
  * `getToken` è chiamata a OGNI richiesta (il BFF rinnova l'access token di 5 minuti: mai un token tenuto in cache qui).
  * Redirect non seguiti (il token non cambia host); il token non esce mai dall'header `Authorization`.
@@ -155,7 +208,8 @@ export class Api {
   async request(service, method, pathname, { query, body, multipart, headers } = {}) {
     if (method === 'POST' && pathname === '/v1/imports') {
       if (!this.scope.stories) throw new Error(`richiesta non ammessa dallo script: ${method} ${pathname}`);
-      assertStoryImport(multipart, this.storySubjects);
+      if (multipart?.file?.name === ACTION_FILE_NAME) assertActionImport(multipart, this.storySubjects);
+      else assertStoryImport(multipart, this.storySubjects);
     } else {
       assertAllowedRequest(method, pathname, body, this.scope);
     }
@@ -683,6 +737,52 @@ export function campaignsNeededByStories(seed) {
     .sort();
 }
 
+/**
+ * Riga dell'azione singola (V11): un CloudEvent con dati validi per lo schema di `contracts/events/action/`. Gli
+ * identificativi (ordine, contratto…) si derivano da `uid` (esadecimale minuscolo, almeno 16 caratteri: un UUID senza
+ * trattini). Importo solo per le azioni con valore (acquisto, reso): positivo, al più MAX_ACTION_AMOUNT, al più due decimali.
+ */
+export function buildActionRow({ type, memberId, username, amount, now, uid }) {
+  const def = ACTION_TYPES.find((a) => a.type === type);
+  if (!def) throw new UsageError(`tipo di azione non inviabile: ${type}`);
+  const hex = String(uid);
+  if (!/^[a-f0-9]{16,32}$/.test(hex)) throw new UsageError('identificativo di invio non valido');
+  const tag = hex.slice(0, 8).toUpperCase();
+  let value;
+  if (def.valued) {
+    value = typeof amount === 'string' ? Number(amount.replace(',', '.')) : Number(amount);
+    const cents = Math.round(value * 100);
+    if (!Number.isFinite(value) || value <= 0 || value > MAX_ACTION_AMOUNT || Math.abs(cents - value * 100) > 1e-6) {
+      throw new UsageError(`importo non valido: serve un numero positivo, al più ${MAX_ACTION_AMOUNT} e con al più due decimali`);
+    }
+    value = cents / 100;
+  } else if (amount !== undefined && amount !== null && amount !== '') {
+    throw new UsageError('questa azione non ha un importo');
+  }
+  const data = {
+    'purchase.completed': { orderId: `ORD-VT-${tag}`, amount: value, currency: 'EUR', channel: 'APP' },
+    'purchase.returned': { orderId: `ORD-VT-${tag}`, amount: value },
+    'selfreading.submitted': { meterId: `MTR-VT-${String(username ?? 'TEST').replace(/[^a-z0-9]/gi, '').slice(0, 12).toUpperCase()}`, reading: 1000 + (parseInt(hex.slice(0, 6), 16) % 9000) },
+    'app.login.daily': { platform: 'WEB' },
+    'review.submitted': { productId: 'PRD-VT-01', rating: 5 },
+    'ebill.activated': { contractId: `CTR-VT-${tag}` },
+    'directdebit.activated': { contractId: `CTR-VT-${tag}` },
+    'survey.completed': { surveyId: 'SRV-VT-01', score: 80 },
+    'quiz.completed': { quizId: 'QZ-VT-01', correctAnswers: 8, totalQuestions: 10 },
+    'newsletter.subscribed': {},
+  }[type];
+  const row = {
+    specversion: '1.0',
+    id: `vt-act-${hex}`,
+    source: STORY_SOURCE_URN,
+    type,
+    subject: `member:${memberId}`,
+    time: new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    data,
+  };
+  return { row, file: { name: ACTION_FILE_NAME, type: 'application/x-ndjson', text: `${JSON.stringify(row)}\n` } };
+}
+
 async function sha256Hex(text) {
   const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -714,6 +814,13 @@ export async function buildStoryFile(vetrinaTest, members, now) {
   return { name: STORY_FILE_NAME, type: 'application/x-ndjson', text, rows: lines.length, sha256: await sha256Hex(text) };
 }
 
+/** Id del membro di test (e-mail esatta, stato ACTIVE, uno solo) o `null` se non è registrato. Solo in memoria. */
+export async function findTestMember(api, story) {
+  const found = asItems((await api.request('member', 'GET', '/v1/members', { query: { q: story.email, size: '50' } })).body)
+    .filter((m) => String(m.email ?? '').toLowerCase() === story.email.toLowerCase() && m.status === 'ACTIVE');
+  return found.length === 1 && typeof found[0].id === 'string' ? found[0].id : null;
+}
+
 /**
  * Stato del passo «storie»: `ready` (si può caricare), `waiting` (con i motivi), `running` (un import è in corso),
  * `present` (già caricato), `offline` (piano dal solo seed) o `error` (lettura fallita). Legge, non scrive.
@@ -730,10 +837,9 @@ export async function planStories({ seed, api, plan = [], offline = false }) {
     const live = new Set(campaigns.filter((c) => c.status === 'LIVE').map((c) => c.code));
     out.waitingFor = needs.filter((c) => !live.has(c));
     for (const [i, story] of vt.stories.entries()) {
-      const found = asItems((await api.request('member', 'GET', '/v1/members', { query: { q: story.email, size: '50' } })).body)
-        .filter((m) => String(m.email ?? '').toLowerCase() === story.email.toLowerCase() && m.status === 'ACTIVE');
-      if (found.length === 1 && typeof found[0].id === 'string') {
-        out.resolved.set(story.username, found[0].id);
+      const memberId = await findTestMember(api, story);
+      if (memberId) {
+        out.resolved.set(story.username, memberId);
         members[i].state = 'ready';
         out.rows += story.rows.length;
       } else {

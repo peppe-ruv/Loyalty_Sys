@@ -3,9 +3,9 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { activeHref, MEMBER_USERS_AFTER, visibleNav, type NavItem } from "@/lib/nav";
+import { activeHref, MEMBER_USERS_AFTER, navForProfile, visibleNav, type NavItem } from "@/lib/nav";
 import { it } from "@/lib/i18n/it";
-import { useBoPersona } from "./PersonaContext";
+import { useBoPersona, useIsDemo } from "./PersonaContext";
 import { useLhQuery, type Page } from "@/lib/api/client";
 import { cn } from "@/lib/cn";
 import { mergeQueues } from "@/lib/approvals/queue";
@@ -17,7 +17,8 @@ import type { ApprovalItem } from "@/lib/approvals/types";
 // cassetto mobile. {@code onNavigate} chiude il cassetto quando si apre una voce.
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const groups = visibleNav();
+  // Il gruppo «Demo» chiama /v1/demo: in enterprise non esiste, quindi non si mostra (docs/18 V11).
+  const groups = navForProfile(visibleNav(), useIsDemo() ? "demo" : "enterprise");
   const current = activeHref(pathname, groups);
   const memberUsersUrl = useBoPersona().memberUsersUrl ?? null;
 

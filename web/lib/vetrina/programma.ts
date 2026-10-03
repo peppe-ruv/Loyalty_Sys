@@ -14,6 +14,7 @@ import {
   fetchTransport,
   PROGRAM_SCOPE,
   PROGRAM_SERVICES,
+  type Scope as ApiScope,
   planProgram,
   summarizeProgram,
   verifyAudit,
@@ -132,7 +133,7 @@ class SessionGoneError extends Error {
 }
 
 /** Client dell'hub con token fresco a ogni richiesta (single-flight del rinnovo in `freshSession`). */
-export function hubApi(bff: Bff, sessionId: string, doFetch: typeof fetch = fetch): Api {
+export function hubApi(bff: Bff, sessionId: string, doFetch: typeof fetch = fetch, scope: ApiScope = PROGRAM_SCOPE): Api {
   const targets = Object.fromEntries(PROGRAM_SERVICES.map((s) => [s, serviceBaseUrl(s as ServiceCode)]));
   const transport = fetchTransport({
     targets,
@@ -149,7 +150,7 @@ export function hubApi(bff: Bff, sessionId: string, doFetch: typeof fetch = fetc
       return session.tokens.accessToken;
     },
   });
-  return new Api({ transport, scope: PROGRAM_SCOPE });
+  return new Api({ transport, scope });
 }
 
 /** Attesa delle voci di audit (l'audit viaggia sul bus). Modificabile solo dai test. */
@@ -341,16 +342,28 @@ async function buildPreview(bff: Bff, sessionId: string, actor: string, doFetch?
 // ---------------------------------------------------------------------------------------------------------------
 // Route
 
-type Guarded = { bff: Bff; sessionId: string; actor: string };
+export type Guarded = { bff: Bff; sessionId: string; actor: string };
+
+/** Chi può usare la route e i testi dei rifiuti (V10: solo ADMIN; V11 «Invia un'azione»: ADMIN e CARE, i ruoli dell'import). */
+export interface GuardPolicy {
+  roles: readonly string[];
+  notFound: string;
+  forbidden: string;
+}
+const ADMIN_ONLY: GuardPolicy = {
+  roles: ["ADMIN"],
+  notFound: "Il programma di esempio esiste solo nell'ambiente di test dichiarato.",
+  forbidden: "Il programma di esempio lo carica un operatore ADMIN.",
+};
 
 /**
  * Guardie in ordine: profilo enterprise → ambiente di test dichiarato (404) → sessione (401) → CSRF sul POST (403) →
  * token fresco, operatore ADMIN (403). Mai in cache.
  */
-async function guarded(req: NextRequest, run: (g: Guarded) => Promise<NextResponse>): Promise<NextResponse> {
+export async function guarded(req: NextRequest, run: (g: Guarded) => Promise<NextResponse>, policy: GuardPolicy = ADMIN_ONLY): Promise<NextResponse> {
   const res = await enterpriseOnly(async (bff) => {
     if (testMode() === null) {
-      return problem(404, "NOT_FOUND", "Non disponibile", "Il programma di esempio esiste solo nell'ambiente di test dichiarato.");
+      return problem(404, "NOT_FOUND", "Non disponibile", policy.notFound);
     }
     const sessionId = req.cookies.get(bff.cookies.session)?.value;
     if (!sessionId) return problem(401, UNAUTHENTICATED, "Accesso richiesto", "La sessione è scaduta o assente: accedi di nuovo.");
@@ -363,8 +376,8 @@ async function guarded(req: NextRequest, run: (g: Guarded) => Promise<NextRespon
       return problem(503, "IDP_UNAVAILABLE", "Accesso momentaneamente non verificabile", "Il servizio di accesso non risponde: riprova tra poco.");
     }
     if (!session) return problem(401, UNAUTHENTICATED, "Accesso richiesto", "La sessione è scaduta o assente: accedi di nuovo.");
-    if (session.user.kind !== "operator" || session.user.role !== "ADMIN") {
-      return problem(403, "FORBIDDEN_ROLE", "Operazione non consentita", "Il programma di esempio lo carica un operatore ADMIN.");
+    if (session.user.kind !== "operator" || !policy.roles.includes(session.user.role)) {
+      return problem(403, "FORBIDDEN_ROLE", "Operazione non consentita", policy.forbidden);
     }
     return run({ bff, sessionId, actor: session.user.username });
   });
@@ -372,7 +385,7 @@ async function guarded(req: NextRequest, run: (g: Guarded) => Promise<NextRespon
   return res;
 }
 
-function json(body: unknown, status = 200): NextResponse {
+export function json(body: unknown, status = 200): NextResponse {
   const res = NextResponse.json(body, { status });
   res.headers.set("cache-control", "no-store");
   return res;

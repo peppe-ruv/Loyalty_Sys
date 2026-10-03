@@ -25,6 +25,11 @@ export interface BoPersona {
    * Lo calcola il layout server (`testMode()` è solo server); assente = non si mostra il riquadro.
    */
   sampleProgram?: boolean;
+  /**
+   * «Invia un'azione» sulla pagina Import (V11, BO-32, ADR-051): ADMIN e CARE in enterprise nell'ambiente di test
+   * dichiarato (Q-676). Lo calcola il layout server; assente = nessun modulo.
+   */
+  sendAction?: boolean;
 }
 
 const PersonaContext = createContext<BoPersona>({

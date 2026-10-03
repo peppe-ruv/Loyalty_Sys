@@ -58,6 +58,8 @@ export function makeHub(opts: FakeHubOptions = {}) {
   const audit: { id: string; entityType: string; entityId: string; action: string; actorName: string; actorRole: string }[] = [];
   const imports = new Map<string, { id: string; status: string; rowsTotal: number; rowsDone: number; counts: Record<string, number>; defaultSource: string; fileName: string; createdAt: string; reads: number }>();
   const idempotent = new Map<string, string>();
+  /** Portafogli per i test di «Invia un'azione» (V11): id membro → punti e livello (modificabili dal test). */
+  const wallets = new Map<string, { points: number; tier: string }>();
   let seq = 0;
   let attrs: unknown[] = [];
   let theme: object = { programName: "Club Aurora", updatedAt: null, version: 0 };
@@ -76,6 +78,12 @@ export function makeHub(opts: FakeHubOptions = {}) {
     if (method === "GET") {
       if (path === "/v1/campaigns") {
         return { status: 200, body: lists[path].map((c) => ({ code: c.code, status: state.campaignsLive.includes(String(c.code)) ? "LIVE" : "DRAFT" })) };
+      }
+      const w = /^\/v1\/wallets\/(.+)$/.exec(path);
+      if (w) {
+        const wallet = wallets.get(w[1]);
+        if (!wallet) return { status: 404, body: { code: "NOT_FOUND" } };
+        return { status: 200, body: { memberId: w[1], balances: { PTS: { active: wallet.points } }, tier: { code: wallet.tier.toUpperCase(), name: wallet.tier } } };
       }
       if (path === "/v1/attribute-definitions") return { status: 200, body: attrs };
       if (path === "/v1/theme") return { status: 200, body: theme };
@@ -132,7 +140,7 @@ export function makeHub(opts: FakeHubOptions = {}) {
     }
     return { status: 404, body: { code: "NOT_FOUND" } };
   };
-  return { transport, calls, lists, audit, imports, state, writes: () => calls.filter((c) => c.method !== "GET") };
+  return { transport, calls, lists, audit, imports, state, wallets, writes: () => calls.filter((c) => c.method !== "GET") };
 }
 
 /**

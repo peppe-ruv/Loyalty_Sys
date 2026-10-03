@@ -167,6 +167,10 @@ flowchart TD
   G --> H[Laura riportata alla registrazione da zero<br/>anonimizzazione come ADMIN]
 ```
 
+### Inviare un'azione di prova (V11)
+
+Dopo il programma di esempio, la pagina **Import** del backoffice ha il modulo **Invia un'azione** per `ADMIN` e `CARE`: membro di prova, azione ed eventuale importo. Crea un import di una riga dalla fonte `vetrina-test` con il token dell'operatore e mostra l'esito, i punti letti dal portafoglio e la voce di audit. Serve il programma caricato (la fonte `vetrina-test` ne fa parte) e il membro registrato. In `enterprise` il menu **Demo** non compare.
+
 ### Scenario dei quattro membri
 
 `scripts/vetrina-membri.mjs` (comando `vetrina.sh membri`) usa solo il login e le API reali, passando dal BFF all'indirizzo pubblico del web. Per questo serve che le porte 8000 e 8001 siano pubbliche: `avvio.sh` lo lancia dopo averle pubblicate e `vetrina.sh codespace` lo tenta prima in modo morbido.
