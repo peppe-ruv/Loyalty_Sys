@@ -11,6 +11,7 @@ Pacchetto a sé (pnpm, con il suo `pnpm-lock.yaml`): non c'è un workspace radic
 | `tests/accesso-operatore.setup.ts` | `marta.admin` entra dal login di Keycloak con cambio della password temporanea, OTP e arriva alla dashboard (BO-01). Salva la sessione per le altre prove. |
 | `tests/senza-sessione.spec.ts` | Senza sessione le API del BFF rispondono `401 UNAUTHENTICATED` e `/backoffice` porta al login (client `web`, PKCE S256). |
 | `tests/audit-configurazione.spec.ts` | Una scrittura di configurazione lascia una voce in `GET /v1/audit` con l'attore reale (regola 21), visibile anche nella schermata Audit. |
+| `tests/codice-errore.spec.ts` | Un premio inesistente dà un 404 del servizio: il riquadro d'errore mostra «Codice dell'errore», uguale all'intestazione `X-Correlation-Id` e alla proprietà `correlationId` della risposta (F2-QA-06, Q-716). |
 | `tests/membro-backoffice.spec.ts` | `testmember` non apre il backoffice né le sue API (rifiutato dal BFF, oppure `403 FORBIDDEN_ROLE`). |
 
 La scrittura di configurazione della terza prova è «crea categoria premi». Il backoffice non ha una schermata per crearla, quindi parte dal contesto della pagina autenticata, dal proxy del BFF e con il token CSRF, come le chiamate del frontend. La verifica dell'audit è invece anche nell'interfaccia.

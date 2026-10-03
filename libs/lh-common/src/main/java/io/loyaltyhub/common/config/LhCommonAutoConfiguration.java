@@ -22,6 +22,7 @@ import io.loyaltyhub.common.outbox.OutboxWriter;
 import io.loyaltyhub.common.time.BusinessCalendar;
 import io.loyaltyhub.common.identity.MemberSubjectLookup;
 import io.loyaltyhub.common.web.ActorFilter;
+import io.loyaltyhub.common.web.CorrelationIdFilter;
 import io.loyaltyhub.common.web.GlobalExceptionHandler;
 import io.loyaltyhub.common.web.EndpointAccessInterceptor;
 import io.loyaltyhub.common.web.IdentityMode;
@@ -228,6 +229,13 @@ public class LhCommonAutoConfiguration {
         boolean inProcess = env.acceptsProfiles(org.springframework.core.env.Profiles.of("inproc"));
         return new LhKafkaHealthIndicator(inProcess,
                 new java.util.HashMap<>(kafkaAdmin.getConfigurationProperties()));
+    }
+
+    /** Codice dell'errore (ADR-052 decisione 3, Q-684, Q-716): {@code X-Correlation-Id} in MDC, nel problema e nella risposta. */
+    @Bean
+    @ConditionalOnMissingBean
+    public CorrelationIdFilter correlationIdFilter() {
+        return new CorrelationIdFilter();
     }
 
     /**

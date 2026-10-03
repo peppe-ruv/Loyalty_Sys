@@ -74,4 +74,26 @@ describe("BO-06 nuova campagna", () => {
     expect(await within(when()).findByRole("checkbox", { name: /Acquisto completato/ })).toHaveAttribute("aria-checked", "true");
     expect(within(when()).getByRole("checkbox", { name: /Visita in negozio/ })).toHaveAttribute("aria-checked", "false");
   });
+
+  it("un salvataggio che fallisce lato servizio mostra il riquadro col codice dell'errore e lascia i campi compilati (F2-QA-06)", async () => {
+    const base = vi.mocked(fetch);
+    const inner = base.getMockImplementation()!;
+    base.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("campaign/v1/campaigns") && init?.method === "POST") {
+        return new Response(JSON.stringify({ title: "Errore interno", detail: "Si è verificato un errore imprevisto", code: "INTERNAL_ERROR", correlationId: "01JC8QA2D4F6H8K0M2P4R6T8VX" }), { status: 500, headers: { "content-type": "application/problem+json" } });
+      }
+      return inner(input, init);
+    });
+    renderWithProviders(<NewCampaignPage />, "MARKETING");
+    await within(when()).findByRole("checkbox", { name: /Acquisto completato/ });
+    const name = screen.getByLabelText("Nome") as HTMLInputElement;
+    fireEvent.change(name, { target: { value: "Doppi punti weekend" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva bozza" }));
+    const box = await screen.findByTestId("action-error");
+    expect(box).toHaveTextContent("La campagna non è stata salvata");
+    expect(box).toHaveTextContent("Codice dell'errore");
+    expect(box).toHaveTextContent("01JC8QA2D4F6H8K0M2P4R6T8VX");
+    expect(within(box).getByRole("button", { name: "Copia il codice" })).toBeInTheDocument();
+    expect(name.value).toBe("Doppi punti weekend");
+  });
 });

@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { LhError } from "@/lib/api/client";
 import { formatTime } from "@/lib/format/dates";
+import { ErrorBox } from "@/components/shared/ErrorNotice";
 
 // Stati loading / empty / error / degraded (docs/07 §6): un solo punto per tutte le viste, condiviso da backoffice e
 // portale (che non si importano a vicenda, CLAUDE.md §5).
@@ -56,7 +57,7 @@ export function QueryState<T>({
       }
       return degraded;
     }
-    return <ErrorBox error={query.error} onRetry={() => query.refetch()} />;
+    return <ErrorBox error={query.error} service={service} onRetry={() => query.refetch()} />;
   }
   const data = query.data as T;
   if (isEmpty && isEmpty(data)) {
@@ -69,37 +70,6 @@ export function QueryState<T>({
     );
   }
   return <>{children(data)}</>;
-}
-
-/** Errore applicativo (docs/07 §6 Error): `title` del problema RFC 9457, `detail`, `correlationId` copiabile, Riprova. */
-function ErrorBox({ error, onRetry }: { error: LhError; onRetry: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const title = error.title ?? `Errore: ${error.code}`;
-  const copy = () => {
-    if (!error.correlationId) return;
-    void navigator.clipboard?.writeText(error.correlationId).then(
-      () => setCopied(true),
-      () => undefined,
-    );
-  };
-  return (
-    <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-      <p className="font-medium">{title}</p>
-      {error.detail && error.detail !== title ? <p className="mt-1 text-xs">{error.detail}</p> : null}
-      {error.correlationId ? (
-        <p className="mt-1 flex flex-wrap items-center gap-1 text-xs">
-          <span>Correlazione:</span>
-          <code className="select-all font-mono">{error.correlationId}</code>
-          <button type="button" onClick={copy} className="underline" aria-label="Copia l'identificativo di correlazione">
-            {copied ? "copiato" : "copia"}
-          </button>
-        </p>
-      ) : null}
-      <button onClick={onRetry} className="mt-2 rounded border border-red-300 px-2 py-1 text-xs hover:bg-red-100">
-        Riprova
-      </button>
-    </div>
-  );
 }
 
 function SkeletonRows({ rows }: { rows: number }) {

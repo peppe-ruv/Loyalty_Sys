@@ -11,6 +11,7 @@ import { conditionUsesAmount, dropAmountExample, effectUsesAmount, hasAmountExam
 import { isActionCode } from "@/lib/actiontypes/code";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/bo/primitives";
+import { ActionError } from "@/components/shared/ErrorNotice";
 import { GeneratedSentence } from "@/components/bo/GeneratedSentence";
 import { SimulationPanel } from "@/components/bo/SimulationPanel";
 import { Can, useCan } from "@/components/bo/Can";
@@ -49,6 +50,8 @@ export default function NewCampaignPage() {
   const [sources, setSources] = useState<string[]>([]);
   const [json, setJson] = useState(DEFAULTS);
   const [error, setError] = useState<string | null>(null);
+  // Salvataggio fallito lato servizio: riquadro con il codice dell'errore in testa al modulo (F2-QA-06, Q-716).
+  const [saveFailure, setSaveFailure] = useState<LhError | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Condizioni: l'albero è la fonte; la vista JSON lo aggiorna solo quando il testo è valido.
@@ -118,6 +121,7 @@ export default function NewCampaignPage() {
 
   async function save() {
     setError(null);
+    setSaveFailure(null);
     if (condJsonError) {
       setError("Correggi il JSON delle condizioni (sezione 4)");
       return;
@@ -146,7 +150,8 @@ export default function NewCampaignPage() {
       const created = await lhFetch<Campaign>("campaign", "/v1/campaigns", { method: "POST", body: JSON.stringify(body) });
       router.push(`/backoffice/campaigns/${created.id}`);
     } catch (e) {
-      setError(e instanceof LhError ? e.detail || e.code : "Controlla i campi JSON");
+      if (e instanceof LhError) setSaveFailure(e);
+      else setError("Controlla i campi JSON");
     } finally {
       setSaving(false);
     }
@@ -155,6 +160,11 @@ export default function NewCampaignPage() {
   return (
     <div>
       <PageHeader title="Nuova campagna" subtitle="Crea una bozza (DRAFT)" />
+      {saveFailure ? (
+        <div className="mb-4">
+          <ActionError error={saveFailure} title="La campagna non è stata salvata" />
+        </div>
+      ) : null}
       <div className="mb-4">
         <GeneratedSentence draft={draft} />
       </div>

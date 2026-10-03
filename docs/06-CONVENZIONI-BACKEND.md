@@ -52,7 +52,8 @@ CREATE TABLE approval_history (
 ```json
 { "type": "urn:loyaltyhub:problem:validation", "title": "Dati non validi", "status": 422,
   "detail": "Il premio non è più disponibile", "code": "REWARD_OUT_OF_STOCK",
-  "instance": "/v1/redemptions", "errors": [ { "field": "rewardCode", "message": "esaurito" } ] }
+  "instance": "/v1/redemptions", "errors": [ { "field": "rewardCode", "message": "esaurito" } ],
+  "correlationId": "01JC8Q3V7M2K9TQX4R1N5B6Y0Z" }
 ```
 | Stato | `type` suffix | Quando |
 |---|---|---|
@@ -71,7 +72,7 @@ CREATE TABLE approval_history (
 | 422 | `validation` | regola di business violata (`code` specifico, elencati nelle schede servizio) |
 | 503 | `dependency-unavailable` | DB/Kafka non raggiungibili |
 
-`detail` è in italiano e mostrabile all'utente; `code` è stabile e usato dal frontend. I codici `MEMBER_*` (ADR-048, Q-553) non ripetono mai l'id ricevuto nel `detail`; il suffisso di `type` è il `code` in minuscolo con i trattini, come per `source-mismatch` ed `endpoint-not-declared`. Sono decisi e diventano operativi con la fetta `lh-common` di M8.10f.
+`detail` è in italiano e mostrabile all'utente; `code` è stabile e usato dal frontend. **`correlationId`** (F2-QA-06, ADR-052 decisione 3, Q-684, Q-716) è il «codice dell'errore»: proprietà opzionale di ogni problema, mai dati personali, uguale all'intestazione di risposta `X-Correlation-Id` e al `correlationId` dell'MDC di tutte le righe di log della richiesta. Lo gestisce `CorrelationIdFilter` (il filtro più esterno): legge `X-Correlation-Id` se ha la forma `[A-Za-z0-9-]{1,64}` (quella che ammette il BFF), altrimenti genera un ULID, e pulisce l'MDC a fine richiesta; `GlobalExceptionHandler` lo copia nel problema. I 5xx (`INTERNAL_ERROR`, `DEPENDENCY_UNAVAILABLE`, ogni `LhException` 5xx) sono loggati a livello `error` con lo stack, così la riga contiene il codice che l'utente ha copiato dalla schermata. Il frontend lo mostra sui guasti e non sugli errori di campo (`docs/07` §6). I codici `MEMBER_*` (ADR-048, Q-553) non ripetono mai l'id ricevuto nel `detail`; il suffisso di `type` è il `code` in minuscolo con i trattini, come per `source-mismatch` ed `endpoint-not-declared`. Sono decisi e diventano operativi con la fetta `lh-common` di M8.10f.
 
 ## 3. Identità simulata
 
@@ -336,7 +337,7 @@ Fino a M7 la proprietà `loyaltyhub.approval.enabled=false` consente `DRAFT → 
 
 ## 8. Log, salute, metriche
 
-- Log JSON (profilo `free`) con MDC: `service, eventId, eventType, correlationId, memberId, actor`.
+- Log JSON (profilo `free`) con MDC: `service, eventId, eventType, correlationId, memberId, actor`. Per le richieste HTTP `correlationId` è il codice dell'errore (`CorrelationIdFilter`, §2 Errori); per i consumer Kafka è `lhcorrelationid` dell'evento (`EventRouter`).
 - Actuator: `health` (con componenti `db`, `kafka`, esposti sempre), `info`, `metrics`; `prometheus` compare tra gli endpoint esposti ma è inerte: sul classpath non c'è alcun registro Prometheus, quindi `/actuator/prometheus` non esiste (`SPEC-GAP: Q-520`). Nel profilo `enterprise` `/actuator/*` tranne le sonde esige un ruolo operatore (§3.3): per questo le metriche escono in push (sotto) e non per scrape. Liveness su `/actuator/health/liveness`.
 - Health `kafka`: `AdminClient.describeCluster` con timeout 3 s (in cache 30 s).
 - Metriche custom: `lh_events_consumed_total{type}`, `lh_events_published_total{type}`, `lh_events_dlq_total{type,errorCode}`, `lh_outbox_pending`, `lh_handler_seconds{type}` e, in insight, `lh_action_to_points_seconds` (istogramma dell'SLI azione → punti, bucket 1, 2, 5, 10, 30 e 60 s, senza etichette; `docs/servizi/insight-service.md` §5, Q-523).

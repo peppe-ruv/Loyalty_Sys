@@ -125,6 +125,18 @@ describe("EnterpriseMemberGate", () => {
     expect(await screen.findByTestId("probe")).toHaveTextContent("MBR-000002");
   });
 
+  it("un guasto (500) mostra il codice dell'errore in piccolo con «Copia il codice» (F2-QA-06, C1)", async () => {
+    fetchSpy.mockImplementation(async () =>
+      new Response(JSON.stringify({ code: "INTERNAL_ERROR", title: "Errore interno", correlationId: "01JC8QF0B2C4D6E8G0J2K4M6NP" }), { status: 500, headers: { "content-type": "application/problem+json" } }),
+    );
+    renderGate();
+    const alert = await screen.findByRole("alert", {}, { timeout: 5000 });
+    expect(alert).toHaveTextContent(t.portalMember.errorTitle);
+    expect(alert).toHaveTextContent(t.errorCode.portalHint);
+    expect(alert).toHaveTextContent("01JC8QF0B2C4D6E8G0J2K4M6NP");
+    expect(alert).toHaveTextContent(t.errorCode.copy);
+  });
+
   it("servizio che dorme (503): riquadro degraded con «Riprova», nessun reindirizzamento", async () => {
     fetchSpy.mockResolvedValue(new Response(JSON.stringify({ type: "SERVICE_ASLEEP" }), { status: 503 }));
     renderGate();

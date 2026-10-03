@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LhError, lhFetch } from "@/lib/api/client";
 import type { PortalProfile } from "@/lib/api/types";
 import { DegradedBox } from "@/components/shared/QueryState";
+import { errorCodeOf, InlineErrorCode } from "@/components/shared/ErrorNotice";
 import { it } from "@/lib/i18n/it";
 import { MEMBER_NOT_REGISTERED } from "@/lib/portal/memberApi";
 import { MemberProvider } from "./MemberContext";
@@ -89,10 +90,11 @@ export function EnterpriseMemberGate({ account, children }: { account: AccountId
     return (
       <div role="alert" className="mx-auto max-w-md space-y-2 p-6 text-center text-sm text-red-800">
         <p className="font-medium">{it.portalMember.errorTitle}</p>
-        {me.error.detail ? <p className="text-xs">{me.error.detail}</p> : null}
+        <p className="text-xs">{it.errorCode.portalHint}</p>
         <button type="button" onClick={() => void me.refetch()} className="rounded border border-red-300 px-3 py-1.5 text-xs hover:bg-red-50">
           {it.portalMember.retry}
         </button>
+        <InlineErrorCode code={errorCodeOf(me.error)} className="text-xs opacity-80" />
       </div>
     );
   }

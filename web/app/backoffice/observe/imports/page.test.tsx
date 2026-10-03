@@ -89,12 +89,12 @@ describe("BO-32 Import", () => {
     expect(await screen.findByText(/si sta svegliando/)).toBeInTheDocument();
   });
 
-  it("errore del servizio: riquadro con il titolo del problema", async () => {
+  it("errore del servizio: riquadro che nomina il servizio, col codice dell'errore", async () => {
     route((u) =>
-      u.includes("/v1/imports") ? json({ title: "Errore interno", detail: "Si è verificato un errore imprevisto", code: "INTERNAL_ERROR" }, 500) : undefined,
+      u.includes("/v1/imports") ? json({ title: "Errore interno", detail: "Si è verificato un errore imprevisto", code: "INTERNAL_ERROR", correlationId: "01JC8Q3V7M2K9TQX4R1N5B6Y0Z" }, 500) : undefined,
     );
     renderWithProviders(<ImportsPage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Errore interno");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Il servizio ingestion non ha risposto correttamente");
   });
 
   it("ADMIN carica un file: multipart con Idempotency-Key, senza content-type JSON, poi apre il lavoro", async () => {

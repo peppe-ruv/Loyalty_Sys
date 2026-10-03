@@ -164,6 +164,31 @@ Il controllo `scripts/check-collaudo.mjs`, nel job `guard` di ogni pull request,
 node --test scripts/check-collaudo.test.mjs && node scripts/check-collaudo.mjs
 ```
 
+## Dal messaggio d'errore alla riga di log
+
+Quando un servizio va in errore, la schermata mostra un **codice dell'errore** breve, con il pulsante «Copia il codice». È lo stesso codice che il servizio ha scritto in ogni riga di log di quella richiesta, compresa quella con lo stack: chi fa il collaudo lo cerca nei log del container e trova subito la causa. Il codice non contiene dati personali. Compare sui guasti, cioè sugli errori `5xx` e sui `4xx` inattesi, e non sugli errori di validazione dei campi, che restano sui campi.
+
+```mermaid
+sequenceDiagram
+  accTitle: Percorso del codice dell'errore
+  accDescr: Il BFF genera o inoltra X-Correlation-Id; il servizio lo scrive nel contesto dei log e, in caso di errore, nella proprietà correlationId della risposta RFC 9457; la schermata lo mostra e il collaudo lo cerca nei log del container.
+  autonumber
+  actor U as Operatore o membro
+  participant B as Browser
+  participant W as BFF Next.js
+  participant S as Servizio
+  participant L as Log del container
+  U->>B: apre una vista o salva
+  B->>W: richiesta
+  W->>W: X-Correlation-Id valido inoltrato, altrimenti nuovo ULID
+  W->>S: richiesta con X-Correlation-Id
+  S->>L: ogni riga di log porta correlationId (MDC)
+  S-->>W: application/problem+json con correlationId
+  W-->>B: problema inoltrato, stesso codice nell'intestazione
+  B->>U: riquadro con Codice dell'errore e Copia il codice
+  Note over U,L: Collaudo: il codice copiato si cerca nell'artefatto dei log e porta alla riga con lo stack
+```
+
 ## Stato
 
-L'harness Playwright (M9.1) esiste: sta in `e2e/` e il job `e2e-pr` lo esegue sul compose `enterprise`, con il login vero di Keycloak e la MFA. Per ora copre quattro prove e il job è consultivo: non è ancora tra i controlli obbligatori del merge. Accanto, nello stesso pacchetto, Cypress (M9.8a, ADR-054) prova la demo pubblica in profilo `demo` ogni cinque giorni e a richiesta, con la registrazione su Cypress Cloud: sta fuori dalle pull request e non è un livello del cancello. Il workflow `collaudo` (M9 T3, Q-683) alza lo stack `enterprise`, esegue le journey Playwright e allega come artefatto, conservato 14 giorni, i log di ogni container, caricati solo se gitleaks non trova segreti; parte a mano e sui tag `v*.0.0`. Il copione di collaudo (M9 T2, `e2e/collaudo/`) esiste, con il prompt di avvio, il modello del rapporto e il controllo `scripts/check-collaudo.mjs` nel job `guard`. Il `correlationId` negli errori e i quattro controlli per i bug non noti si aggiungono in fette successive. Il job `mutation` (F2-QA-07) è consultivo: su ogni pull request lancia PIT sulle classi Java e Stryker sui file del web cambiati rispetto a `main` (`bash scripts/mutation.sh all`) e scrive nel riepilogo i mutanti uccisi e sopravvissuti; diventerà obbligatorio, con almeno il 70 % di mutanti uccisi sul diff, alla chiusura di M9. Il job `fuzz` (F2-QA-07, Q-692) è consultivo: su ogni pull request riusa `scripts/security-fuzz.sh` del collaudo notturno sulle sole OpenAPI dei servizi toccati, al massimo cinque minuti per servizio, cerca risposte `5xx` e risposte fuori schema, scrive nel riepilogo servizi, richieste ed errori e conserva il report 14 giorni; se nessun servizio cambia esce verde senza richieste. Le scelte sui controlli sono le domande Q-690…Q-694, decise il 2026-10-02. Le scelte di dettaglio sono le domande Q-680…Q-685, decise il 2026-10-02.
+L'harness Playwright (M9.1) esiste: sta in `e2e/` e il job `e2e-pr` lo esegue sul compose `enterprise`, con il login vero di Keycloak e la MFA. Per ora copre cinque prove e il job è consultivo: non è ancora tra i controlli obbligatori del merge. Accanto, nello stesso pacchetto, Cypress (M9.8a, ADR-054) prova la demo pubblica in profilo `demo` ogni cinque giorni e a richiesta, con la registrazione su Cypress Cloud: sta fuori dalle pull request e non è un livello del cancello. Il workflow `collaudo` (M9 T3, Q-683) alza lo stack `enterprise`, esegue le journey Playwright e allega come artefatto, conservato 14 giorni, i log di ogni container, caricati solo se gitleaks non trova segreti; parte a mano e sui tag `v*.0.0`. Il copione di collaudo (M9 T2, `e2e/collaudo/`) esiste, con il prompt di avvio, il modello del rapporto e il controllo `scripts/check-collaudo.mjs` nel job `guard`. Il codice dell'errore (F2-QA-06, Q-684, Q-716) c'è: ogni servizio mette `X-Correlation-Id` nei log e nella proprietà `correlationId` dei problemi, le schermate lo mostrano sui guasti con «Copia il codice» e una prova Playwright verifica che il codice mostrato sia quello della risposta. Gli altri controlli per i bug non noti si aggiungono in fette successive. Il job `mutation` (F2-QA-07) è consultivo: su ogni pull request lancia PIT sulle classi Java e Stryker sui file del web cambiati rispetto a `main` (`bash scripts/mutation.sh all`) e scrive nel riepilogo i mutanti uccisi e sopravvissuti; diventerà obbligatorio, con almeno il 70 % di mutanti uccisi sul diff, alla chiusura di M9. Il job `fuzz` (F2-QA-07, Q-692) è consultivo: su ogni pull request riusa `scripts/security-fuzz.sh` del collaudo notturno sulle sole OpenAPI dei servizi toccati, al massimo cinque minuti per servizio, cerca risposte `5xx` e risposte fuori schema, scrive nel riepilogo servizi, richieste ed errori e conserva il report 14 giorni; se nessun servizio cambia esce verde senza richieste. Le scelte sui controlli sono le domande Q-690…Q-694, decise il 2026-10-02. Le scelte di dettaglio sono le domande Q-680…Q-685, decise il 2026-10-02.
