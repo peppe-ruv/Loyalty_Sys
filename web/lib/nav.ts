@@ -15,6 +15,8 @@ export interface NavItem {
 export interface NavGroup {
   label: string;
   items: NavItem[];
+  /** Solo nel profilo `demo`: le voci chiamano /v1/demo, che in enterprise non esiste (docs/18 V11, ADR-051). */
+  demoOnly?: boolean;
 }
 
 // Milestone realizzate finora: M1 completa + fette di M2 già realizzate (BO-24 in M2.2). Le voci M2 non
@@ -91,6 +93,7 @@ export const NAV: NavGroup[] = [
   },
   {
     label: "Demo",
+    demoOnly: true,
     items: [
       { id: "BO-28", label: "Simulatore eventi", href: "/backoffice/demo/simulator", milestone: 1 },
       { id: "BO-29", label: "Scenari", href: "/backoffice/demo/scenarios", milestone: 2 },
@@ -104,6 +107,11 @@ export function visibleNav(realized: number = REALIZED_MILESTONE): NavGroup[] {
   return NAV.map((g) => ({ ...g, items: g.items.filter((i) => i.milestone <= realized) })).filter(
     (g) => g.items.length > 0,
   );
+}
+
+/** Gruppi della sidebar per profilo: in enterprise il gruppo «Demo» (simulatore, scenari, console) non compare. */
+export function navForProfile(groups: NavGroup[], mode: "demo" | "enterprise"): NavGroup[] {
+  return mode === "enterprise" ? groups.filter((g) => !g.demoOnly) : groups;
 }
 
 /**
@@ -138,4 +146,15 @@ export function canSeeMemberUsers(role: Role): boolean {
  */
 export function canSeeSampleProgram(role: Role, mode: "demo" | "enterprise", testEnvironment: boolean): boolean {
   return mode === "enterprise" && role === "ADMIN" && testEnvironment;
+}
+
+/** Ruoli dell'import (BO-32, `inbound.handle`): possono usare «Invia un'azione». */
+export const SEND_ACTION_ROLES: readonly Role[] = ["ADMIN", "CARE"];
+
+/**
+ * «Invia un'azione» (V11, BO-32, ADR-051): modulo sopra l'elenco degli import, solo per ADMIN e CARE, solo nel profilo
+ * enterprise e solo nell'ambiente di test dichiarato (`testMode() !== null`, Q-676, calcolato dal layout server).
+ */
+export function canSendAction(role: Role, mode: "demo" | "enterprise", testEnvironment: boolean): boolean {
+  return mode === "enterprise" && SEND_ACTION_ROLES.includes(role) && testEnvironment;
 }

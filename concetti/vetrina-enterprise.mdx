@@ -15,7 +15,7 @@ La vetrina è una prova da guardare, non un servizio di produzione: non è ad al
 </Note>
 
 <Warning>
-**Ambiente di test (ADR-051, 2026-10-02).** La vetrina diventa un ambiente di test da usare tutto dal browser: gli utenti di test hanno credenziali fisse e pubbliche, documentate in questa pagina, e Keycloak torna alla configurazione del repository a ogni avvio. Non inserire mai dati personali veri. Utenti di test, reset e membri di prova sono della fetta V8; gli ingressi dal browser (riquadro di accensione, schede degli utenti, console dei realm) sono della fetta V9; il portale dei membri dal token, con la registrazione di Laura, della fetta V9b; le altre parti arrivano con le fette V10–V12 di M8.14.
+**Ambiente di test (ADR-051, 2026-10-02).** La vetrina diventa un ambiente di test da usare tutto dal browser: gli utenti di test hanno credenziali fisse e pubbliche, documentate in questa pagina, e Keycloak torna alla configurazione del repository a ogni avvio. Non inserire mai dati personali veri. Utenti di test, reset e membri di prova sono della fetta V8; gli ingressi dal browser (riquadro di accensione, schede degli utenti, console dei realm) sono della fetta V9; il portale dei membri dal token, con la registrazione di Laura, della fetta V9b; il programma di esempio dal backoffice è della fetta V10, l'invio di un'azione dalla fonte di test della V11; le altre parti arrivano con la fetta V12 di M8.14.
 </Warning>
 
 ## Come sono collegate le due istanze
@@ -262,6 +262,30 @@ flowchart TD
   E -- no --> F[Storie in attesa:<br/>approvazione da un altro operatore]
   F --> E
   E -- sì --> G[Storie dei tre membri di prova<br/>in un solo import]
+```
+
+### Inviare un'azione di prova
+
+Dopo il programma, la pagina **Import** del backoffice (BO-32) ha il modulo **Invia un'azione** (V11, F2-ING-02, Q-675). Lo vedono gli operatori `ADMIN` e `CARE`, solo nella vetrina. Si sceglie il membro di prova (Anna, Marco o Giulia, con il livello di oggi), l'azione e, per acquisti e resi, l'importo. Il server costruisce un import di una riga dalla fonte `vetrina-test`, con il token dell'operatore, e la pagina mostra l'esito: se la riga è stata accettata, di quanto sono cambiati i punti, il nuovo livello e la voce di audit a nome dell'operatore. I punti sono quelli che il portafoglio del membro attribuisce proprio a quell'azione, letti dopo l'elaborazione, e non si stimano prima (Q-725); se non si riescono a leggere, la pagina lo dice invece di scrivere «nessuna variazione». Si invia un'azione alla volta. Il reso non storna punti nel programma di esempio. Se il programma non è ancora stato caricato, il modulo rimanda alla Dashboard. In `enterprise` il menu **Demo** del backoffice e il pannello demo del portale non compaiono, perché usano API che esistono solo nella demo.
+
+```mermaid
+sequenceDiagram
+  accTitle: Invio di un'azione dalla fonte di test
+  accDescr: Un operatore ADMIN o CARE invia un'azione dal modulo di BO-32. Il server del web controlla ambiente, sessione, ruolo e CSRF, risolve il membro di prova, crea un import di una riga dalla fonte vetrina-test con il token dell'operatore e poi, a elaborazione finita, legge il portafoglio e la voce di audit per mostrare l'esito.
+  participant O as Operatore ADMIN o CARE
+  participant W as Server del web
+  participant H as Servizi (ingestion, wallet, insight)
+  O->>W: Invia un'azione (membro, tipo, importo)
+  Note over W: ambiente di test, sessione, ruolo, CSRF
+  W->>H: GET membro di prova e portafoglio (prima)
+  W->>H: POST /v1/imports, una riga, fonte vetrina-test
+  H-->>W: import accodato, voce di audit CREATE
+  W-->>O: invio avviato
+  loop ogni 1,5 secondi fino all'esito
+    O->>W: Esito dell'invio
+    W->>H: GET import, portafoglio, audit
+    W-->>O: accettata, punti e livello, audit verificato
+  end
 ```
 
 In `enterprise` non c'è un seeder, quindi la vetrina parte vuota. La configurazione del programma arriva da `seed/` con `scripts/vetrina-programma.mjs`, che usa solo le API REST dei servizi e il token di un operatore nominativo (Q-617, decisa il 2026-09-30). Lo script crea tema e messaggi, categorie, fasce, pool di coupon e premi, attributi e segmenti dinamici, badge, obiettivi e classifiche. Non entrano membri, movimenti né altri dati personali. I premi nascono in `DRAFT` e lo script non approva né pubblica nulla. Valute, livelli, tipi di azione `SYSTEM` e mappature interne non hanno un'API di creazione: lo script li salta e li riporta nel piano, e arrivano con le migrazioni dei dati di riferimento (Q-629).

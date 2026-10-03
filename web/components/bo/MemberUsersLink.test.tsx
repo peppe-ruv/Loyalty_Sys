@@ -48,13 +48,13 @@ describe("NavLinks", () => {
     const i = labels.findIndex((x) => x.startsWith("Membri"));
     expect(labels[i + 1]).toContain(t.memberUsers.navLabel);
     expect(labels[i + 2]).toContain("Segmenti");
-    expect(screen.getAllByRole("link")).toHaveLength(30);
+    expect(screen.getAllByRole("link")).toHaveLength(27);
   });
 
-  it.each([null, undefined])("senza indirizzo (%s): le 29 voci di sempre", (url) => {
+  it.each([null, undefined])("senza indirizzo (%s): le 26 voci di sempre (in enterprise senza il gruppo Demo, V11)", (url) => {
     renderAs(<NavLinks />, url);
     expect(screen.queryByRole("link", { name: /Utenti membri/ })).toBeNull();
-    expect(screen.getAllByRole("link")).toHaveLength(29);
+    expect(screen.getAllByRole("link")).toHaveLength(26);
   });
 });
 

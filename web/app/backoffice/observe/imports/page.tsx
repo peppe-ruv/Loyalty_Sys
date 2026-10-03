@@ -9,6 +9,7 @@ import { QueryState } from "@/components/bo/QueryState";
 import { DataTable, type Column } from "@/components/bo/DataTable";
 import { Can } from "@/components/bo/Can";
 import { SideSheet } from "@/components/bo/SideSheet";
+import { SendActionForm } from "@/components/bo/imports/SendActionForm";
 import { CodeText, PageHeader, StatusPill } from "@/components/bo/primitives";
 import { formatDateTime } from "@/lib/format/dates";
 import { cn } from "@/lib/cn";
@@ -103,6 +104,7 @@ export default function ImportsPage() {
         title="Import"
         subtitle="Carica un file di eventi: il servizio lo elabora in background con la stessa pipeline degli ingressi e produce un rapporto per esito."
       />
+      <SendActionForm />
       <UploadPanel onUploaded={(job) => go({ page: 0, i: job.id })} />
       <QueryState
         query={list}

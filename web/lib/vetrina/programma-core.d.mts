@@ -13,15 +13,23 @@ export const PROGRAM_SERVICES: readonly string[];
 export const STORY_SOURCE_CODE: string;
 export const STORY_FILE_NAME: string;
 export const STORY_SOURCE_URN: string;
+export const ACTION_FILE_NAME: string;
 export const NOT_INCLUDED: readonly (readonly [string, string])[];
 export const NOT_INCLUDED_PROGRAM: readonly (readonly [string, string])[];
 
 export interface Scope {
   readonly campaigns: boolean;
   readonly stories: boolean;
+  /** Lettura del portafoglio di un membro (V11). */
+  readonly wallets?: boolean;
+  /** Solo letture (le uniche scritture sono i POST /v1/imports, che hanno la propria lista bianca). */
+  readonly readOnly?: boolean;
+  /** Il POST /v1/imports ammesso è quello dell'azione singola (altrimenti quello delle storie). */
+  readonly actionImport?: boolean;
 }
 export const CLI_SCOPE: Scope;
 export const PROGRAM_SCOPE: Scope;
+export const ACTION_SCOPE: Scope;
 
 export interface Multipart {
   file: { name: string; type?: string; text: string };
@@ -41,6 +49,24 @@ export type Transport = (service: string, method: string, path: string, options?
 
 export function assertAllowedRequest(method: string, pathname: string, body?: unknown, scope?: Scope): void;
 export function assertStoryImport(multipart: Multipart | undefined, subjects: ReadonlySet<string>): void;
+export function assertActionImport(multipart: Multipart | undefined, subjects: ReadonlySet<string>): void;
+
+export interface ActionType {
+  type: string;
+  label: string;
+  valued: boolean;
+}
+export const ACTION_TYPES: readonly ActionType[];
+export const MAX_ACTION_AMOUNT: number;
+export function parseActionAmount(amount: unknown): number;
+export function buildActionRow(args: {
+  type: string;
+  memberId: string;
+  username?: string;
+  amount?: unknown;
+  now: number;
+  uid: string;
+}): { row: Record<string, any>; file: { name: string; type: string; text: string } };
 export function fetchTransport(options: {
   targets: Record<string, string>;
   getToken: () => string | Promise<string>;
@@ -161,6 +187,7 @@ export interface StoriesPlan {
   /** Utente → id del membro risolto: SOLO in memoria, mai nelle risposte. */
   resolved: Map<string, string>;
 }
+export function findTestMember(api: Api, story: { email: string }): Promise<string | null>;
 export function planStories(args: { seed: Record<string, any>; api: Api; plan?: PlanItem[]; offline?: boolean }): Promise<StoriesPlan>;
 export function applyStories(args: {
   seed: Record<string, any>;
