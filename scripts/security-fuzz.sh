@@ -9,6 +9,13 @@
 # Variabili:
 #   LH_FUZZ_OUT              cartella dei risultati, relativa alla radice (default target/security/fuzz)
 #   LH_FUZZ_MAX_TIME         secondi per specifica (default 120)
+#   LH_FUZZ_SERVICES         elenco (virgole o spazi) di specifiche da provare, per nome del file senza .openapi.json
+#                            (es. "wallet-service,reward-service"); vuoto = tutte (corsa notturna). Un elenco senza
+#                            alcuna specifica nota esce con 0 senza richieste (fuzz breve nelle PR, ADR-053 U3, Q-692)
+#   LH_FUZZ_TOTAL_MAX_TIME   tetto in secondi sull'insieme delle specifiche: ogni specifica riceve il minore tra
+#                            LH_FUZZ_MAX_TIME e il tempo residuo (default: nessun tetto)
+#   LH_FUZZ_CHECKS           controlli di Schemathesis separati da virgola (es. not_a_server_error,
+#                            response_schema_conformance); vuoto = quelli di .dast/schemathesis.toml (solo 5xx)
 #   LH_FUZZ_BASELINE_UPDATE  1 = aggiunge alla baseline i 5xx trovati (poi vanno annotati a mano); default 0
 #   SCHEMATHESIS             binario locale: se impostato niente Docker, bersaglio LH_FUZZ_URL (default http://127.0.0.1:8080)
 #   SCHEMATHESIS_IMAGE       immagine fissata per digest (senza SCHEMATHESIS); LH_DAST_NETWORK la rete del bersaglio
@@ -23,6 +30,10 @@ UPDATE="${LH_FUZZ_BASELINE_UPDATE:-0}"
 # Q-537: aggiornamento a mano
 SCHEMATHESIS_IMAGE="${SCHEMATHESIS_IMAGE:-ghcr.io/schemathesis/schemathesis:4.28.0@sha256:0a71757c60ccdba270c154a859d9dd3d019625f782f23ab36ad604771e15f78b}"
 
+TOTAL_MAX="${LH_FUZZ_TOTAL_MAX_TIME:-}"
+SERVICES="${LH_FUZZ_SERVICES:-}"
+CHECKS="${LH_FUZZ_CHECKS:-}"
+
 case "$OUT" in
   /* | .. | ../* | */.. | */../*)
     echo "::error::LH_FUZZ_OUT deve essere una cartella relativa alla radice del repository, senza '..': $OUT" >&2
@@ -32,6 +43,25 @@ esac
 case "$MAX_TIME" in
   '' | *[!0-9]*)
     echo "::error::LH_FUZZ_MAX_TIME deve essere un numero di secondi: $MAX_TIME" >&2
+    exit 2
+    ;;
+esac
+
+case "$TOTAL_MAX" in
+  *[!0-9]*)
+    echo "::error::LH_FUZZ_TOTAL_MAX_TIME deve essere un numero di secondi: $TOTAL_MAX" >&2
+    exit 2
+    ;;
+esac
+case "$CHECKS" in
+  *[!a-z_,]*)
+    echo "::error::LH_FUZZ_CHECKS ammette solo nomi di controlli separati da virgola: $CHECKS" >&2
+    exit 2
+    ;;
+esac
+case "$SERVICES" in
+  *[!a-z0-9_,\ -]*)
+    echo "::error::LH_FUZZ_SERVICES ammette solo nomi di servizio separati da virgola o spazio: $SERVICES" >&2
     exit 2
     ;;
 esac
@@ -62,16 +92,51 @@ else
 fi
 node scripts/security-dast.mjs prepare --out "$OUT/specs" || exit 1
 
+# Selezione delle specifiche (fuzz breve nelle PR): si tolgono da $OUT/specs le altre, così anche il riepilogo
+# (fuzz-summary) riguarda solo quelle provate. Un nome senza specifica si ignora con un avviso.
+if [ -n "$SERVICES" ]; then
+  wanted=" $(echo "$SERVICES" | tr ',' ' ' | xargs) "
+  kept=0
+  for spec in "$OUT"/specs/*.openapi.json; do
+    name="$(basename "$spec" .openapi.json)"
+    case "$wanted" in
+      *" $name "*) kept=$((kept + 1)) ;;
+      *) rm -f "$spec" ;;
+    esac
+  done
+  for w in $wanted; do
+    [ -f "$OUT/specs/$w.openapi.json" ] || echo "::warning::nessuna specifica per '$w': ignorato"
+  done
+  if [ "$kept" -eq 0 ]; then
+    echo "Nessuna specifica da provare per: $SERVICES"
+    exit 0
+  fi
+fi
+
+started=$SECONDS
 for spec in "$OUT"/specs/*.openapi.json; do
   name="$(basename "$spec" .openapi.json)"
+  spec_time="$MAX_TIME"
+  if [ -n "$TOTAL_MAX" ]; then
+    remaining=$((TOTAL_MAX - (SECONDS - started)))
+    if [ "$remaining" -lt 10 ]; then
+      echo "::warning::$name: tetto totale di ${TOTAL_MAX}s esaurito, specifica non provata"
+      rm -f "$spec"
+      continue
+    fi
+    if [ "$remaining" -lt "$spec_time" ]; then spec_time="$remaining"; fi
+  fi
   mkdir -p "$OUT/$name"
   extra=()
+  if [ -n "$CHECKS" ]; then
+    extra+=(--checks "$CHECKS")
+  fi
   if [ "$UPDATE" = "1" ]; then
     extra+=(--baseline-update)
   fi
   echo "::group::Schemathesis: $name"
   "${cmd[@]}" --config-file .dast/schemathesis.toml run "$spec" \
-    --url "$url" --max-time "$MAX_TIME" \
+    --url "$url" --max-time "$spec_time" \
     --report junit,json \
     --report-junit-path "$OUT/$name/junit.xml" \
     --report-json-path "$OUT/$name/report.json" \
@@ -85,7 +150,7 @@ for spec in "$OUT"/specs/*.openapi.json; do
       # 1 = almeno un difetto fuori baseline (5xx) oppure errori di rete o timeout: il riepilogo distingue i due casi.
       # Con LH_FUZZ_BASELINE_UPDATE=1 lo scopo è proprio registrare i difetti.
       if [ "$UPDATE" != "1" ]; then
-        echo "::error::$name: 5xx fuori baseline o errori di rete e timeout (vedi il rapporto in $OUT/$name)"
+        echo "::error::$name: difetti fuori baseline (5xx o risposte fuori schema, se richiesto) o errori di rete e timeout (vedi il rapporto in $OUT/$name)"
         status=1
       fi
       ;;
