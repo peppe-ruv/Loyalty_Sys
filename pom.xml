@@ -33,7 +33,7 @@
     <!-- Token OIDC (Q-410): spring-security-oauth2-jose la porta in lh-common e lh-test-support la usa per i token RS256
          di prova. Non è nel BOM di Spring Boot: una sola versione, gestita qui, perché un aggiornamento di Spring Security
          o di Dependabot non allinei uno dei due moduli e non l'altro. È la versione che Boot 4.1.1 risolve oggi. -->
-    <nimbus-jose-jwt.version>10.9.1</nimbus-jose-jwt.version>
+    <nimbus-jose-jwt.version>10.10</nimbus-jose-jwt.version>
     <!-- Proprietà generative (ADR-053, Q-690, docs/06 §9): libreria di test, mai nei jar di produzione. Registra il proprio
          motore sulla JUnit Platform accanto a Jupiter; non è nel BOM di Spring Boot, quindi la versione è fissata qui. -->
     <jqwik.version>1.10.1</jqwik.version>
