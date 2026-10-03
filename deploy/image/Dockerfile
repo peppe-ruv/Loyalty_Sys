@@ -28,7 +28,7 @@ RUN mkdir -p /src/web/public
 
 # ---- final ----
 # Tag leggibile e digest in ogni FROM: build riproducibile, Dependabot (ecosistema docker) aggiorna il digest.
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:bef0f4d47edc72a93d1537eae54eb53db2b2cc352c028128ff0f16c5b5a3c1e4
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:9c2092b053779e14c82fb50f77b37bcc38b7d2c83972352d5813280f9d035b03
 
 USER root
 # We install required packages from wolfi package repository.
