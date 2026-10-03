@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 // test fa lo stesso lavoro e fallisce se un file `"use client"` importa (non `import type`) uno di quei moduli.
 
 const ROOT = join(__dirname, "..", "..");
-const SERVER_ONLY = ["hub/testUsers", "hub/totp", "hub/codespace", "hub/testMode"];
+const SERVER_ONLY = ["hub/testUsers", "hub/totp", "hub/codespace", "hub/testMode", "vetrina/programma"];
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -37,7 +37,7 @@ describe("moduli solo server", () => {
     expect(importers.length).toBeGreaterThan(3);
   });
 
-  it("nessun file con \"use client\" importa testUsers, totp, codespace o testMode", () => {
+  it("nessun file con \"use client\" importa testUsers, totp, codespace, testMode o vetrina/programma", () => {
     const offenders = files.filter((f) => {
       const src = readFileSync(f, "utf8");
       return isClient(src) && valueImports(src).some((s) => SERVER_ONLY.some((m) => s.endsWith(m) || s === `./${m.split("/")[1]}`));

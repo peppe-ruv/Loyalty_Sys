@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  assertAllowedRequest, criteriaAttributeKeys, isRealActor, main, makeLogger, parseArgs, readTokenFile, resolveSeedDate, tokenIdentity, UsageError, validateBaseUrl,
+  assertAllowedRequest, criteriaAttributeKeys, isRealActor, loadProgramSeed, main, makeLogger, parseArgs, readTokenFile, resolveSeedDate, serializeSeedSnapshot, tokenIdentity, UsageError, validateBaseUrl,
 } from './vetrina-programma.mjs';
 
 const SEED_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
@@ -616,4 +616,29 @@ test('file del token: una cartella non vale e LH_BASE_URL è un\'alternativa a -
   const cli = await run(['--token-file', file, '--base-url', 'https://altro.example.org'], { env: { LH_BASE_URL: BASE }, file });
   assert.equal(cli.code, 0);
   assert.ok(cli.hub.state.calls.every((c) => originOf(c.url) === 'https://altro.example.org'), '--base-url prevale su LH_BASE_URL');
+});
+
+// V10: il nucleo sta in web/lib/vetrina/programma-core.mjs; la riga di comando resta quella di M8.14d (ambito CLI).
+test('V10: la riga di comando non tocca campagne, membri né import (ambito CLI) e il nucleo è lo stesso del web', async () => {
+  const core = await import('../web/lib/vetrina/programma-core.mjs');
+  const script = await import('./vetrina-programma.mjs');
+  assert.equal(script.assertAllowedRequest, core.assertAllowedRequest);
+  assert.equal(script.Api, core.Api);
+  assert.throws(() => core.assertAllowedRequest('POST', '/v1/campaigns', {}), /non ammessa/, 'ambito predefinito = CLI');
+  assert.throws(() => core.assertAllowedRequest('GET', '/v1/members', undefined, core.CLI_SCOPE), /non ammessa/);
+  assert.doesNotThrow(() => core.assertAllowedRequest('POST', '/v1/campaigns', { code: 'CMP-X' }, core.PROGRAM_SCOPE));
+  const file = tmpTokenFile();
+  const r = await run(common(file, ['--apply']), { hub: makeHub(), file });
+  assert.equal(r.code, 0, r.err);
+  assert.doesNotMatch(r.out, /campaigns:|vetrina-test/, 'nessuna campagna né fonte di test nel piano della riga di comando');
+});
+
+test('V10: --emit-seed non si combina con altro lavoro e lo snapshot esce dal seed (campagne e storie incluse)', () => {
+  assert.equal(parseArgs(['--emit-seed']).emitSeed, true);
+  const seed = loadProgramSeed(SEED_DIR);
+  assert.ok(seed.campaigns.length >= 15 && seed.vetrinaTest.stories.length === 3);
+  const text = serializeSeedSnapshot(seed);
+  assert.ok(text.endsWith('\n'));
+  assert.doesNotMatch(text, /"_note"/, 'le note dei file non finiscono nello snapshot');
+  assert.doesNotMatch(text, /"memberIds"/, 'nessun elenco di membri nello snapshot');
 });

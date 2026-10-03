@@ -952,3 +952,23 @@ test('web/lib/hub/testUsers.ts: OPERATORS_PASSWORD, MEMBERS_PASSWORD e KEYCLOAK_
   }
   assert.equal(new Set([constant('OPERATORS_PASSWORD'), constant('MEMBERS_PASSWORD'), constant('KEYCLOAK_ADMIN_PASSWORD')]).size, 3, 'le tre password sono distinte');
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// Programma di esempio dal backoffice (V10, ADR-051, Q-722, Q-723): lo snapshot del seed che il web impacchetta (l'immagine
+// del ruolo web non contiene seed/) non deriva dal seed, e il nucleo condiviso resta puro.
+
+test('web/lib/vetrina/programma-seed.generated.json uguale a quello che genera `vetrina-programma.mjs --emit-seed` da seed/ (nessuna deriva)', async () => {
+  const { loadProgramSeed, serializeSeedSnapshot, SEED_SNAPSHOT_FILE } = await import('./vetrina-programma.mjs');
+  const expected = serializeSeedSnapshot(loadProgramSeed(path.join(ROOT, 'seed')));
+  assert.ok(fs.existsSync(SEED_SNAPSHOT_FILE), 'snapshot assente: esegui node scripts/vetrina-programma.mjs --emit-seed');
+  assert.equal(read(SEED_SNAPSHOT_FILE), expected, 'snapshot in deriva dal seed: esegui node scripts/vetrina-programma.mjs --emit-seed e includi il file nel commit');
+});
+
+test('web/lib/vetrina/programma-core.mjs: nucleo puro, senza node:fs, alias @/ né process; usato sia dallo script sia dal BFF', () => {
+  const core = read(path.join(ROOT, 'web/lib/vetrina/programma-core.mjs'));
+  const code = core.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(code, /from\s+['"]node:|require\(|from\s+['"]@\/|\bprocess\./, 'il nucleo non importa moduli di Node né alias del web e non legge process');
+  assert.match(read(path.join(ROOT, 'scripts/vetrina-programma.mjs')), /from '\.\.\/web\/lib\/vetrina\/programma-core\.mjs'/);
+  assert.match(read(path.join(ROOT, 'web/lib/vetrina/programma.ts')), /from "\.\/programma-core\.mjs"/);
+  assert.match(read(path.join(ROOT, 'web/lib/hub/serverOnly.test.ts')), /"vetrina\/programma"/, 'il modulo server del programma di esempio è registrato in serverOnly.test.ts');
+});

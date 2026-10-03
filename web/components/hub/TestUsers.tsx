@@ -123,6 +123,7 @@ function OperatorCard({ op, user }: { op: (typeof TEST_OPERATORS)[number]; user:
           <a href="/backoffice" className={cardBtn}>
             {t.openBackoffice} <ArrowRight className="h-4 w-4" aria-hidden />
           </a>
+          {op.role === "ADMIN" ? <LoadSampleLink /> : null}
         </>
       ) : user !== null ? (
         <>
@@ -130,11 +131,23 @@ function OperatorCard({ op, user }: { op: (typeof TEST_OPERATORS)[number]; user:
           <LogoutButton label={t.logoutToEnterAs(first)} className={cn(ghostBtn, "w-full text-sm")} />
         </>
       ) : (
-        <a href={loginHref("operators", "/backoffice", op.username)} className={cardBtn}>
-          <LogIn className="h-4 w-4" aria-hidden /> {t.enterAs(op.name)}
-        </a>
+        <>
+          <a href={loginHref("operators", "/backoffice", op.username)} className={cardBtn}>
+            <LogIn className="h-4 w-4" aria-hidden /> {t.enterAs(op.name)}
+          </a>
+          {op.role === "ADMIN" ? <LoadSampleLink /> : null}
+        </>
       )}
     </Card>
+  );
+}
+
+/** ADR-051 decisione 3 (V10): il programma di esempio si carica dalla Dashboard del backoffice, solo da ADMIN. */
+function LoadSampleLink() {
+  return (
+    <a href="/backoffice" className="text-center text-sm text-[var(--color-bo-ink-2)] underline underline-offset-2">
+      {t.loadSample}
+    </a>
   );
 }
 

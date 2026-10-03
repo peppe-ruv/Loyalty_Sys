@@ -6,6 +6,7 @@ import { useLhQuery } from "@/lib/api/client";
 import { QueryState } from "@/components/bo/QueryState";
 import { PageHeader } from "@/components/bo/primitives";
 import { KpiTile } from "@/components/bo/dashboard/KpiTile";
+import { SampleProgramBox } from "@/components/bo/dashboard/SampleProgramBox";
 import { PeriodSelector } from "@/components/bo/dashboard/PeriodSelector";
 import { PointsAreaChart, type AreaRow } from "@/components/bo/dashboard/PointsAreaChart";
 import { SourceBars } from "@/components/bo/dashboard/SourceBars";
@@ -42,6 +43,9 @@ export default function DashboardPage() {
         subtitle="Salute del programma in un colpo d'occhio. I giorni dello storico sono dati dimostrativi."
         actions={<PeriodSelector value={period} onChange={setPeriod} />}
       />
+
+      {/* V10 — «Carica il programma di esempio»: solo ADMIN nell'ambiente di test dichiarato (si nasconde da solo). */}
+      <SampleProgramBox />
 
       {/* Riga 1 — KpiTile con delta e sparkline. */}
       <QueryState query={overview} service="insight">

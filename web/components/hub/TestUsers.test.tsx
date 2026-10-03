@@ -146,7 +146,10 @@ describe("TestUsers", () => {
       expect(within(card).queryByText(tu.portalNotReady)).toBeNull();
       expect(within(card).getByText(m.story)).toBeInTheDocument();
     }
-    expect(screen.getByText(/programma di esempio \(V10\)/)).toBeInTheDocument();
+    expect(screen.getByText(tu.membersNote)).toBeInTheDocument();
+    // La scheda di Marta (ADMIN) porta al programma di esempio; le altre no.
+    expect(within(screen.getByTestId("op-marta.admin")).getByRole("link", { name: tu.loadSample })).toHaveAttribute("href", "/backoffice");
+    expect(within(screen.getByTestId("op-luca.marketing")).queryByRole("link", { name: tu.loadSample })).toBeNull();
   });
 
   it("sessione da membro: la sua scheda dice «Sei dentro come…» con «Apri il portale»; le altre offrono l'uscita dalla sessione del MEMBRO", async () => {

@@ -8,7 +8,8 @@ import { LoginRedirect } from "@/components/shared/auth/LoginRedirect";
 import { LogoutButton } from "@/components/shared/auth/LogoutButton";
 import { memberConsoleUrl } from "@/lib/auth/idpConsole";
 import { getViewer } from "@/lib/auth/viewer";
-import { canSeeMemberUsers } from "@/lib/nav";
+import { testMode } from "@/lib/hub/testMode";
+import { canSeeMemberUsers, canSeeSampleProgram } from "@/lib/nav";
 import { PERSONA_COOKIE, parsePersona } from "@/lib/persona/cookie";
 import {
   DEFAULT_BACKOFFICE_USERNAME,
@@ -37,13 +38,15 @@ export default async function BackofficeLayout({ children }: { children: React.R
   }
   // «Utenti membri» (ADR-051 dec. 7): console del realm dei membri, solo ADMIN e CARE in enterprise con quel realm.
   const memberUsersUrl = viewer.mode === "enterprise" && canSeeMemberUsers(persona.role) ? memberConsoleUrl() : null;
+  // «Carica il programma di esempio» (V10): solo ADMIN, solo enterprise, solo nell'ambiente di test dichiarato (Q-676).
+  const sampleProgram = canSeeSampleProgram(persona.role, viewer.mode, testMode() !== null);
   const initials = persona.displayName
     .split(" ")
     .map((w) => w[0])
     .join("");
 
   return (
-    <PersonaProvider value={{ username: persona.username, displayName: persona.displayName, role: persona.role, mode: viewer.mode, memberUsersUrl }}>
+    <PersonaProvider value={{ username: persona.username, displayName: persona.displayName, role: persona.role, mode: viewer.mode, memberUsersUrl, sampleProgram }}>
       <div className="flex min-h-dvh">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">

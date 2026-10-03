@@ -1,0 +1,3078 @@
+{
+  "currencies": [
+    {
+      "code": "PTS",
+      "name": "Punti",
+      "spendable": true,
+      "expiryPolicy": {
+        "type": "ROLLING_MONTHS",
+        "months": 12
+      }
+    },
+    {
+      "code": "STS",
+      "name": "Punti status",
+      "spendable": false,
+      "expiryPolicy": {
+        "type": "EDITION"
+      }
+    }
+  ],
+  "tiers": [
+    {
+      "code": "BASE",
+      "name": "Base",
+      "rank": 0,
+      "thresholdSts": 0,
+      "multiplier": 1,
+      "color": "#94a3b8",
+      "icon": "circle",
+      "benefits": [
+        "Accumulo punti su ogni acquisto",
+        "Accesso al catalogo premi"
+      ]
+    },
+    {
+      "code": "SILVER",
+      "name": "Silver",
+      "rank": 1,
+      "thresholdSts": 1000,
+      "multiplier": 1.25,
+      "color": "#9ca3af",
+      "icon": "medal",
+      "benefits": [
+        "Punti ×1,25 sugli acquisti",
+        "Anteprima delle promozioni"
+      ]
+    },
+    {
+      "code": "GOLD",
+      "name": "Gold",
+      "rank": 2,
+      "thresholdSts": 3000,
+      "multiplier": 1.5,
+      "color": "#f59e0b",
+      "icon": "award",
+      "benefits": [
+        "Punti ×1,50 sugli acquisti",
+        "Premi riservati",
+        "1 giocata bonus sugli acquisti ≥ 50 €",
+        "Assistenza prioritaria"
+      ]
+    },
+    {
+      "code": "PLATINUM",
+      "name": "Platinum",
+      "rank": 3,
+      "thresholdSts": 7000,
+      "multiplier": 2,
+      "color": "#6366f1",
+      "icon": "crown",
+      "benefits": [
+        "Punti ×2 sugli acquisti",
+        "Premi ed eventi esclusivi",
+        "Assistenza dedicata"
+      ]
+    }
+  ],
+  "event-types": [
+    {
+      "code": "purchase.completed",
+      "name": "Acquisto completato",
+      "description": "Un membro ha concluso un acquisto",
+      "origin": "SYSTEM",
+      "category": "TRANSACTION",
+      "icon": "shopping-cart",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "orderId",
+          "amount",
+          "currency"
+        ],
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "x-lh-pii": false
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "channel": {
+            "enum": [
+              "ONLINE",
+              "STORE",
+              "APP"
+            ],
+            "x-lh-pii": false
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sku": {
+                  "type": "string",
+                  "x-lh-pii": false
+                },
+                "category": {
+                  "type": "string",
+                  "x-lh-pii": false
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-lh-pii": false
+                },
+                "unitPrice": {
+                  "type": "number",
+                  "minimum": 0,
+                  "x-lh-pii": false
+                }
+              },
+              "additionalProperties": true
+            },
+            "x-lh-pii": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "sampleData": {
+        "orderId": "ORD-48213",
+        "amount": 64.9,
+        "currency": "EUR",
+        "channel": "ONLINE",
+        "items": [
+          {
+            "sku": "SKU-100",
+            "category": "casa",
+            "quantity": 1,
+            "unitPrice": 39.9
+          },
+          {
+            "sku": "SKU-220",
+            "category": "energia",
+            "quantity": 1,
+            "unitPrice": 25
+          }
+        ]
+      }
+    },
+    {
+      "code": "purchase.returned",
+      "name": "Reso di un acquisto",
+      "description": "Un membro ha restituito un acquisto",
+      "origin": "SYSTEM",
+      "category": "TRANSACTION",
+      "icon": "rotate-ccw",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "orderId",
+          "amount"
+        ],
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "orderId": "ORD-48120",
+        "amount": 24.9
+      }
+    },
+    {
+      "code": "ebill.activated",
+      "name": "Bolletta digitale attivata",
+      "description": "Attivazione della bolletta elettronica",
+      "origin": "SYSTEM",
+      "category": "SERVICE",
+      "icon": "file-text",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "contractId"
+        ],
+        "properties": {
+          "contractId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "contractId": "CTR-77120"
+      }
+    },
+    {
+      "code": "directdebit.activated",
+      "name": "Domiciliazione attivata",
+      "description": "Attivazione dell'addebito diretto",
+      "origin": "SYSTEM",
+      "category": "SERVICE",
+      "icon": "credit-card",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "contractId"
+        ],
+        "properties": {
+          "contractId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "contractId": "CTR-77120"
+      }
+    },
+    {
+      "code": "selfreading.submitted",
+      "name": "Autolettura inviata",
+      "description": "Un membro ha inviato l'autolettura del contatore",
+      "origin": "SYSTEM",
+      "category": "SERVICE",
+      "icon": "gauge",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "meterId",
+          "reading"
+        ],
+        "properties": {
+          "meterId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "reading": {
+            "type": "number",
+            "minimum": 0,
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "meterId": "MTR-9931",
+        "reading": 14820
+      }
+    },
+    {
+      "code": "app.login.daily",
+      "name": "Accesso giornaliero all'app",
+      "description": "Primo accesso della giornata all'app",
+      "origin": "SYSTEM",
+      "category": "ENGAGEMENT",
+      "icon": "smartphone",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "platform": {
+            "enum": [
+              "IOS",
+              "ANDROID",
+              "WEB"
+            ],
+            "x-lh-pii": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "sampleData": {
+        "platform": "IOS"
+      }
+    },
+    {
+      "code": "survey.completed",
+      "name": "Survey completata",
+      "description": "Un membro ha completato una survey di un partner",
+      "origin": "SYSTEM",
+      "category": "ENGAGEMENT",
+      "icon": "clipboard-list",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "surveyId"
+        ],
+        "properties": {
+          "surveyId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "surveyId": "SRV-2025-09",
+        "score": 80
+      }
+    },
+    {
+      "code": "quiz.completed",
+      "name": "Quiz completato",
+      "description": "Un membro ha completato un quiz di un partner",
+      "origin": "SYSTEM",
+      "category": "ENGAGEMENT",
+      "icon": "help-circle",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "quizId",
+          "correctAnswers",
+          "totalQuestions"
+        ],
+        "properties": {
+          "quizId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "correctAnswers": {
+            "type": "integer",
+            "minimum": 0,
+            "x-lh-pii": false
+          },
+          "totalQuestions": {
+            "type": "integer",
+            "minimum": 1,
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "quizId": "QZ-AUTUNNO",
+        "correctAnswers": 8,
+        "totalQuestions": 10
+      }
+    },
+    {
+      "code": "review.submitted",
+      "name": "Recensione inviata",
+      "description": "Un membro ha recensito un prodotto",
+      "origin": "SYSTEM",
+      "category": "ENGAGEMENT",
+      "icon": "star",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "productId",
+          "rating"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "productId": "SKU-100",
+        "rating": 5
+      }
+    },
+    {
+      "code": "newsletter.subscribed",
+      "name": "Iscrizione newsletter",
+      "description": "Un membro si è iscritto alla newsletter",
+      "origin": "SYSTEM",
+      "category": "ENGAGEMENT",
+      "icon": "mail",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "sampleData": {}
+    },
+    {
+      "code": "member.registered",
+      "name": "Registrazione membro",
+      "description": "Azione interna: un nuovo membro si è registrato",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "user-plus",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "x-lh-pii": false
+          },
+          "referred": {
+            "type": "boolean",
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "channel": "WEB",
+        "referred": false
+      }
+    },
+    {
+      "code": "member.profile.completed",
+      "name": "Profilo completato",
+      "description": "Azione interna: il membro ha completato il profilo",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "user-check",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "pattern": "^MBR-[0-9]{6}$",
+            "x-lh-pii": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "sampleData": {}
+    },
+    {
+      "code": "member.birthday",
+      "name": "Compleanno membro",
+      "description": "Azione interna: ricorrenza di compleanno",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "cake",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "age": {
+            "type": "integer",
+            "minimum": 0,
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "age": 34
+      }
+    },
+    {
+      "code": "tier.upgraded",
+      "name": "Passaggio di livello",
+      "description": "Azione interna: il membro è salito di livello",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "trending-up",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "newTier"
+        ],
+        "properties": {
+          "previousTier": {
+            "type": "string",
+            "x-lh-pii": false
+          },
+          "newTier": {
+            "type": "string",
+            "x-lh-pii": false
+          }
+        }
+      },
+      "sampleData": {
+        "previousTier": "SILVER",
+        "newTier": "GOLD"
+      }
+    },
+    {
+      "code": "instantwin.won",
+      "name": "Vincita instant win",
+      "description": "Azione interna: vincita a un concorso instant win",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "gift",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "contestCode",
+          "prizeCode",
+          "prizeType"
+        ],
+        "properties": {
+          "contestCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9-]{2,39}$",
+            "x-lh-pii": false
+          },
+          "playId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "prizeCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9-]{2,39}$",
+            "x-lh-pii": false
+          },
+          "prizeName": {
+            "type": "string",
+            "x-lh-pii": false
+          },
+          "prizeType": {
+            "enum": [
+              "POINTS",
+              "COUPON",
+              "PHYSICAL"
+            ],
+            "x-lh-pii": false
+          },
+          "points": {
+            "type": "integer",
+            "minimum": 1,
+            "x-lh-pii": false
+          },
+          "rewardCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9-]{2,39}$",
+            "x-lh-pii": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "sampleData": {
+        "contestCode": "IW-AUTUNNO",
+        "prizeCode": "PZ-500",
+        "prizeType": "POINTS",
+        "points": 500
+      }
+    },
+    {
+      "code": "achievement.completed",
+      "name": "Obiettivo completato",
+      "description": "Azione interna: obiettivo di gamification raggiunto",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "target",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "achievementCode",
+          "periodKey"
+        ],
+        "properties": {
+          "achievementCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9-]{2,39}$",
+            "x-lh-pii": false
+          },
+          "achievementName": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "periodKey": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "sampleData": {
+        "achievementCode": "ACH-3-PURCHASES",
+        "periodKey": "2026-Q3"
+      }
+    },
+    {
+      "code": "badge.awarded",
+      "name": "Badge assegnato",
+      "description": "Azione interna: assegnato un badge",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "award",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "badgeCode"
+        ],
+        "properties": {
+          "badgeCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9-]{2,39}$",
+            "x-lh-pii": false
+          },
+          "badgeName": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          },
+          "origin": {
+            "enum": [
+              "ACHIEVEMENT",
+              "CAMPAIGN"
+            ],
+            "x-lh-pii": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "sampleData": {
+        "badgeCode": "BDG-EXPLORER"
+      }
+    },
+    {
+      "code": "referral.completed",
+      "name": "Referral completato",
+      "description": "Azione interna: referral andato a buon fine",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "users",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "role",
+          "counterpartMemberId"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "REFERRER",
+              "REFEREE"
+            ],
+            "x-lh-pii": false
+          },
+          "counterpartMemberId": {
+            "type": "string",
+            "pattern": "^MBR-[0-9]{6}$",
+            "x-lh-pii": false
+          },
+          "qualifyingActionId": {
+            "type": "string",
+            "minLength": 1,
+            "x-lh-pii": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "sampleData": {
+        "role": "REFERRER",
+        "counterpartMemberId": "MBR-000009"
+      }
+    },
+    {
+      "code": "reward.redeemed",
+      "name": "Premio riscattato",
+      "description": "Azione interna: conferma del riscatto di un premio",
+      "origin": "SYSTEM",
+      "category": "INTERNAL",
+      "icon": "package-check",
+      "enabled": true,
+      "dataSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": [
+          "rewardCode",
+          "pointsCost"
+        ],
+        "properties": {
+          "rewardCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9-]{2,39}$",
+            "x-lh-pii": false
+          },
+          "pointsCost": {
+            "type": "integer",
+            "minimum": 1,
+            "x-lh-pii": false
+          },
+          "redemptionId": {
+            "type": "string",
+            "x-lh-pii": false
+          },
+          "rewardName": {
+            "type": "string",
+            "x-lh-pii": false
+          }
+        },
+        "additionalProperties": true
+      },
+      "sampleData": {
+        "rewardCode": "RWD-COFFEE-5",
+        "pointsCost": 500
+      }
+    }
+  ],
+  "sources": [
+    {
+      "code": "crm",
+      "name": "CRM",
+      "kind": "HTTP",
+      "enabled": true,
+      "allowedTypes": [
+        "newsletter.subscribed"
+      ],
+      "description": "Anagrafica e iscrizioni newsletter"
+    },
+    {
+      "code": "app",
+      "name": "App mobile",
+      "kind": "HTTP",
+      "enabled": true,
+      "allowedTypes": [
+        "purchase.completed",
+        "selfreading.submitted",
+        "app.login.daily"
+      ],
+      "description": "App membri: accessi, autoletture, acquisti in-app"
+    },
+    {
+      "code": "ecommerce",
+      "name": "E-commerce",
+      "kind": "HTTP",
+      "enabled": true,
+      "allowedTypes": [
+        "purchase.completed",
+        "purchase.returned",
+        "review.submitted"
+      ],
+      "description": "Negozio online: acquisti, resi, recensioni"
+    },
+    {
+      "code": "billing",
+      "name": "Fatturazione",
+      "kind": "HTTP",
+      "enabled": true,
+      "allowedTypes": [
+        "ebill.activated",
+        "directdebit.activated"
+      ],
+      "description": "Bolletta digitale e domiciliazione"
+    },
+    {
+      "code": "partner",
+      "name": "Partner",
+      "kind": "HTTP",
+      "enabled": true,
+      "allowedTypes": [
+        "survey.completed",
+        "quiz.completed"
+      ],
+      "description": "Survey e quiz dei partner"
+    },
+    {
+      "code": "internal",
+      "name": "Ponte interno",
+      "kind": "INTERNAL",
+      "enabled": true,
+      "allowedTypes": [],
+      "description": "Azioni generate dal ponte fatti → azioni"
+    },
+    {
+      "code": "simulator",
+      "name": "Simulatore demo",
+      "kind": "INTERNAL",
+      "enabled": true,
+      "allowedTypes": [],
+      "description": "Sorgente degli eventi generati dalla demo"
+    }
+  ],
+  "internal-mappings": [
+    {
+      "factType": "fact.member.registered",
+      "actionType": "member.registered",
+      "enabled": true
+    },
+    {
+      "factType": "fact.member.profile.completed",
+      "actionType": "member.profile.completed",
+      "enabled": true
+    },
+    {
+      "factType": "fact.member.birthday",
+      "actionType": "member.birthday",
+      "enabled": true
+    },
+    {
+      "factType": "fact.tier.upgraded",
+      "actionType": "tier.upgraded",
+      "enabled": true
+    },
+    {
+      "factType": "fact.contest.won",
+      "actionType": "instantwin.won",
+      "enabled": true
+    },
+    {
+      "factType": "fact.achievement.completed",
+      "actionType": "achievement.completed",
+      "enabled": true
+    },
+    {
+      "factType": "fact.badge.awarded",
+      "actionType": "badge.awarded",
+      "enabled": true
+    },
+    {
+      "factType": "fact.referral.completed",
+      "actionType": "referral.completed",
+      "enabled": true
+    },
+    {
+      "factType": "fact.reward.redemption.confirmed",
+      "actionType": "reward.redeemed",
+      "enabled": true
+    }
+  ],
+  "theme": {
+    "programName": "Club Aurora",
+    "tagline": "Il programma fedeltà che premia ogni gesto",
+    "logoUrl": null,
+    "colors": {
+      "primary": "#1FB98F",
+      "secondary": "#7A5CFA",
+      "coin": "#FFB547",
+      "night": "#0E1B2C",
+      "bg": "#F3F7F9"
+    },
+    "heroTitle": "Ogni gesto conta",
+    "heroSubtitle": "Accumula punti, sali di livello, scegli il tuo premio.",
+    "fontDisplay": null,
+    "currencyNames": {
+      "PTS": "punti",
+      "STS": "punti status"
+    }
+  },
+  "message-templates": [
+    {
+      "code": "MSG-POINTS-EARNED",
+      "name": "Punti guadagnati",
+      "channel": "INAPP",
+      "category": "POINTS",
+      "icon": "coins",
+      "linkTarget": "/portal/activity",
+      "titleTpl": "Hai guadagnato {{data.amount|number}} punti",
+      "bodyTpl": "Grazie {{member.firstName}}! Trovi il dettaglio nella tua attività."
+    },
+    {
+      "code": "MSG-POINTS-EXPIRING",
+      "name": "Punti in scadenza",
+      "channel": "INAPP",
+      "category": "POINTS",
+      "icon": "hourglass",
+      "linkTarget": "/portal/rewards",
+      "titleTpl": "{{data.amount|number}} punti in scadenza",
+      "bodyTpl": "Scadono il {{data.expiresAt|date}}: scegli un premio prima che sia tardi."
+    },
+    {
+      "code": "MSG-TIER-UP",
+      "name": "Salita di livello",
+      "channel": "INAPP",
+      "category": "TIER",
+      "icon": "trending-up",
+      "linkTarget": "/portal/profile",
+      "titleTpl": "Sei salito di livello: ora sei {{data.newTier}}",
+      "bodyTpl": "Complimenti {{member.firstName}}! Scopri i nuovi vantaggi nel tuo profilo."
+    },
+    {
+      "code": "MSG-TIER-DOWN",
+      "name": "Cambio di livello",
+      "channel": "INAPP",
+      "category": "TIER",
+      "icon": "trending-down",
+      "linkTarget": "/portal/profile",
+      "titleTpl": "Il tuo livello ora è {{data.newTier}}",
+      "bodyTpl": "È iniziata una nuova edizione: accumula punti status per tornare a {{data.previousTier}}."
+    },
+    {
+      "code": "MSG-REWARD-CONFIRMED",
+      "name": "Richiesta premio confermata",
+      "channel": "INAPP",
+      "category": "REWARD",
+      "icon": "package-check",
+      "linkTarget": "/portal/my-rewards",
+      "titleTpl": "Richiesta confermata: {{data.rewardName}}",
+      "bodyTpl": "Abbiamo scalato {{data.pointsCost|number}} punti. Ti avvisiamo appena il premio è pronto."
+    },
+    {
+      "code": "MSG-REWARD-READY",
+      "name": "Premio pronto",
+      "channel": "INAPP",
+      "category": "REWARD",
+      "icon": "gift",
+      "linkTarget": "/portal/my-rewards",
+      "titleTpl": "Il tuo premio è pronto",
+      "bodyTpl": "La richiesta è stata evasa: trovi tutti i dettagli in «I miei premi»."
+    },
+    {
+      "code": "MSG-REWARD-REJECTED",
+      "name": "Richiesta premio non riuscita",
+      "channel": "INAPP",
+      "category": "REWARD",
+      "icon": "circle-x",
+      "linkTarget": "/portal/my-rewards",
+      "titleTpl": "La richiesta del premio non è andata a buon fine",
+      "bodyTpl": "Non ti abbiamo tolto punti: puoi riprovare quando vuoi dal catalogo."
+    },
+    {
+      "code": "MSG-COUPON-GIFT",
+      "name": "Coupon in regalo",
+      "channel": "INAPP",
+      "category": "REWARD",
+      "icon": "ticket",
+      "linkTarget": "/portal/my-rewards",
+      "titleTpl": "Un coupon in regalo per te",
+      "bodyTpl": "Codice {{data.couponCode}}, valido fino al {{data.expiresAt|date}}."
+    },
+    {
+      "code": "MSG-CONTEST-WON",
+      "name": "Vincita instant win",
+      "channel": "INAPP",
+      "category": "GAME",
+      "icon": "trophy",
+      "linkTarget": "/portal/play",
+      "titleTpl": "Hai vinto: {{data.prizeName}}!",
+      "bodyTpl": "Complimenti {{member.firstName}}, oggi la fortuna è dalla tua parte."
+    },
+    {
+      "code": "MSG-BADGE",
+      "name": "Nuovo badge",
+      "channel": "INAPP",
+      "category": "GAME",
+      "icon": "award",
+      "linkTarget": "/portal/achievements",
+      "titleTpl": "Nuovo badge: {{data.badgeName}}",
+      "bodyTpl": "Lo trovi nella tua bacheca, insieme ai prossimi obiettivi."
+    },
+    {
+      "code": "MSG-REFERRAL-DONE",
+      "name": "Invito completato",
+      "channel": "INAPP",
+      "category": "PROGRAM",
+      "icon": "users",
+      "linkTarget": "/portal/invite",
+      "titleTpl": "Il tuo invito ha funzionato",
+      "bodyTpl": "La persona che hai invitato ha fatto il primo acquisto: il premio è in arrivo per entrambi."
+    },
+    {
+      "code": "MSG-WELCOME",
+      "name": "Benvenuto",
+      "channel": "INAPP",
+      "category": "PROGRAM",
+      "icon": "sparkles",
+      "linkTarget": "/portal/earn",
+      "titleTpl": "Benvenuto nel Club Aurora, {{member.firstName}}",
+      "bodyTpl": "Ogni gesto conta: scopri come guadagnare punti e vincere premi."
+    },
+    {
+      "code": "MSG-BIRTHDAY",
+      "name": "Buon compleanno",
+      "channel": "INAPP",
+      "category": "PROGRAM",
+      "icon": "cake",
+      "linkTarget": "/portal/activity",
+      "titleTpl": "Buon compleanno, {{member.firstName}}!",
+      "bodyTpl": "Per festeggiare ti abbiamo regalato dei punti: li trovi nella tua attività."
+    }
+  ],
+  "notification-rules": [
+    {
+      "code": "NR-POINTS-EARNED",
+      "factType": "wallet.points.earned",
+      "templateCode": "MSG-POINTS-EARNED",
+      "enabled": true,
+      "condition": {
+        "field": "data.currency",
+        "cmp": "eq",
+        "value": "PTS"
+      }
+    },
+    {
+      "code": "NR-POINTS-EXPIRING",
+      "factType": "wallet.points.expiring",
+      "templateCode": "MSG-POINTS-EXPIRING",
+      "enabled": true
+    },
+    {
+      "code": "NR-TIER-UP",
+      "factType": "tier.upgraded",
+      "templateCode": "MSG-TIER-UP",
+      "enabled": true
+    },
+    {
+      "code": "NR-TIER-DOWN",
+      "factType": "tier.downgraded",
+      "templateCode": "MSG-TIER-DOWN",
+      "enabled": true
+    },
+    {
+      "code": "NR-REWARD-CONFIRMED",
+      "factType": "reward.redemption.confirmed",
+      "templateCode": "MSG-REWARD-CONFIRMED",
+      "enabled": true
+    },
+    {
+      "code": "NR-REWARD-READY",
+      "factType": "reward.redemption.fulfilled",
+      "templateCode": "MSG-REWARD-READY",
+      "enabled": true
+    },
+    {
+      "code": "NR-REWARD-REJECTED",
+      "factType": "reward.redemption.rejected",
+      "templateCode": "MSG-REWARD-REJECTED",
+      "enabled": true
+    },
+    {
+      "code": "NR-COUPON-GIFT",
+      "factType": "coupon.issued",
+      "templateCode": "MSG-COUPON-GIFT",
+      "enabled": true,
+      "condition": {
+        "field": "data.origin",
+        "cmp": "eq",
+        "value": "CAMPAIGN"
+      }
+    },
+    {
+      "code": "NR-CONTEST-WON",
+      "factType": "contest.won",
+      "templateCode": "MSG-CONTEST-WON",
+      "enabled": true
+    },
+    {
+      "code": "NR-BADGE",
+      "factType": "badge.awarded",
+      "templateCode": "MSG-BADGE",
+      "enabled": true
+    },
+    {
+      "code": "NR-REFERRAL-DONE",
+      "factType": "referral.completed",
+      "templateCode": "MSG-REFERRAL-DONE",
+      "enabled": true,
+      "condition": {
+        "field": "data.role",
+        "cmp": "eq",
+        "value": "REFERRER"
+      }
+    },
+    {
+      "code": "NR-WELCOME",
+      "factType": "member.registered",
+      "templateCode": "MSG-WELCOME",
+      "enabled": true
+    }
+  ],
+  "reward-categories": [
+    {
+      "code": "CASA",
+      "name": "Casa & energia",
+      "icon": "home",
+      "sortOrder": 1
+    },
+    {
+      "code": "TEMPO",
+      "name": "Tempo libero",
+      "icon": "sparkles",
+      "sortOrder": 2
+    },
+    {
+      "code": "MOBILITA",
+      "name": "Mobilità",
+      "icon": "bike",
+      "sortOrder": 3
+    },
+    {
+      "code": "SOLIDALE",
+      "name": "Solidarietà",
+      "icon": "heart-handshake",
+      "sortOrder": 4
+    },
+    {
+      "code": "ESPERIENZE",
+      "name": "Esperienze",
+      "icon": "ticket",
+      "sortOrder": 5
+    }
+  ],
+  "reward-bands": [
+    {
+      "code": "F1",
+      "name": "Fascia 1",
+      "pointsThreshold": 500,
+      "color": "#94a3b8",
+      "sortOrder": 1
+    },
+    {
+      "code": "F2",
+      "name": "Fascia 2",
+      "pointsThreshold": 1500,
+      "color": "#0d9488",
+      "sortOrder": 2
+    },
+    {
+      "code": "F3",
+      "name": "Fascia 3",
+      "pointsThreshold": 3000,
+      "color": "#2563eb",
+      "sortOrder": 3
+    },
+    {
+      "code": "F4",
+      "name": "Fascia 4",
+      "pointsThreshold": 6000,
+      "color": "#7c3aed",
+      "sortOrder": 4
+    },
+    {
+      "code": "F5",
+      "name": "Fascia 5",
+      "pointsThreshold": 12000,
+      "color": "#b45309",
+      "sortOrder": 5
+    }
+  ],
+  "coupon-pools": [
+    {
+      "code": "POOL-CAF",
+      "name": "Buoni colazione",
+      "prefix": "CAF",
+      "validityDays": 90,
+      "size": 600,
+      "consumed": 0
+    },
+    {
+      "code": "POOL-SHP10",
+      "name": "Buoni shopping 10 €",
+      "prefix": "SHP10",
+      "validityDays": 60,
+      "size": 400,
+      "consumed": 0
+    },
+    {
+      "code": "POOL-CIN",
+      "name": "Ingressi cinema",
+      "prefix": "CIN",
+      "validityDays": 120,
+      "size": 220,
+      "consumed": 0
+    },
+    {
+      "code": "POOL-SHP25",
+      "name": "Buoni shopping 25 €",
+      "prefix": "SHP25",
+      "validityDays": 60,
+      "size": 150,
+      "consumed": 141
+    },
+    {
+      "code": "POOL-GFT50",
+      "name": "Gift card 50 €",
+      "prefix": "GFT50",
+      "validityDays": 365,
+      "size": 120,
+      "consumed": 0
+    }
+  ],
+  "rewards": [
+    {
+      "code": "RWD-COFFEE-5",
+      "name": "Buono colazione 5 €",
+      "description": "Una colazione al bar convenzionato più vicino.",
+      "terms": "Valido 90 giorni dall'emissione, un buono per scontrino.",
+      "type": "COUPON",
+      "category": "TEMPO",
+      "band": "F1",
+      "fulfilment": "AUTO_COUPON",
+      "couponPool": "POOL-CAF",
+      "stockTotal": 500,
+      "stockRemaining": 497,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-DONATION-TREE",
+      "name": "Pianta un albero",
+      "description": "Doniamo un albero a un progetto di riforestazione a tuo nome.",
+      "terms": "Riceverai il certificato di donazione via e-mail.",
+      "type": "DONATION",
+      "category": "SOLIDALE",
+      "band": "F1",
+      "fulfilment": "INSTANT",
+      "stockTotal": null,
+      "stockRemaining": null,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-SHOP-10",
+      "name": "Buono shopping 10 €",
+      "description": "Buono spendibile nei negozi del circuito Club Aurora.",
+      "terms": "Valido 60 giorni, non cumulabile con altri buoni.",
+      "type": "COUPON",
+      "category": "TEMPO",
+      "band": "F2",
+      "fulfilment": "AUTO_COUPON",
+      "couponPool": "POOL-SHP10",
+      "stockTotal": 300,
+      "stockRemaining": 298,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-CINEMA-2",
+      "name": "2 ingressi cinema",
+      "description": "Due biglietti per qualsiasi spettacolo dal lunedì al giovedì.",
+      "terms": "Valido 30 giorni, esclusi i film in 3D.",
+      "type": "COUPON",
+      "category": "TEMPO",
+      "band": "F2",
+      "fulfilment": "AUTO_COUPON",
+      "couponPool": "POOL-CIN",
+      "stockTotal": 200,
+      "stockRemaining": 197,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-BORRACCIA",
+      "name": "Borraccia termica Aurora",
+      "description": "Borraccia in acciaio da 500 ml, mantiene il caldo per 12 ore.",
+      "terms": "Spedizione gratuita entro 10 giorni lavorativi.",
+      "type": "PHYSICAL",
+      "category": "TEMPO",
+      "band": "F2",
+      "fulfilment": "MANUAL",
+      "stockTotal": 150,
+      "stockRemaining": 148,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-POWERBANK",
+      "name": "Powerbank solare",
+      "description": "Caricatore portatile da 10.000 mAh con pannello solare.",
+      "terms": "Spedizione gratuita entro 10 giorni lavorativi.",
+      "type": "PHYSICAL",
+      "category": "CASA",
+      "band": "F3",
+      "fulfilment": "MANUAL",
+      "stockTotal": 60,
+      "stockRemaining": 0,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-SHOP-25",
+      "name": "Buono shopping 25 €",
+      "description": "Buono spendibile nei negozi del circuito Club Aurora.",
+      "terms": "Valido 60 giorni, non cumulabile con altri buoni.",
+      "type": "COUPON",
+      "category": "TEMPO",
+      "band": "F3",
+      "fulfilment": "AUTO_COUPON",
+      "couponPool": "POOL-SHP25",
+      "stockTotal": 150,
+      "stockRemaining": 9,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-BILL-20",
+      "name": "Sconto 20 € in bolletta",
+      "description": "Uno sconto di 20 € sulla prossima bolletta.",
+      "terms": "Applicato alla prima bolletta utile, massimo 2 per socio.",
+      "type": "DIGITAL",
+      "category": "CASA",
+      "band": "F3",
+      "fulfilment": "MANUAL",
+      "stockTotal": 1000,
+      "stockRemaining": 999,
+      "perMemberLimit": 2,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-SMART-PLUG",
+      "name": "Presa intelligente",
+      "description": "Presa Wi-Fi con misura dei consumi e programmazione da app.",
+      "terms": "Spedizione gratuita entro 10 giorni lavorativi.",
+      "type": "PHYSICAL",
+      "category": "CASA",
+      "band": "F4",
+      "fulfilment": "MANUAL",
+      "stockTotal": 80,
+      "stockRemaining": 80,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-EBIKE-RENT",
+      "name": "Weekend in e-bike",
+      "description": "Noleggio di una bici elettrica per un weekend.",
+      "terms": "Ritiro presso i punti noleggio convenzionati di Torino.",
+      "type": "EXPERIENCE",
+      "category": "MOBILITA",
+      "band": "F4",
+      "fulfilment": "MANUAL",
+      "stockTotal": 40,
+      "stockRemaining": 40,
+      "eligibleTiers": [],
+      "eligibleSegments": [
+        "SEG-TORINO"
+      ],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-WEEKEND",
+      "name": "Weekend benessere per 2",
+      "description": "Due notti in una struttura benessere per due persone.",
+      "terms": "Prenotazione con almeno 30 giorni di anticipo.",
+      "type": "EXPERIENCE",
+      "category": "ESPERIENZE",
+      "band": "F5",
+      "fulfilment": "MANUAL",
+      "stockTotal": 25,
+      "stockRemaining": 24,
+      "eligibleTiers": [
+        "GOLD",
+        "PLATINUM"
+      ],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-PLATINUM-EVENT",
+      "name": "Serata evento riservata",
+      "description": "Una serata esclusiva riservata ai soci Platinum.",
+      "terms": "Posti limitati, conferma via e-mail.",
+      "type": "EXPERIENCE",
+      "category": "ESPERIENZE",
+      "band": "F5",
+      "fulfilment": "MANUAL",
+      "stockTotal": 20,
+      "stockRemaining": 19,
+      "eligibleTiers": [
+        "PLATINUM"
+      ],
+      "eligibleSegments": [],
+      "validFrom": "@today-180d",
+      "status": "LIVE"
+    },
+    {
+      "code": "RWD-THERMOSTAT",
+      "name": "Termostato smart",
+      "description": "Termostato connesso con programmazione settimanale.",
+      "terms": "Spedizione gratuita entro 10 giorni lavorativi.",
+      "type": "PHYSICAL",
+      "category": "CASA",
+      "band": "F5",
+      "fulfilment": "MANUAL",
+      "stockTotal": 30,
+      "stockRemaining": 30,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-10d",
+      "status": "DRAFT"
+    },
+    {
+      "code": "RWD-GIFT-50",
+      "name": "Gift card 50 €",
+      "description": "Gift card spendibile nei negozi del circuito Club Aurora.",
+      "terms": "Valida 12 mesi dall'emissione.",
+      "type": "COUPON",
+      "category": "TEMPO",
+      "band": "F4",
+      "fulfilment": "AUTO_COUPON",
+      "couponPool": "POOL-GFT50",
+      "stockTotal": 100,
+      "stockRemaining": 100,
+      "eligibleTiers": [],
+      "eligibleSegments": [],
+      "validFrom": "@today-5d",
+      "status": "IN_REVIEW"
+    }
+  ],
+  "attribute-definitions": [
+    {
+      "key": "city",
+      "label": "Città di fornitura",
+      "type": "STRING",
+      "options": []
+    },
+    {
+      "key": "hasGasContract",
+      "label": "Ha il contratto gas",
+      "type": "BOOLEAN",
+      "options": []
+    },
+    {
+      "key": "preferredChannel",
+      "label": "Canale preferito",
+      "type": "STRING",
+      "options": [
+        "APP",
+        "WEB",
+        "STORE"
+      ]
+    },
+    {
+      "key": "householdSize",
+      "label": "Componenti del nucleo",
+      "type": "NUMBER",
+      "options": []
+    }
+  ],
+  "segments": [
+    {
+      "code": "SEG-DIGITAL",
+      "name": "Clienti digitali",
+      "description": "Bolletta digitale e domiciliazione attive: ricevono il contenuto «Grazie per essere digitale».",
+      "type": "DYNAMIC",
+      "criteria": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "member.labels",
+            "cmp": "contains",
+            "value": "ebill"
+          },
+          {
+            "field": "member.labels",
+            "cmp": "contains",
+            "value": "directdebit"
+          }
+        ]
+      },
+      "expectedMembers": [
+        "MBR-000004",
+        "MBR-000005",
+        "MBR-000011"
+      ]
+    },
+    {
+      "code": "SEG-NOT-EBILL",
+      "name": "Senza bolletta digitale",
+      "description": "Membri attivi che non hanno ancora la bolletta digitale: vedono la card «Passa alla bolletta digitale».",
+      "type": "DYNAMIC",
+      "criteria": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "member.status",
+            "cmp": "eq",
+            "value": "ACTIVE"
+          },
+          {
+            "field": "member.labels",
+            "cmp": "ncontains",
+            "value": "ebill"
+          }
+        ]
+      },
+      "expectedMembers": [
+        "MBR-000001",
+        "MBR-000002",
+        "MBR-000003",
+        "MBR-000006",
+        "MBR-000007",
+        "MBR-000009",
+        "MBR-000010"
+      ]
+    },
+    {
+      "code": "SEG-AT-RISK",
+      "name": "A rischio abbandono",
+      "description": "Membri attivi senza attività da oltre 45 giorni: pubblico della campagna recensioni e del pop-up di riattivazione.",
+      "type": "DYNAMIC",
+      "criteria": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "member.status",
+            "cmp": "eq",
+            "value": "ACTIVE"
+          },
+          {
+            "field": "member.lastActivityDaysAgo",
+            "cmp": "gt",
+            "value": 45
+          }
+        ]
+      },
+      "expectedMembers": [
+        "MBR-000006"
+      ]
+    },
+    {
+      "code": "SEG-TORINO",
+      "name": "Clienti di Torino",
+      "description": "Membri con città Torino: vedono il premio «Weekend in e-bike».",
+      "type": "DYNAMIC",
+      "criteria": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "member.city",
+            "cmp": "eq",
+            "value": "Torino"
+          }
+        ]
+      },
+      "expectedMembers": [
+        "MBR-000004"
+      ]
+    },
+    {
+      "code": "SEG-VIP-EVENT",
+      "name": "Invitati all'evento riservato",
+      "description": "Elenco manuale degli invitati all'anteprima dell'evento riservato.",
+      "type": "STATIC",
+      "expectedMembers": [
+        "MBR-000004",
+        "MBR-000005"
+      ]
+    }
+  ],
+  "badges": [
+    {
+      "code": "BDG-FIRST",
+      "name": "Rompighiaccio",
+      "description": "Il primo acquisto con Club Aurora.",
+      "icon": "sparkles",
+      "color": "#2a78d6"
+    },
+    {
+      "code": "BDG-TRIS",
+      "name": "Tris",
+      "description": "Tre acquisti nello stesso mese.",
+      "icon": "shopping-bag",
+      "color": "#eb6834"
+    },
+    {
+      "code": "BDG-STREAK",
+      "name": "Costanza",
+      "description": "Sette giorni di fila nell'app.",
+      "icon": "flame",
+      "color": "#e87ba4"
+    },
+    {
+      "code": "BDG-DIGITAL",
+      "name": "Zero carta",
+      "description": "Bolletta digitale e domiciliazione attive.",
+      "icon": "leaf",
+      "color": "#1baf7a"
+    },
+    {
+      "code": "BDG-READER",
+      "name": "Occhio al contatore",
+      "description": "Sei autoletture in un'edizione.",
+      "icon": "gauge",
+      "color": "#7a5cfa"
+    },
+    {
+      "code": "BDG-SPENDER",
+      "name": "Grande spesa",
+      "description": "1.000 € di acquisti in un'edizione.",
+      "icon": "gem",
+      "color": "#eda100"
+    }
+  ],
+  "achievements": [
+    {
+      "code": "ACH-FIRST-PURCHASE",
+      "name": "Primo acquisto",
+      "description": "Fai il tuo primo acquisto.",
+      "icon": "shopping-cart",
+      "actionTypes": [
+        "purchase.completed"
+      ],
+      "metric": "COUNT",
+      "target": 1,
+      "period": "EVER",
+      "repeatable": false,
+      "badgeCode": "BDG-FIRST"
+    },
+    {
+      "code": "ACH-3-PURCHASES-MONTH",
+      "name": "Tris del mese",
+      "description": "Completa 3 acquisti nello stesso mese.",
+      "icon": "shopping-bag",
+      "actionTypes": [
+        "purchase.completed"
+      ],
+      "metric": "COUNT",
+      "target": 3,
+      "period": "MONTH",
+      "repeatable": true,
+      "badgeCode": "BDG-TRIS"
+    },
+    {
+      "code": "ACH-STREAK-7",
+      "name": "Sette giorni di fila",
+      "description": "Apri l'app sette giorni consecutivi.",
+      "icon": "flame",
+      "actionTypes": [
+        "app.login.daily"
+      ],
+      "metric": "STREAK",
+      "streakUnit": "DAY",
+      "target": 7,
+      "period": "EVER",
+      "repeatable": false,
+      "badgeCode": "BDG-STREAK"
+    },
+    {
+      "code": "ACH-DIGITAL",
+      "name": "Tutto digitale",
+      "description": "Attiva bolletta digitale e domiciliazione.",
+      "icon": "leaf",
+      "actionTypes": [
+        "ebill.activated",
+        "directdebit.activated"
+      ],
+      "metric": "DISTINCT_TYPES",
+      "target": 2,
+      "period": "EVER",
+      "repeatable": false,
+      "badgeCode": "BDG-DIGITAL"
+    },
+    {
+      "code": "ACH-SELF-READER",
+      "name": "Letturista",
+      "description": "Invia sei autoletture nell'edizione.",
+      "icon": "gauge",
+      "actionTypes": [
+        "selfreading.submitted"
+      ],
+      "metric": "COUNT",
+      "target": 6,
+      "period": "EDITION",
+      "repeatable": false,
+      "badgeCode": "BDG-READER"
+    },
+    {
+      "code": "ACH-BIG-SPENDER",
+      "name": "Grande spesa",
+      "description": "Raggiungi 1.000 € di acquisti nell'edizione.",
+      "icon": "gem",
+      "actionTypes": [
+        "purchase.completed"
+      ],
+      "metric": "SUM",
+      "sumField": "data.amount",
+      "target": 1000,
+      "period": "EDITION",
+      "repeatable": false,
+      "badgeCode": "BDG-SPENDER"
+    }
+  ],
+  "leaderboards": [
+    {
+      "code": "LDB-MONTH-PTS",
+      "name": "Punti del mese",
+      "metric": "PTS_EARNED",
+      "period": "MONTH",
+      "topN": 10,
+      "status": "ACTIVE"
+    },
+    {
+      "code": "LDB-EDITION-STS",
+      "name": "Punti status dell'edizione",
+      "metric": "STS_EARNED",
+      "period": "EDITION",
+      "topN": 10,
+      "status": "ACTIVE",
+      "scoresFrom": "wallets.json periodSts"
+    }
+  ],
+  "campaigns": [
+    {
+      "code": "CMP-WELCOME",
+      "name": "Bonus di benvenuto",
+      "memberDescription": "100 punti appena ti iscrivi",
+      "icon": "gift",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "member.registered"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 100,
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "ALWAYS"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-PURCHASE-BASE",
+      "name": "Punti sugli acquisti",
+      "memberDescription": "1 punto ogni euro speso",
+      "icon": "shopping-cart",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "purchase.completed"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "data.amount",
+            "cmp": "gte",
+            "value": 1
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "PER_AMOUNT",
+          "amountField": "data.amount",
+          "value": 1,
+          "unitStep": 1,
+          "rounding": "FLOOR",
+          "tierMultiplierApplies": true
+        },
+        {
+          "type": "GRANT_POINTS",
+          "currency": "STS",
+          "mode": "PER_AMOUNT",
+          "amountField": "data.amount",
+          "value": 1,
+          "unitStep": 1,
+          "rounding": "FLOOR",
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 3,
+            "period": "DAY"
+          }
+        ],
+        "global": {
+          "maxPoints": 500000,
+          "maxMatches": null
+        }
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-WEEKEND-X2",
+      "name": "Weekend a punti doppi",
+      "memberDescription": "Nel weekend i punti acquisto valgono doppio",
+      "icon": "sparkles",
+      "status": "LIVE",
+      "priority": 200,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "purchase.completed"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "context.dayOfWeek",
+            "cmp": "in",
+            "value": [
+              "SAT",
+              "SUN"
+            ]
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "MULTIPLIER",
+          "currency": "PTS",
+          "factor": 2,
+          "scope": "ALL_GRANTS"
+        }
+      ],
+      "limits": {},
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-EBILL",
+      "name": "Bolletta digitale",
+      "memberDescription": "300 punti attivando la bolletta digitale",
+      "icon": "file-text",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "ebill.activated"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 300,
+          "tierMultiplierApplies": true
+        },
+        {
+          "type": "GRANT_POINTS",
+          "currency": "STS",
+          "mode": "FIXED",
+          "value": 150,
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "ALWAYS"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-DIRECT-DEBIT",
+      "name": "Domiciliazione bancaria",
+      "memberDescription": "400 punti con l'addebito diretto",
+      "icon": "credit-card",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "directdebit.activated"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 400,
+          "tierMultiplierApplies": true
+        },
+        {
+          "type": "GRANT_POINTS",
+          "currency": "STS",
+          "mode": "FIXED",
+          "value": 200,
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "ALWAYS"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-SELF-READING",
+      "name": "Autolettura",
+      "memberDescription": "50 punti per l'autolettura del contatore",
+      "icon": "gauge",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "selfreading.submitted"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 50,
+          "tierMultiplierApplies": true
+        },
+        {
+          "type": "GRANT_POINTS",
+          "currency": "STS",
+          "mode": "FIXED",
+          "value": 25,
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "MONTH"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-APP-DAILY",
+      "name": "Accesso giornaliero",
+      "memberDescription": "5 punti al primo accesso del giorno",
+      "icon": "smartphone",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "app.login.daily"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 5,
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "DAY"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-PROFILE",
+      "name": "Profilo completo",
+      "memberDescription": "150 punti completando il profilo",
+      "icon": "user-check",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "member.profile.completed"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 150,
+          "tierMultiplierApplies": true
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "ALWAYS"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-SURVEY",
+      "name": "Survey completata",
+      "memberDescription": "80 punti e una giocata per ogni survey",
+      "icon": "clipboard-list",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "survey.completed"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 80,
+          "tierMultiplierApplies": true
+        },
+        {
+          "type": "GRANT_PLAYS",
+          "contestCode": "IW-AUTUNNO",
+          "count": 1
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 2,
+            "period": "MONTH"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-REFERRAL-REFERRER",
+      "name": "Hai invitato un amico",
+      "memberDescription": "500 punti per ogni amico che completa l'invito",
+      "icon": "users",
+      "status": "LIVE",
+      "priority": 120,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "referral.completed"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "data.role",
+            "cmp": "eq",
+            "value": "REFERRER"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 500,
+          "tierMultiplierApplies": true
+        },
+        {
+          "type": "GRANT_POINTS",
+          "currency": "STS",
+          "mode": "FIXED",
+          "value": 250,
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 10,
+            "period": "EDITION"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-REFERRAL-REFEREE",
+      "name": "Ti ha invitato un amico",
+      "memberDescription": "200 punti di benvenuto da invito",
+      "icon": "user-plus",
+      "status": "LIVE",
+      "priority": 120,
+      "visibleInPortal": false,
+      "triggerActionTypes": [
+        "referral.completed"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "data.role",
+            "cmp": "eq",
+            "value": "REFEREE"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 200,
+          "tierMultiplierApplies": true
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "ALWAYS"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-TIER-UP-BONUS",
+      "name": "Bonus di livello",
+      "memberDescription": "Punti bonus quando sali di livello",
+      "icon": "trending-up",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": false,
+      "triggerActionTypes": [
+        "tier.upgraded"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "LOOKUP",
+          "amountField": "data.newTier",
+          "lookup": {
+            "SILVER": 200,
+            "GOLD": 500,
+            "PLATINUM": 1000
+          },
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {},
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-IW-PRIZE-POINTS",
+      "name": "Vincita in punti",
+      "memberDescription": "I punti vinti ai concorsi",
+      "icon": "gift",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": false,
+      "system": true,
+      "triggerActionTypes": [
+        "instantwin.won"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "data.prizeType",
+            "cmp": "eq",
+            "value": "POINTS"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FROM_FIELD",
+          "amountField": "data.points",
+          "tierMultiplierApplies": false,
+          "description": "Vincita a un concorso"
+        }
+      ],
+      "limits": {},
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-IW-PRIZE-COUPON",
+      "name": "Vincita in coupon",
+      "memberDescription": "I coupon vinti ai concorsi",
+      "icon": "ticket",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": false,
+      "system": true,
+      "triggerActionTypes": [
+        "instantwin.won"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "data.prizeType",
+            "cmp": "eq",
+            "value": "COUPON"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "ISSUE_COUPON",
+          "rewardCodeField": "data.rewardCode"
+        }
+      ],
+      "limits": {},
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-BADGE-BONUS",
+      "name": "Bonus badge",
+      "memberDescription": "100 punti per ogni badge ottenuto",
+      "icon": "award",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": false,
+      "triggerActionTypes": [
+        "badge.awarded"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 100,
+          "tierMultiplierApplies": false
+        }
+      ],
+      "limits": {},
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-BIRTHDAY",
+      "name": "Buon compleanno",
+      "memberDescription": "250 punti e gli auguri nel giorno del compleanno",
+      "icon": "cake",
+      "status": "LIVE",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "member.birthday"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 250,
+          "tierMultiplierApplies": true
+        },
+        {
+          "type": "SEND_MESSAGE",
+          "templateCode": "MSG-BIRTHDAY"
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "EDITION"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-GOLD-PURCHASE-PLAY",
+      "name": "Giocata GOLD",
+      "memberDescription": "Una giocata sugli acquisti sopra i 50 €",
+      "icon": "dice-5",
+      "status": "LIVE",
+      "priority": 110,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "purchase.completed"
+      ],
+      "audience": {
+        "all": false,
+        "tiers": [
+          "GOLD",
+          "PLATINUM"
+        ],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "data.amount",
+            "cmp": "gte",
+            "value": 50
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "GRANT_PLAYS",
+          "contestCode": "IW-AUTUNNO",
+          "count": 1
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "DAY"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    },
+    {
+      "code": "CMP-BLACK-FRIDAY",
+      "name": "Black Friday ×3",
+      "memberDescription": "Punti tripli sugli acquisti del Black Friday",
+      "icon": "sparkles",
+      "status": "IN_REVIEW",
+      "priority": 300,
+      "visibleInPortal": true,
+      "requiresLegal": true,
+      "triggerActionTypes": [
+        "purchase.completed"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": []
+      },
+      "effects": [
+        {
+          "type": "MULTIPLIER",
+          "currency": "PTS",
+          "factor": 3,
+          "scope": "ALL_GRANTS"
+        }
+      ],
+      "limits": {
+        "global": {
+          "maxPoints": 250000,
+          "maxMatches": null
+        }
+      },
+      "schedule": {
+        "startAt": "2026-11-27T00:00:00Z",
+        "endAt": "2026-11-30T23:59:59Z"
+      }
+    },
+    {
+      "code": "CMP-SUMMER-QUIZ",
+      "name": "Quiz dell'estate",
+      "memberDescription": "120 punti superando il quiz",
+      "icon": "help-circle",
+      "status": "ENDED",
+      "priority": 100,
+      "visibleInPortal": false,
+      "triggerActionTypes": [
+        "quiz.completed"
+      ],
+      "audience": {
+        "all": true,
+        "tiers": [],
+        "segments": []
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "data.correctAnswers",
+            "cmp": "gte",
+            "value": 7
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 120,
+          "tierMultiplierApplies": true
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 1,
+            "period": "ALWAYS"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-06-01T00:00:00Z",
+        "endAt": "2026-09-01T00:00:00Z"
+      }
+    },
+    {
+      "code": "CMP-REVIEW",
+      "name": "Lascia una recensione",
+      "memberDescription": "30 punti per ogni recensione",
+      "icon": "star",
+      "status": "PAUSED",
+      "priority": 100,
+      "visibleInPortal": true,
+      "triggerActionTypes": [
+        "review.submitted"
+      ],
+      "audience": {
+        "all": false,
+        "tiers": [],
+        "segments": [
+          "SEG-AT-RISK"
+        ]
+      },
+      "conditions": {
+        "op": "all",
+        "rules": [
+          {
+            "field": "data.rating",
+            "cmp": "gte",
+            "value": 1
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "GRANT_POINTS",
+          "currency": "PTS",
+          "mode": "FIXED",
+          "value": 30,
+          "tierMultiplierApplies": true
+        }
+      ],
+      "limits": {
+        "perMember": [
+          {
+            "max": 5,
+            "period": "MONTH"
+          }
+        ]
+      },
+      "schedule": {
+        "startAt": "2026-01-01T00:00:00Z",
+        "endAt": null
+      }
+    }
+  ],
+  "vetrinaTest": {
+    "source": {
+      "code": "vetrina-test",
+      "name": "Fonte di test della vetrina",
+      "kind": "HTTP",
+      "enabled": true,
+      "allowedTypes": [
+        "purchase.completed",
+        "purchase.returned",
+        "review.submitted",
+        "selfreading.submitted",
+        "app.login.daily",
+        "ebill.activated",
+        "directdebit.activated",
+        "survey.completed",
+        "quiz.completed",
+        "newsletter.subscribed"
+      ],
+      "description": "Azioni di prova inviate dal backoffice della vetrina (storie dei membri di test, invio di una azione)"
+    },
+    "stories": [
+      {
+        "username": "anna.rossi",
+        "email": "anna.rossi@example.org",
+        "name": "Anna Rossi",
+        "expectedTier": "BASE",
+        "expectedSts": 0,
+        "rows": [
+          {
+            "type": "app.login.daily",
+            "at": "@today-2dT08:15",
+            "data": {
+              "platform": "ANDROID"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-1dT08:05",
+            "data": {
+              "platform": "ANDROID"
+            }
+          }
+        ]
+      },
+      {
+        "username": "marco.bianchi",
+        "email": "marco.bianchi@example.org",
+        "name": "Marco Bianchi",
+        "expectedTier": "SILVER",
+        "expectedSts": 1420,
+        "rows": [
+          {
+            "type": "purchase.completed",
+            "at": "@today-27dT19:10",
+            "data": {
+              "orderId": "ORD-VT-01",
+              "amount": 260,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-24dT12:30",
+            "data": {
+              "orderId": "ORD-VT-02",
+              "amount": 230,
+              "currency": "EUR",
+              "channel": "ONLINE"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-21dT18:45",
+            "data": {
+              "orderId": "ORD-VT-03",
+              "amount": 200,
+              "currency": "EUR",
+              "channel": "ONLINE"
+            }
+          },
+          {
+            "type": "selfreading.submitted",
+            "at": "@today-20dT09:00",
+            "data": {
+              "meterId": "MTR-VT-MARCO",
+              "reading": 4210
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-18dT10:20",
+            "data": {
+              "orderId": "ORD-VT-04",
+              "amount": 190,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-15dT20:05",
+            "data": {
+              "orderId": "ORD-VT-05",
+              "amount": 170,
+              "currency": "EUR",
+              "channel": "ONLINE"
+            }
+          },
+          {
+            "type": "review.submitted",
+            "at": "@today-14dT21:15",
+            "data": {
+              "productId": "PRD-VT-01",
+              "rating": 4
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-12dT17:40",
+            "data": {
+              "orderId": "ORD-VT-06",
+              "amount": 150,
+              "currency": "EUR",
+              "channel": "ONLINE"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-10dT08:10",
+            "data": {
+              "platform": "IOS"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-8dT11:15",
+            "data": {
+              "orderId": "ORD-VT-07",
+              "amount": 120,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-5dT16:30",
+            "data": {
+              "orderId": "ORD-VT-08",
+              "amount": 75,
+              "currency": "EUR",
+              "channel": "ONLINE"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-3dT08:10",
+            "data": {
+              "platform": "IOS"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-2dT08:10",
+            "data": {
+              "platform": "IOS"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-1dT08:10",
+            "data": {
+              "platform": "IOS"
+            }
+          }
+        ]
+      },
+      {
+        "username": "giulia.ferri",
+        "email": "giulia.ferri@example.org",
+        "name": "Giulia Ferri",
+        "expectedTier": "SILVER",
+        "expectedSts": 2880,
+        "rows": [
+          {
+            "type": "purchase.completed",
+            "at": "@today-29dT18:40",
+            "data": {
+              "orderId": "ORD-VT-01",
+              "amount": 300,
+              "currency": "EUR",
+              "channel": "STORE"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-28dT07:50",
+            "data": {
+              "platform": "ANDROID"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-27dT17:20",
+            "data": {
+              "orderId": "ORD-VT-02",
+              "amount": 280,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-26dT07:50",
+            "data": {
+              "platform": "ANDROID"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-25dT12:05",
+            "data": {
+              "orderId": "ORD-VT-03",
+              "amount": 260,
+              "currency": "EUR",
+              "channel": "STORE"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-23dT19:30",
+            "data": {
+              "orderId": "ORD-VT-04",
+              "amount": 250,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-22dT07:50",
+            "data": {
+              "platform": "ANDROID"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-21dT18:40",
+            "data": {
+              "orderId": "ORD-VT-05",
+              "amount": 240,
+              "currency": "EUR",
+              "channel": "STORE"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-19dT17:20",
+            "data": {
+              "orderId": "ORD-VT-06",
+              "amount": 230,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-17dT12:05",
+            "data": {
+              "orderId": "ORD-VT-07",
+              "amount": 220,
+              "currency": "EUR",
+              "channel": "STORE"
+            }
+          },
+          {
+            "type": "selfreading.submitted",
+            "at": "@today-16dT09:30",
+            "data": {
+              "meterId": "MTR-VT-GIULIA",
+              "reading": 4210
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-15dT19:30",
+            "data": {
+              "orderId": "ORD-VT-08",
+              "amount": 210,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-13dT18:40",
+            "data": {
+              "orderId": "ORD-VT-09",
+              "amount": 200,
+              "currency": "EUR",
+              "channel": "STORE"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-12dT07:50",
+            "data": {
+              "platform": "ANDROID"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-11dT17:20",
+            "data": {
+              "orderId": "ORD-VT-10",
+              "amount": 190,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-9dT12:05",
+            "data": {
+              "orderId": "ORD-VT-11",
+              "amount": 180,
+              "currency": "EUR",
+              "channel": "STORE"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-8dT07:50",
+            "data": {
+              "platform": "ANDROID"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-7dT19:30",
+            "data": {
+              "orderId": "ORD-VT-12",
+              "amount": 170,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-5dT18:40",
+            "data": {
+              "orderId": "ORD-VT-13",
+              "amount": 70,
+              "currency": "EUR",
+              "channel": "STORE"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-4dT07:50",
+            "data": {
+              "platform": "ANDROID"
+            }
+          },
+          {
+            "type": "purchase.completed",
+            "at": "@today-3dT17:20",
+            "data": {
+              "orderId": "ORD-VT-14",
+              "amount": 55,
+              "currency": "EUR",
+              "channel": "APP"
+            }
+          },
+          {
+            "type": "app.login.daily",
+            "at": "@today-2dT07:50",
+            "data": {
+              "platform": "ANDROID"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -179,19 +179,19 @@ Le modifiche fatte nelle console non arrivano ancora nell'audit del backoffice: 
 
 ## Azzeramento
 
-Nel codespace Keycloak riparte dalla configurazione del repository a **ogni avvio**: lo script ricrea il solo database `idp`, e ogni modifica fatta dalle console sparisce (ADR-051 decisione 10, Q-672). I dati dell'hub e i membri registrati restano, perché gli utenti di test hanno id fissi. Un codespace nuovo parte vuoto (Q-663). Lo stesso azzeramento si esegue a mano con `deploy/vetrina/vetrina.sh reset`, senza backup (Q-663): ricrea i dati, reimporta il realm e ricrea gli account operatore. L'ultimo passo, la configurazione del programma, chiede l'approvazione di un operatore con MFA e quindi resta manuale (Q-630).
+Nel codespace Keycloak riparte dalla configurazione del repository a **ogni avvio**: lo script ricrea il solo database `idp`, e ogni modifica fatta dalle console sparisce (ADR-051 decisione 10, Q-672). I dati dell'hub e i membri registrati restano, perché gli utenti di test hanno id fissi. Un codespace nuovo parte vuoto (Q-663). Lo stesso azzeramento si esegue a mano con `deploy/vetrina/vetrina.sh reset`, senza backup (Q-663): ricrea i dati, reimporta il realm e ricrea gli account operatore. L'ultimo passo, la configurazione del programma, chiede un operatore con MFA: lo fa un pulsante del backoffice, "Carica il programma di esempio", con la sessione dell'operatore (V10, Q-630).
 
 ```mermaid
 flowchart TD
   accTitle: Azzeramento della vetrina enterprise
-  accDescr: A ogni azzeramento, cioè un codespace nuovo o il comando a mano, lo script rinnova i certificati interni in scadenza, ripete i controlli, ricrea i volumi di Postgres e Kafka, riavvia lo stack con il realm reimportato, applica l'overlay del realm e ricrea gli account operatore. La configurazione del programma la riapplica poi un operatore con il Device Authorization Grant e la MFA.
+  accDescr: A ogni azzeramento, cioè un codespace nuovo o il comando a mano, lo script rinnova i certificati interni in scadenza, ripete i controlli, ricrea i volumi di Postgres e Kafka, riavvia lo stack con il realm reimportato, applica l'overlay del realm e ricrea gli account operatore. La configurazione del programma la riapplica poi un operatore `ADMIN` dal pulsante del backoffice.
   T[Codespace nuovo<br/>o reset a mano] --> P[provision: certificati interni<br/>rinnovati se scadono entro 30 giorni]
   P --> C[preflight: architettura, permessi 0600,<br/>certificati, nessun segreto nell'ambiente]
   C --> D[Volumi di Postgres e Kafka ricreati<br/>nessun backup]
   D --> U[Stack riavviato:<br/>Keycloak reimporta il realm]
   U --> O[Overlay del realm:<br/>registrazione chiusa, client lh-cli]
   O --> A[Account operatore ricreati<br/>con MFA e password temporanea]
-  A -.->|passo manuale, Q-630| G[Programma da seed/<br/>token dell'operatore con MFA]
+  A -.->|pulsante del backoffice, V10| G[Programma da seed/<br/>sessione dell'operatore ADMIN]
 ```
 
 ## Utenti di test
@@ -248,6 +248,21 @@ flowchart TD
 ```
 
 ## Configurazione del programma
+
+Il modo normale è il riquadro **Carica il programma di esempio** del backoffice (V10, F2-DIST-09, Q-673): lo vede solo un operatore `ADMIN`, solo nella vetrina e mai in un'installazione `enterprise` vera. Il pulsante mostra prima l'anteprima di ciò che crea, poi lo crea con la sessione dell'operatore e un token nuovo per ogni chiamata, un lavoro alla volta, con avanzamento. Ogni scrittura lascia in `audit_entry` una voce con il nome dell'operatore. Campagne e premi nascono in `DRAFT`: l'operatore li invia in approvazione da Campagne e Catalogo, un altro operatore approva, poi si pubblicano le campagne (Q-722, Q-723). Le storie dei tre membri di prova (acquisti, letture e accessi dei giorni passati) si caricano in un solo import dalla fonte `vetrina-test` e restano in attesa finché le campagne di acquisto e lettura non sono attive. Lo script qui sotto resta come ripiego da terminale e non crea campagne né storie.
+
+```mermaid
+flowchart TD
+  accTitle: Pulsante Carica il programma di esempio
+  accDescr: L'operatore ADMIN apre il backoffice della vetrina e vede il riquadro. L'anteprima elenca ciò che verrà creato e ciò che resta escluso. Con la conferma parte un lavoro unico in memoria che crea la configurazione e le campagne in DRAFT, una voce di audit per scrittura. Le storie dei membri di prova si caricano dopo, in un import, quando le campagne necessarie sono attive.
+  A[Operatore ADMIN<br/>apre il backoffice] --> B[Riquadro: anteprima<br/>di cosa si crea e cosa no]
+  B --> C[Conferma: un solo lavoro alla volta<br/>token nuovo per ogni chiamata]
+  C --> D[Configurazione e campagne in DRAFT<br/>una voce di audit per scrittura]
+  D --> E{Campagne di acquisto<br/>e lettura attive?}
+  E -- no --> F[Storie in attesa:<br/>approvazione da un altro operatore]
+  F --> E
+  E -- sì --> G[Storie dei tre membri di prova<br/>in un solo import]
+```
 
 In `enterprise` non c'è un seeder, quindi la vetrina parte vuota. La configurazione del programma arriva da `seed/` con `scripts/vetrina-programma.mjs`, che usa solo le API REST dei servizi e il token di un operatore nominativo (Q-617, decisa il 2026-09-30). Lo script crea tema e messaggi, categorie, fasce, pool di coupon e premi, attributi e segmenti dinamici, badge, obiettivi e classifiche. Non entrano membri, movimenti né altri dati personali. I premi nascono in `DRAFT` e lo script non approva né pubblica nulla. Valute, livelli, tipi di azione `SYSTEM` e mappature interne non hanno un'API di creazione: lo script li salta e li riporta nel piano, e arrivano con le migrazioni dei dati di riferimento (Q-629).
 

@@ -1,0 +1,50 @@
+{
+  "_note": "Fonte di test e storie dei tre membri della VETRINA enterprise (F2-DIST-09, ADR-051, Q-722, Q-723, docs/10 §2). NON fa parte dei seed della demo: non è in sources.json e nessun servizio la carica con il profilo demo. La leggono solo il BFF del web (web/lib/vetrina/programma.ts, tramite lo snapshot generato) e scripts/vetrina-programma.mjs. Le righe diventano UN import NDJSON della fonte vetrina-test; le date sono relative a oggi (@today-NdTHH:MM, N da 1 a 29: l'ingestion accetta al più 30 giorni nel passato). Gli id riga sono vt-<utente>-<nn>: stessi id, stessi eventi (dedup su fonte e id), quindi rieseguire non raddoppia i punti. STS attesi = somma dei floor(importo) degli acquisti (CMP-PURCHASE-BASE, 1 STS per euro, senza moltiplicatore) + 25 per l'autolettura (CMP-SELF-READING, 1 al mese); i PTS dipendono da livello, weekend e moltiplicatori e non coincidono con docs/10 §2 (SPEC-GAP: Q-724).",
+  "source": {"code": "vetrina-test", "name": "Fonte di test della vetrina", "kind": "HTTP", "enabled": true, "allowedTypes": ["purchase.completed", "purchase.returned", "review.submitted", "selfreading.submitted", "app.login.daily", "ebill.activated", "directdebit.activated", "survey.completed", "quiz.completed", "newsletter.subscribed"], "description": "Azioni di prova inviate dal backoffice della vetrina (storie dei membri di test, invio di una azione)"},
+  "stories": [
+    {"username": "anna.rossi", "email": "anna.rossi@example.org", "name": "Anna Rossi", "expectedTier": "BASE", "expectedSts": 0, "rows": [
+      {"type": "app.login.daily", "at": "@today-2dT08:15", "data": {"platform": "ANDROID"}},
+      {"type": "app.login.daily", "at": "@today-1dT08:05", "data": {"platform": "ANDROID"}}
+    ] },
+    {"username": "marco.bianchi", "email": "marco.bianchi@example.org", "name": "Marco Bianchi", "expectedTier": "SILVER", "expectedSts": 1420, "rows": [
+      {"type": "purchase.completed", "at": "@today-27dT19:10", "data": {"orderId": "ORD-VT-01", "amount": 260, "currency": "EUR", "channel": "APP"}},
+      {"type": "purchase.completed", "at": "@today-24dT12:30", "data": {"orderId": "ORD-VT-02", "amount": 230, "currency": "EUR", "channel": "ONLINE"}},
+      {"type": "purchase.completed", "at": "@today-21dT18:45", "data": {"orderId": "ORD-VT-03", "amount": 200, "currency": "EUR", "channel": "ONLINE"}},
+      {"type": "selfreading.submitted", "at": "@today-20dT09:00", "data": {"meterId": "MTR-VT-MARCO", "reading": 4210}},
+      {"type": "purchase.completed", "at": "@today-18dT10:20", "data": {"orderId": "ORD-VT-04", "amount": 190, "currency": "EUR", "channel": "APP"}},
+      {"type": "purchase.completed", "at": "@today-15dT20:05", "data": {"orderId": "ORD-VT-05", "amount": 170, "currency": "EUR", "channel": "ONLINE"}},
+      {"type": "review.submitted", "at": "@today-14dT21:15", "data": {"productId": "PRD-VT-01", "rating": 4}},
+      {"type": "purchase.completed", "at": "@today-12dT17:40", "data": {"orderId": "ORD-VT-06", "amount": 150, "currency": "EUR", "channel": "ONLINE"}},
+      {"type": "app.login.daily", "at": "@today-10dT08:10", "data": {"platform": "IOS"}},
+      {"type": "purchase.completed", "at": "@today-8dT11:15", "data": {"orderId": "ORD-VT-07", "amount": 120, "currency": "EUR", "channel": "APP"}},
+      {"type": "purchase.completed", "at": "@today-5dT16:30", "data": {"orderId": "ORD-VT-08", "amount": 75, "currency": "EUR", "channel": "ONLINE"}},
+      {"type": "app.login.daily", "at": "@today-3dT08:10", "data": {"platform": "IOS"}},
+      {"type": "app.login.daily", "at": "@today-2dT08:10", "data": {"platform": "IOS"}},
+      {"type": "app.login.daily", "at": "@today-1dT08:10", "data": {"platform": "IOS"}}
+    ] },
+    {"username": "giulia.ferri", "email": "giulia.ferri@example.org", "name": "Giulia Ferri", "expectedTier": "SILVER", "expectedSts": 2880, "rows": [
+      {"type": "purchase.completed", "at": "@today-29dT18:40", "data": {"orderId": "ORD-VT-01", "amount": 300, "currency": "EUR", "channel": "STORE"}},
+      {"type": "app.login.daily", "at": "@today-28dT07:50", "data": {"platform": "ANDROID"}},
+      {"type": "purchase.completed", "at": "@today-27dT17:20", "data": {"orderId": "ORD-VT-02", "amount": 280, "currency": "EUR", "channel": "APP"}},
+      {"type": "app.login.daily", "at": "@today-26dT07:50", "data": {"platform": "ANDROID"}},
+      {"type": "purchase.completed", "at": "@today-25dT12:05", "data": {"orderId": "ORD-VT-03", "amount": 260, "currency": "EUR", "channel": "STORE"}},
+      {"type": "purchase.completed", "at": "@today-23dT19:30", "data": {"orderId": "ORD-VT-04", "amount": 250, "currency": "EUR", "channel": "APP"}},
+      {"type": "app.login.daily", "at": "@today-22dT07:50", "data": {"platform": "ANDROID"}},
+      {"type": "purchase.completed", "at": "@today-21dT18:40", "data": {"orderId": "ORD-VT-05", "amount": 240, "currency": "EUR", "channel": "STORE"}},
+      {"type": "purchase.completed", "at": "@today-19dT17:20", "data": {"orderId": "ORD-VT-06", "amount": 230, "currency": "EUR", "channel": "APP"}},
+      {"type": "purchase.completed", "at": "@today-17dT12:05", "data": {"orderId": "ORD-VT-07", "amount": 220, "currency": "EUR", "channel": "STORE"}},
+      {"type": "selfreading.submitted", "at": "@today-16dT09:30", "data": {"meterId": "MTR-VT-GIULIA", "reading": 4210}},
+      {"type": "purchase.completed", "at": "@today-15dT19:30", "data": {"orderId": "ORD-VT-08", "amount": 210, "currency": "EUR", "channel": "APP"}},
+      {"type": "purchase.completed", "at": "@today-13dT18:40", "data": {"orderId": "ORD-VT-09", "amount": 200, "currency": "EUR", "channel": "STORE"}},
+      {"type": "app.login.daily", "at": "@today-12dT07:50", "data": {"platform": "ANDROID"}},
+      {"type": "purchase.completed", "at": "@today-11dT17:20", "data": {"orderId": "ORD-VT-10", "amount": 190, "currency": "EUR", "channel": "APP"}},
+      {"type": "purchase.completed", "at": "@today-9dT12:05", "data": {"orderId": "ORD-VT-11", "amount": 180, "currency": "EUR", "channel": "STORE"}},
+      {"type": "app.login.daily", "at": "@today-8dT07:50", "data": {"platform": "ANDROID"}},
+      {"type": "purchase.completed", "at": "@today-7dT19:30", "data": {"orderId": "ORD-VT-12", "amount": 170, "currency": "EUR", "channel": "APP"}},
+      {"type": "purchase.completed", "at": "@today-5dT18:40", "data": {"orderId": "ORD-VT-13", "amount": 70, "currency": "EUR", "channel": "STORE"}},
+      {"type": "app.login.daily", "at": "@today-4dT07:50", "data": {"platform": "ANDROID"}},
+      {"type": "purchase.completed", "at": "@today-3dT17:20", "data": {"orderId": "ORD-VT-14", "amount": 55, "currency": "EUR", "channel": "APP"}},
+      {"type": "app.login.daily", "at": "@today-2dT07:50", "data": {"platform": "ANDROID"}}
+    ] }
+  ]
+}

@@ -491,7 +491,7 @@ cmd_codespace() {
   info "web: https://$LH_VETRINA_WEB_HOST · Keycloak: https://$LH_VETRINA_IDP_HOST (porte $CODESPACE_WEB_PORT e $CODESPACE_IDP_PORT pubbliche, Q-661)"
   info "console dei realm (pubbliche, ADR-051 decisione 8): https://$LH_VETRINA_IDP_HOST/admin/loyaltyhub/console/ e https://$LH_VETRINA_IDP_HOST/admin/loyaltyhub-members/console/ (utenti vetrina.admin e membri.admin, credenziali nel runbook)"
   info "console del realm master (Q-670): https://$LH_VETRINA_ADMIN_HOST/admin/master/console/ (porta $CODESPACE_ADMIN_PORT privata: solo il proprietario del codespace; utente admin, password in $LH_VETRINA_DIR/secrets/idp-admin-password)"
-  info "passo interattivo rimasto, se il programma è vuoto: vetrina.sh programma (Q-630)"
+  info "se il programma è vuoto: pulsante \"Carica il programma di esempio\" nel backoffice (V10), oppure vetrina.sh programma (Q-630)"
 }
 
 # Utenti di test (ADR-051 decisione 1, Q-676): solo dentro un GitHub Codespace, lo stesso criterio che passa a hub e web
@@ -583,7 +583,7 @@ cmd_reset() {
   # Il database dell'hub e' ripartito vuoto: i membri di test si registrano di nuovo (solo nel codespace).
   cmd_membri --if-reachable
   info "azzeramento completato $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  info "passo interattivo rimasto: vetrina.sh programma (configurazione di programma con il token di un operatore, Q-617, Q-630)"
+  info "passo rimasto: pulsante \"Carica il programma di esempio\" nel backoffice (V10), oppure vetrina.sh programma (token di un operatore, Q-617, Q-630)"
 }
 
 cmd_programma() {
