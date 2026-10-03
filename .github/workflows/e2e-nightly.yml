@@ -1,0 +1,159 @@
+name: e2e-nightly
+
+# Journey casuali di notte (ADR-053 decisione 4, Q-693, Q-718, M9.7d, F2-QA-01, F2-QA-07): lo stesso stack `enterprise` del job
+# `e2e-pr` di ci.yml (compose di riferimento con l'overlay di test del realm, `scripts/smoke-enterprise.sh up`) e la stessa
+# suite Playwright di `e2e/`, ma con 500 journey casuali invece di 20 e le invarianti di M9 verificate dopo ogni ciclo.
+# Di notte e a richiesta, con seme e numero di journey facoltativi.
+#
+# Tetto di tempo (Q-718): la corsa si ferma a LH_JOURNEY_BUDGET_MIN minuti; le journey che non partono entro il tetto
+# risultano «non eseguite» nel riepilogo, con quante sono girate. Il tetto lo cambia il proprietario, non la corsa.
+# In caso di errore si caricano il report Playwright e i semi falliti (`e2e/journeys/regressioni/*.json`: seme e passi,
+# nessun dato personale né credenziale): un seme che fallisce diventa una journey fissa con una pull request.
+#
+# Sicurezza: permessi di sola lettura; gli input del workflow passano solo dall'ambiente e si validano (cifre, intervalli)
+# prima di essere usati: nessun valore dell'utente è mai interpolato in uno script. Nessun segreto del repository.
+on:
+  schedule:
+    # 01:17 UTC ogni notte (orario fuori dall'ora piena, che GitHub rallenta).
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "Seme principale (intero da 1 a 4294967295); vuoto = casuale"
+        required: false
+        type: string
+      count:
+        description: "Numero di journey (da 1 a 5000); vuoto = 500"
+        required: false
+        type: string
+
+# Minimo privilegio per il GITHUB_TOKEN: serve solo il checkout.
+permissions:
+  contents: read
+
+# Una corsa alla volta: lo stack usa porte fisse (8443, 8080, 8180).
+concurrency:
+  group: e2e-nightly
+  cancel-in-progress: false
+
+env:
+  # Azioni per journey e tetto di tempo delle journey (Q-718).
+  LH_JOURNEY_STEPS: "12"
+  LH_JOURNEY_BUDGET_MIN: "55"
+
+jobs:
+  journey:
+    name: journey casuali (stack enterprise, 500 di notte)
+    runs-on: ubuntu-latest
+    # Immagine (~10 min) + stack (fino a 25 min) + journey (tetto di 55 min, più il test in corso) + report.
+    timeout-minutes: 130
+    steps:
+      # Gli input arrivano dall'ambiente, non dal testo dello script; si accettano solo cifre nell'intervallo ammesso.
+      - name: Parametri delle journey
+        env:
+          INPUT_SEED: ${{ inputs.seed }}
+          INPUT_COUNT: ${{ inputs.count }}
+        run: |
+          set -euo pipefail
+          seed="${INPUT_SEED:-}"
+          count="${INPUT_COUNT:-500}"
+          if [ -z "$seed" ]; then
+            seed="$(python3 -c 'import secrets; print(secrets.randbelow(4294967295) + 1)')"
+          fi
+          if ! [[ "$seed" =~ ^[0-9]{1,10}$ ]] || [ "$seed" -lt 1 ] || [ "$seed" -gt 4294967295 ]; then
+            echo "::error::seed non valido: atteso un intero da 1 a 4294967295"
+            exit 1
+          fi
+          if ! [[ "$count" =~ ^[0-9]{1,4}$ ]] || [ "$count" -lt 1 ] || [ "$count" -gt 5000 ]; then
+            echo "::error::count non valido: atteso un intero da 1 a 5000"
+            exit 1
+          fi
+          {
+            echo "LH_JOURNEY_SEED=${seed}"
+            echo "LH_JOURNEY_COUNT=${count}"
+          } >> "$GITHUB_ENV"
+          echo "Seme principale: ${seed}, journey: ${count}"
+      - name: Spazio su disco
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: e2e/pnpm-lock.yaml
+      - uses: docker/setup-buildx-action@v4
+      # Stessa build di .github/workflows/image.yml (solo amd64, nessun push); l'immagine finisce nel Docker del runner.
+      - name: Immagine unica
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/image/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          provenance: false
+          sbom: false
+          tags: lh-image:ci
+      - name: Nomi del proxy di prova
+        run: echo "127.0.0.1 web.lh.test idp.lh.test" | sudo tee -a /etc/hosts
+      - name: Compose enterprise con l'overlay di test del realm
+        timeout-minutes: 25
+        run: bash scripts/smoke-enterprise.sh up
+      # Cypress (demo pubblica, ADR-054) vive nello stesso pacchetto ma non gira qui: il suo binario non si scarica.
+      - name: Dipendenze dell'harness
+        working-directory: e2e
+        env:
+          CYPRESS_INSTALL_BINARY: "0"
+        run: pnpm install --frozen-lockfile
+      - name: Chromium
+        working-directory: e2e
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Typecheck dell'harness
+        working-directory: e2e
+        run: pnpm typecheck
+      - name: Prove del generatore e del runner
+        working-directory: e2e
+        run: pnpm test:unit && pnpm test:mock
+      # Le prove fisse (login, audit, ...) e le journey di regressione girano con le casuali: stesso comando di `e2e-pr`.
+      - name: Journey Playwright
+        id: journeys
+        timeout-minutes: 70
+        working-directory: e2e
+        run: pnpm test
+      # Da qui in poi i passi girano anche se le journey falliscono.
+      - name: Riepilogo delle journey casuali
+        if: ${{ always() }}
+        working-directory: e2e
+        run: node journeys/riepilogo.mjs >> "$GITHUB_STEP_SUMMARY"
+      # Il report HTML e le tracce (la sessione dell'operatore sta fuori da queste cartelle).
+      - name: Report Playwright
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-nightly-report-${{ github.run_id }}
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+            !e2e/test-results/**/*-setup/**
+          retention-days: 14
+          if-no-files-found: ignore
+      # I semi falliti: un file JSON per seme (formato in e2e/journeys/regressioni/README.md).
+      - name: Semi falliti
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-nightly-seed-${{ github.run_id }}
+          path: e2e/journeys/regressioni/*.json
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Diagnostica
+        if: ${{ !success() }}
+        run: bash scripts/smoke-enterprise.sh logs
+      - name: Smonta
+        if: ${{ always() }}
+        run: bash scripts/smoke-enterprise.sh down

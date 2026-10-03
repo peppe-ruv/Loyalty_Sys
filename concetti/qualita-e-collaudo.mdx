@@ -67,6 +67,53 @@ flowchart LR
 Ogni esecuzione generativa stampa il seme. Per riprodurre un fallimento, rilancia il test con lo stesso seme.
 </Tip>
 
+### Journey casuali con invarianti
+
+Una journey è una sequenza di azioni scelte a caso da un seme: registrare un membro, rettificare il suo saldo, leggere il portafoglio, creare una categoria o un premio, cambiarne lo stock. Le azioni usano le API vere, attraverso il BFF e la sessione dell'operatore, sullo stesso stack `enterprise` del cancello. Ogni pull request ne esegue 20; il workflow `e2e-nightly` ne esegue 500 ogni notte (Q-693).
+
+Dopo ogni ciclo, cioè ogni 3-5 azioni e alla fine, la journey verifica le invarianti di bilancio leggendo le API:
+
+- la somma dei lotti è uguale al saldo;
+- la somma dei mesi di scadenza è uguale ai punti in circolazione;
+- lo stock residuo non supera il totale;
+- il registro dei messaggi non ha doppioni;
+- ogni scrittura di configurazione ha una sola voce di audit, con l'attore reale;
+- nessuna voce nuova è finita nella DLQ.
+
+```mermaid
+flowchart TD
+  accTitle: Ciclo di una journey casuale
+  accDescr: Il seme principale, scelto prima della corsa e stampato nel riepilogo del job, genera il seme di ogni journey. Ogni journey esegue una sequenza di azioni via API dal BFF e, a ogni checkpoint, verifica le invarianti di bilancio, di audit e di DLQ. Se tutte reggono la journey continua, altrimenti fallisce e salva seme e passi in journeys/regressioni. Il file, scaricato dall'artefatto e committato con la correzione, diventa una journey fissa che ogni pull request rigioca.
+  SEED[Seme principale<br/>stampato nel riepilogo] --> GEN[Seme di ogni journey<br/>e sequenza di passi]
+  GEN --> ACT[Azioni via API dal BFF<br/>membri, saldi, categorie, premi]
+  ACT --> CP{Checkpoint<br/>invarianti dopo ogni ciclo}
+  CP -->|tutte reggono| NEXT{Altri passi?}
+  NEXT -->|sì| ACT
+  NEXT -->|no| OK[Journey verde]
+  CP -->|una è violata| KO[Journey rossa]
+  KO --> FILE[Seme e passi salvati in<br/>journeys/regressioni/]
+  FILE --> ART[Artefatto e riepilogo del job]
+  ART --> FIX[Correzione e file committato<br/>nella stessa pull request]
+  FIX --> FIXED[Journey fissa<br/>rigiocata a ogni pull request]
+```
+
+<Tip>
+Il seme principale è nel riepilogo del job. Per ripetere la stessa corsa imposta `LH_JOURNEY_SEED` con quel numero. Per rigiocare solo la journey che ha fallito, usa il suo file in `e2e/journeys/regressioni/`.
+</Tip>
+
+<Warning>
+Le invarianti non sono tutte osservabili con le API di oggi: il tracciato completo di ogni `contest.won` e la somma dei lotti su tutti i wallet non si possono ancora verificare (Q-717). Riscatti, concorsi e accrediti da campagna entreranno quando i test avranno un secondo operatore e un membro con il suo token (Q-719).
+</Warning>
+
+Per lanciarle in locale, dopo aver acceso lo stack con `bash scripts/smoke-enterprise.sh up`:
+
+```bash
+# Prove senza stack: il generatore dà sempre gli stessi passi per lo stesso seme
+cd e2e && pnpm test:unit && pnpm test:mock
+# Cinque journey casuali con un seme scelto da te
+LH_JOURNEY_SEED=42 LH_JOURNEY_COUNT=5 pnpm exec playwright test tests/journey-casuali.spec.ts
+```
+
 ## La demo pubblica ogni cinque giorni
 
 Playwright verifica il profilo `enterprise` nelle pull request. La demo pubblica, nel profilo `demo` con le persone simulate, la verifica Cypress ogni cinque giorni e a richiesta, con le corse registrate su Cypress Cloud (ADR-054). Così puoi rivedere ogni test dal browser, passo per passo, senza terminale.
@@ -191,4 +238,4 @@ sequenceDiagram
 
 ## Stato
 
-L'harness Playwright (M9.1) esiste: sta in `e2e/` e il job `e2e-pr` lo esegue sul compose `enterprise`, con il login vero di Keycloak e la MFA. Per ora copre cinque prove e il job è consultivo: non è ancora tra i controlli obbligatori del merge. Accanto, nello stesso pacchetto, Cypress (M9.8a, ADR-054) prova la demo pubblica in profilo `demo` ogni cinque giorni e a richiesta, con la registrazione su Cypress Cloud: sta fuori dalle pull request e non è un livello del cancello. Il workflow `collaudo` (M9 T3, Q-683) alza lo stack `enterprise`, esegue le journey Playwright e allega come artefatto, conservato 14 giorni, i log di ogni container, caricati solo se gitleaks non trova segreti; parte a mano e sui tag `v*.0.0`. Il copione di collaudo (M9 T2, `e2e/collaudo/`) esiste, con il prompt di avvio, il modello del rapporto e il controllo `scripts/check-collaudo.mjs` nel job `guard`. Il codice dell'errore (F2-QA-06, Q-684, Q-716) c'è: ogni servizio mette `X-Correlation-Id` nei log e nella proprietà `correlationId` dei problemi, le schermate lo mostrano sui guasti con «Copia il codice» e una prova Playwright verifica che il codice mostrato sia quello della risposta. Gli altri controlli per i bug non noti si aggiungono in fette successive. Il job `mutation` (F2-QA-07) è consultivo: su ogni pull request lancia PIT sulle classi Java e Stryker sui file del web cambiati rispetto a `main` (`bash scripts/mutation.sh all`) e scrive nel riepilogo i mutanti uccisi e sopravvissuti; diventerà obbligatorio, con almeno il 70 % di mutanti uccisi sul diff, alla chiusura di M9. Il job `fuzz` (F2-QA-07, Q-692) è consultivo: su ogni pull request riusa `scripts/security-fuzz.sh` del collaudo notturno sulle sole OpenAPI dei servizi toccati, al massimo cinque minuti per servizio, cerca risposte `5xx` e risposte fuori schema, scrive nel riepilogo servizi, richieste ed errori e conserva il report 14 giorni; se nessun servizio cambia esce verde senza richieste. Le scelte sui controlli sono le domande Q-690…Q-694, decise il 2026-10-02. Le scelte di dettaglio sono le domande Q-680…Q-685, decise il 2026-10-02.
+L'harness Playwright (M9.1) esiste: sta in `e2e/` e il job `e2e-pr` lo esegue sul compose `enterprise`, con il login vero di Keycloak e la MFA. Per ora copre cinque prove e il job è consultivo: non è ancora tra i controlli obbligatori del merge. Accanto, nello stesso pacchetto, Cypress (M9.8a, ADR-054) prova la demo pubblica in profilo `demo` ogni cinque giorni e a richiesta, con la registrazione su Cypress Cloud: sta fuori dalle pull request e non è un livello del cancello. Il workflow `collaudo` (M9 T3, Q-683) alza lo stack `enterprise`, esegue le journey Playwright e allega come artefatto, conservato 14 giorni, i log di ogni container, caricati solo se gitleaks non trova segreti; parte a mano e sui tag `v*.0.0`. Il copione di collaudo (M9 T2, `e2e/collaudo/`) esiste, con il prompt di avvio, il modello del rapporto e il controllo `scripts/check-collaudo.mjs` nel job `guard`. Il codice dell'errore (F2-QA-06, Q-684, Q-716) c'è: ogni servizio mette `X-Correlation-Id` nei log e nella proprietà `correlationId` dei problemi, le schermate lo mostrano sui guasti con «Copia il codice» e una prova Playwright verifica che il codice mostrato sia quello della risposta. Le journey casuali con invarianti (M9.7d, Q-693) girano nel job `e2e-pr`, 20 per pull request, e nel workflow `e2e-nightly`, 500 di notte entro un tetto di tempo (Q-718); un seme che fallisce si salva in `e2e/journeys/regressioni/` e diventa una journey fissa. Gli altri controlli per i bug non noti si aggiungono in fette successive. Il job `mutation` (F2-QA-07) è consultivo: su ogni pull request lancia PIT sulle classi Java e Stryker sui file del web cambiati rispetto a `main` (`bash scripts/mutation.sh all`) e scrive nel riepilogo i mutanti uccisi e sopravvissuti; diventerà obbligatorio, con almeno il 70 % di mutanti uccisi sul diff, alla chiusura di M9. Il job `fuzz` (F2-QA-07, Q-692) è consultivo: su ogni pull request riusa `scripts/security-fuzz.sh` del collaudo notturno sulle sole OpenAPI dei servizi toccati, al massimo cinque minuti per servizio, cerca risposte `5xx` e risposte fuori schema, scrive nel riepilogo servizi, richieste ed errori e conserva il report 14 giorni; se nessun servizio cambia esce verde senza richieste. Le scelte sui controlli sono le domande Q-690…Q-694, decise il 2026-10-02. Le scelte di dettaglio sono le domande Q-680…Q-685, decise il 2026-10-02.
