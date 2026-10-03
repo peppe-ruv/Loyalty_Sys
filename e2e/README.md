@@ -97,3 +97,9 @@ La **record key** non sta in nessun file (regola 20, Q-712): solo nel segreto de
 | --- | --- | --- |
 | `LH_DEMO_URL` | `https://loyalty-hub-web.vercel.app` | Origine della demo da provare (profilo `demo`). |
 | `CYPRESS_RECORD_KEY` | assente | Solo da segreto del repository; abilita `--record`. |
+
+## Workflow `collaudo` e log dei container
+
+`.github/workflows/collaudo.yml` (ADR-052 decisione 3, Q-683) parte a mano (`workflow_dispatch`) e sui tag `v*.0.0`, con permessi di sola lettura. Alza lo stesso stack del job `e2e-pr` (compose `enterprise` con l'overlay di test del realm, `scripts/smoke-enterprise.sh up`), esegue `pnpm test` e, anche se le journey falliscono, salva i log di ogni container con `bash scripts/smoke-enterprise.sh dump DIR` (`docker compose logs --timestamps`, un file `<servizio>.log` per container).
+
+Prima del caricamento gitleaks controlla la cartella dei log (`gitleaks dir`, configurazione `.gitleaks.toml`, `--redact`). Se segnala qualcosa i log non si caricano e il job fallisce (regola 20). Altrimenti si caricano come artefatto `collaudo-log-<run_id>` (14 giorni), accanto al report Playwright `collaudo-report-<run_id>`. Il riepilogo del job riporta l'esito delle journey, il numero di container, l'artefatto e il risultato di gitleaks. I log vengono dallo stack di CI, mai dalla vetrina.
