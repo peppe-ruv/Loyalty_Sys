@@ -73,6 +73,7 @@ afterEach(() => {
   resetActionsForTests();
   actionTiming.settleMs = 20_000;
   actionTiming.auditMs = 60_000;
+  actionTiming.inflightMs = 90_000;
 });
 
 describe("guardie", () => {
@@ -185,24 +186,26 @@ describe("invio (POST)", () => {
   it("richieste non valide: 400, nessuna scrittura", async () => {
     const { hub } = setupHub();
     const { cookie, csrf } = await login(ADMIN);
-    const bad: [string, unknown][] = [
-      ["membro fuori dai tre di test", { username: "mallory", type: "app.login.daily" }],
-      ["id di membro dal client", { username: "giulia.ferri", type: "app.login.daily", memberId: "MBR-999999" }],
-      ["soggetto dal client", { username: "giulia.ferri", type: "app.login.daily", subject: "member:MBR-999999" }],
-      ["tipo fuori dall'elenco", { username: "giulia.ferri", type: "member.registered" }],
-      ["tipo assente", { username: "giulia.ferri" }],
-      ["importo mancante", { username: "giulia.ferri", type: "purchase.completed" }],
-      ["importo negativo", { username: "giulia.ferri", type: "purchase.completed", amount: "-5" }],
-      ["importo oltre il limite", { username: "giulia.ferri", type: "purchase.completed", amount: "10001" }],
-      ["importo con tre decimali", { username: "giulia.ferri", type: "purchase.completed", amount: "1.234" }],
-      ["importo non numerico", { username: "giulia.ferri", type: "purchase.completed", amount: "abc" }],
-      ["importo su un'azione senza importo", { username: "giulia.ferri", type: "app.login.daily", amount: "10" }],
-      ["corpo non oggetto", [1, 2]],
+    const bad: [string, unknown, string][] = [
+      ["membro fuori dai tre di test", { username: "mallory", type: "app.login.daily" }, "INVALID_MEMBER"],
+      ["id di membro dal client", { username: "giulia.ferri", type: "app.login.daily", memberId: "MBR-999999" }, "BAD_REQUEST"],
+      ["soggetto dal client", { username: "giulia.ferri", type: "app.login.daily", subject: "member:MBR-999999" }, "BAD_REQUEST"],
+      ["tipo fuori dall'elenco", { username: "giulia.ferri", type: "member.registered" }, "INVALID_TYPE"],
+      ["tipo assente", { username: "giulia.ferri" }, "INVALID_TYPE"],
+      ["importo mancante", { username: "giulia.ferri", type: "purchase.completed" }, "INVALID_AMOUNT"],
+      ["importo negativo", { username: "giulia.ferri", type: "purchase.completed", amount: "-5" }, "INVALID_AMOUNT"],
+      ["importo oltre il limite", { username: "giulia.ferri", type: "purchase.completed", amount: "10001" }, "INVALID_AMOUNT"],
+      ["importo con tre decimali", { username: "giulia.ferri", type: "purchase.completed", amount: "1.234" }, "INVALID_AMOUNT"],
+      ["importo ambiguo 1.000", { username: "giulia.ferri", type: "purchase.completed", amount: "1.000" }, "INVALID_AMOUNT"],
+      ["importo non numerico", { username: "giulia.ferri", type: "purchase.completed", amount: "abc" }, "INVALID_AMOUNT"],
+      ["importo booleano", { username: "giulia.ferri", type: "purchase.completed", amount: true }, "INVALID_AMOUNT"],
+      ["importo su un'azione senza importo", { username: "giulia.ferri", type: "app.login.daily", amount: "10" }, "INVALID_AMOUNT"],
+      ["corpo non oggetto", [1, 2], "BAD_REQUEST"],
     ];
-    for (const [name, body] of bad) {
+    for (const [name, body, code] of bad) {
       const res = await post(cookie, csrf, body);
       expect(res.status, name).toBe(400);
-      expect((await res.json()).code).toBe("BAD_REQUEST");
+      expect((await res.json()).code, name).toBe(code);
     }
     expect(hub.writes()).toEqual([]);
   });
@@ -258,8 +261,9 @@ describe("invio (POST)", () => {
   it("due invii: chiavi di idempotenza e id di riga diversi (un invio = un import)", async () => {
     const { hub } = setupHub();
     const { cookie, csrf } = await login(ADMIN);
+    const other = await login(CARE);
     await post(cookie, csrf, { username: "anna.rossi", type: "app.login.daily" });
-    await post(cookie, csrf, { username: "anna.rossi", type: "app.login.daily" });
+    await post(other.cookie, other.csrf, { username: "anna.rossi", type: "app.login.daily" });
     const [a, b] = hub.writes();
     expect(a.headers?.["Idempotency-Key"]).not.toBe(b.headers?.["Idempotency-Key"]);
     expect(JSON.parse(a.multipart?.file.text ?? "").id).not.toBe(JSON.parse(b.multipart?.file.text ?? "").id);
@@ -281,8 +285,15 @@ describe("esito (GET ?import=)", () => {
     const session = await login(who);
     const res = await post(session.cookie, session.csrf, body);
     const { importId } = await res.json();
+    const rowId = JSON.parse(ctx.hub.writes()[0].multipart?.file.text ?? "{}").id as string;
     const status = async () => ((await (await get(session.cookie, `?import=${importId}`)).json()) as ActionResult);
-    return { ...ctx, ...session, importId: importId as string, status };
+    /** Il movimento del libro mastro che il wallet scrive per questa azione (actionId = id della riga). */
+    const earn = (amount: number, currency = "PTS", direction: "+" | "-" = "+", actionId = rowId) => {
+      const list = ctx.hub.ledgers.get("MBR-000103") ?? [];
+      list.push({ actionId, currency, amount, direction });
+      ctx.hub.ledgers.set("MBR-000103", list);
+    };
+    return { ...ctx, ...session, importId: importId as string, rowId, status, earn };
   }
 
   it("in elaborazione: status running, non finale, niente punti", async () => {
@@ -292,29 +303,79 @@ describe("esito (GET ?import=)", () => {
     expect(r.member).toEqual({ key: "giulia.ferri", name: "Giulia Ferri" });
   });
 
-  it("elaborato: +150 punti e nuovo livello dal portafoglio, audit verificato a nome dell'operatore", async () => {
-    const { hub, status } = await send();
+  it("elaborato: +150 punti e +150 STS dal libro mastro (per actionId), livello da una lettura fresca, audit verificato; finale alla seconda lettura uguale", async () => {
+    const { hub, status, earn } = await send();
+    earn(150);
+    earn(150, "STS");
     hub.wallets.set("MBR-000103", { points: 5150, tier: "Gold" });
+    const first = await status();
+    expect(first).toMatchObject({ status: "done", outcome: "accepted", pointsDelta: 150, stsDelta: 150, tierChanged: true, amount: 150, label: "Acquisto completato", pointsKnown: true });
+    expect(first.final).toBe(false); // una sola lettura non basta: potrebbe mancare qualcosa
     const r = await status();
-    expect(r).toMatchObject({ status: "done", final: true, outcome: "accepted", pointsDelta: 150, tierChanged: true, amount: 150, label: "Acquisto completato" });
-    expect(r.before).toEqual({ points: 5000, tier: "Silver" });
-    expect(r.after).toEqual({ points: 5150, tier: "Gold" });
+    expect(r.final).toBe(true);
+    expect(r.before).toEqual({ points: 5000, pending: 0, tier: "Silver" });
+    expect(r.after).toEqual({ points: 5150, pending: 0, tier: "Gold" });
     expect(r.audit).toEqual({ state: "verified", actor: "marta.admin", reason: null });
     expect(r.problems).toEqual([]);
   });
 
-  it("punti non ancora arrivati: non finale; scaduta la finestra: finale senza variazione (nessun numero inventato)", async () => {
+  it("risultato parziale: un effetto che arriva tra due letture rimette in attesa; si chiude solo con due letture identiche", async () => {
+    const { status, earn } = await send();
+    earn(150);
+    expect((await status()).final).toBe(false);
+    earn(150, "STS"); // arriva dopo la prima lettura
+    const changed = await status();
+    expect(changed).toMatchObject({ pointsDelta: 150, stsDelta: 150, final: false });
+    expect((await status()).final).toBe(true);
+  });
+
+  it("la variazione è solo di QUESTA azione: i movimenti di altre azioni e i saldi mossi da altro non contano", async () => {
+    const { hub, status, earn } = await send();
+    earn(40, "PTS", "+", "vt-act-ffffffffffffffffffffffffffffffff"); // un altro invio
+    earn(150);
+    hub.wallets.set("MBR-000103", { points: 9999, tier: "Silver" }); // saldo mosso da altro
+    await status();
+    expect(await status()).toMatchObject({ pointsDelta: 150, stsDelta: 0, final: true });
+  });
+
+  it("un addebito (reso con storno) è una variazione negativa", async () => {
+    const { status, earn } = await send({}, { username: "giulia.ferri", type: "purchase.returned", amount: "40" });
+    earn(40, "PTS", "-");
+    await status();
+    expect(await status()).toMatchObject({ pointsDelta: -40, final: true });
+  });
+
+  it("campagna con giorni di attesa: i punti sono accreditati «in attesa», non «nessuna variazione»", async () => {
+    const { hub, status, earn } = await send();
+    earn(150);
+    hub.wallets.set("MBR-000103", { points: 5000, pending: 150, tier: "Silver" });
+    await status();
+    expect(await status()).toMatchObject({ pointsDelta: 150, pendingPoints: 150, final: true });
+  });
+
+  it("nessun movimento: non finale; a finestra scaduta «nessuna variazione» (punti noti, nessun numero inventato)", async () => {
     const { status } = await send();
-    const early = await status();
-    expect(early).toMatchObject({ status: "done", outcome: "accepted", pointsDelta: null, final: false });
+    expect(await status()).toMatchObject({ status: "done", outcome: "accepted", pointsDelta: null, final: false, pointsKnown: true });
     actionTiming.settleMs = -1;
-    const late = await status();
-    expect(late).toMatchObject({ pointsDelta: null, tierChanged: false, final: true });
+    expect(await status()).toMatchObject({ pointsDelta: null, tierChanged: false, final: true, pointsKnown: true });
+  });
+
+  it("libro mastro non leggibile: i punti sono SCONOSCIUTI (pointsKnown=false), non «invariati», e non si aspetta", async () => {
+    const { status } = await send({ fail: ["/v1/wallets/MBR-000103/ledger"] });
+    expect(await status()).toMatchObject({ status: "done", outcome: "accepted", pointsDelta: null, pointsKnown: false, final: true });
+  });
+
+  it("prima lettura del portafoglio fallita: i punti si mostrano lo stesso (dal libro), il cambio di livello non si afferma", async () => {
+    const { hub, status, earn } = await send({ fail: ["/v1/wallets/MBR-000103"] });
+    earn(150);
+    hub.wallets.set("MBR-000103", { points: 5150, tier: "Gold" });
+    await status();
+    expect(await status()).toMatchObject({ before: null, after: null, pointsDelta: 150, tierChanged: false, pointsKnown: true, final: true });
   });
 
   it("audit assente: in attesa, poi errore esplicito (regola 21)", async () => {
-    const { hub, status } = await send({ audit: "none" });
-    hub.wallets.set("MBR-000103", { points: 5150, tier: "Silver" });
+    const { status, earn } = await send({ audit: "none" });
+    earn(150);
     expect((await status()).audit.state).toBe("pending");
     actionTiming.auditMs = -1;
     const r = await status();
@@ -324,8 +385,8 @@ describe("esito (GET ?import=)", () => {
   });
 
   it("audit di un altro attore: non vale", async () => {
-    const { hub, status } = await send({ audit: "other" });
-    hub.wallets.set("MBR-000103", { points: 5150, tier: "Silver" });
+    const { status, earn } = await send({ audit: "other" });
+    earn(150);
     actionTiming.auditMs = -1;
     const r = await status();
     expect(r.audit.state).toBe("missing");
@@ -355,10 +416,34 @@ describe("esito (GET ?import=)", () => {
     expect((await get(other.cookie, `?import=${importId}`)).status).toBe(404);
     expect((await get(other.cookie, "?import=01JNONESISTE")).status).toBe(404);
   });
+});
 
-  it("portafoglio non leggibile: l'esito dell'import resta, i punti sono «non letti»", async () => {
-    const { status } = await send({ fail: ["/v1/wallets/MBR-000103"] });
-    const r = await status();
-    expect(r).toMatchObject({ status: "done", outcome: "accepted", before: null, after: null, pointsDelta: null, final: true });
+describe("un invio alla volta per operatore (O7)", () => {
+  it("finché il primo non ha l'esito definitivo, il secondo POST è 409 SEND_RUNNING con l'id di quello in corso; poi si libera", async () => {
+    const ctx = setupHub();
+    const { cookie, csrf } = await login(ADMIN);
+    const first = await post(cookie, csrf, GIULIA_PURCHASE);
+    const { importId } = await first.json();
+    const second = await post(cookie, csrf, GIULIA_PURCHASE);
+    expect(second.status).toBe(409);
+    const body = await second.json();
+    expect(body.code).toBe("SEND_RUNNING");
+    expect(body.importId).toBe(importId);
+    expect(ctx.hub.writes()).toHaveLength(1);
+    // Un altro operatore non è bloccato.
+    const other = await login(CARE);
+    expect((await post(other.cookie, other.csrf, GIULIA_PURCHASE)).status).toBe(202);
+    // Esito definitivo (nessun movimento, finestra scaduta) → il primo operatore può inviare di nuovo.
+    actionTiming.settleMs = -1;
+    expect(((await (await get(cookie, `?import=${importId}`)).json()) as ActionResult).final).toBe(true);
+    expect((await post(cookie, csrf, GIULIA_PURCHASE)).status).toBe(202);
+  });
+
+  it("un invio mai concluso non blocca per sempre (scade)", async () => {
+    setupHub();
+    const { cookie, csrf } = await login(ADMIN);
+    await post(cookie, csrf, GIULIA_PURCHASE);
+    actionTiming.inflightMs = -1;
+    expect((await post(cookie, csrf, GIULIA_PURCHASE)).status).toBe(202);
   });
 });

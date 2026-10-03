@@ -56,8 +56,13 @@ function Form({ actor }: { actor: string }) {
     if (finalId && refreshed.current !== finalId) {
       refreshed.current = finalId;
       void qc.invalidateQueries({ queryKey: ["ingestion"] });
+      // Il livello nel menu dei membri si rilegge (l'azione può averlo cambiato).
+      void qc.invalidateQueries({ queryKey: CONTEXT_KEY, exact: true });
     }
   }, [finalId, qc]);
+
+  // Un invio alla volta: finché l'ultimo non ha l'esito definitivo (o la sua lettura non è fallita) il pulsante resta spento.
+  const inFlight = importId !== null && !result.isError && !result.data?.final;
 
   const send = useMutation<{ importId: string }, HttpError, void>({
     mutationFn: () =>
@@ -70,10 +75,15 @@ function Form({ actor }: { actor: string }) {
       setImportId(r.importId);
     },
     onError: (e) => {
-      if (e.status === 409) setFormError(s.programMissing);
-      else if (e.code === "MEMBER_NOT_REGISTERED") setFormError(s.memberNotRegistered);
-      else if (e.status === 400 && valued(ctx.data, type)) setFormError(s.badAmount);
-      else setFormError(s.sendFailed);
+      const byCode: Record<string, string> = {
+        PROGRAM_MISSING: s.programMissing,
+        MEMBER_NOT_REGISTERED: s.memberNotRegistered,
+        SEND_RUNNING: s.sendRunning,
+        INVALID_MEMBER: s.badMember,
+        INVALID_TYPE: s.badType,
+        INVALID_AMOUNT: typeof e.extra.detail === "string" ? e.extra.detail : s.badAmount,
+      };
+      setFormError((e.code && byCode[e.code]) || s.sendFailed);
     },
   });
 
@@ -167,9 +177,10 @@ function Form({ actor }: { actor: string }) {
             </span>
           </div>
         ) : null}
-        <button type="submit" disabled={!ready || send.isPending} className="rounded-md bg-[var(--color-bo-accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-          {send.isPending ? s.sending : s.submit}
+        <button type="submit" disabled={!ready || send.isPending || inFlight} className="rounded-md bg-[var(--color-bo-accent)] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+          {send.isPending || inFlight ? s.sending : s.submit}
         </button>
+        {type === "purchase.returned" ? <p className="basis-full text-xs text-[var(--color-bo-ink-2)]">{s.returnHelp}</p> : null}
         <p className="basis-full text-xs text-[var(--color-bo-ink-2)]">{s.note(actor)}</p>
         {formError ? (
           <p role="alert" data-testid="send-form-error" className="basis-full text-sm text-[var(--color-state-down)]">
@@ -215,8 +226,8 @@ function Last({ result }: { result: ReturnType<typeof useQuery<ActionResult, Htt
 function LastBody({ result }: { result: ReturnType<typeof useQuery<ActionResult, HttpError>> }) {
   if (result.isError) {
     return (
-      <div role="alert">
-        <p className="mb-2 text-[var(--color-bo-ink)]">{result.error.status === 404 ? s.lost : s.readError}</p>
+      <div>
+        <p className="mb-2 text-[var(--color-state-down)]">{result.error.status === 404 ? s.lost : s.readError}</p>
         <div className="flex flex-wrap gap-3">
           {result.error.status !== 404 ? (
             <button type="button" onClick={() => void result.refetch()} className={secondary}>
@@ -232,7 +243,7 @@ function LastBody({ result }: { result: ReturnType<typeof useQuery<ActionResult,
   }
   const r = result.data;
   if (!r || r.status === "running") {
-    return <p className="text-[var(--color-bo-ink-2)]">{r ? s.summary(r.member.name, r.label, r.amount) : ""} {s.processing}</p>;
+    return <p className="text-[var(--color-bo-ink-2)]">{r ? `${s.summary(r.member.name, r.label, r.amount)} · ${s.processing}` : s.sending}</p>;
   }
   const outcome = { accepted: s.outcomeAccepted, duplicate: s.outcomeDuplicate, invalid: s.outcomeInvalid, failed: s.outcomeFailed, pending: s.processing }[r.outcome];
   return (
@@ -241,12 +252,26 @@ function LastBody({ result }: { result: ReturnType<typeof useQuery<ActionResult,
         <span className="font-medium">{s.summary(r.member.name, r.label, r.amount)}</span>
         {" → "}
         <span className={r.status === "error" ? "text-[var(--color-state-down)]" : ""}>{outcome}</span>
-        {r.pointsDelta !== null ? <strong className="ml-1 text-[var(--color-state-up)]">{s.points(r.pointsDelta)}</strong> : null}
+        {r.pointsDelta !== null ? (
+          // Il verde solo per un accredito: un addebito (reso, storno) è neutro, mai «buono».
+          <strong className={`ml-1 ${r.pointsDelta > 0 ? "text-[var(--color-state-up)]" : "text-[var(--color-bo-ink)]"}`}>{s.points(r.pointsDelta)}</strong>
+        ) : null}
+        {r.stsDelta !== null && r.stsDelta !== 0 ? <span>{`, ${s.statusPoints(r.stsDelta)}`}</span> : null}
         {r.tierChanged && r.after?.tier ? <span>{`, ${s.newTier(r.after.tier)}`}</span> : null}
       </p>
       {r.outcome === "accepted" ? (
         <p className="text-xs text-[var(--color-bo-ink-2)]">
-          {r.pointsDelta !== null ? "" : r.final ? (r.after ? s.pointsNone : s.pointsUnknown) : s.pointsPending}
+          {r.pointsDelta !== null
+            ? r.pendingPoints > 0
+              ? s.pointsPendingPart(r.pendingPoints)
+              : r.final
+                ? ""
+                : s.pointsPending
+            : r.final
+              ? r.pointsKnown
+                ? s.pointsNone
+                : s.pointsUnknown
+              : s.pointsPending}
         </p>
       ) : null}
       {r.problems.length ? (

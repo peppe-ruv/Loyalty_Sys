@@ -60,8 +60,18 @@ export interface ActionResult {
   amount: number | null;
   before: WalletSnapshot | null;
   after: WalletSnapshot | null;
-  /** Variazione dei punti (PTS) letta dal portafoglio; `null` se non letta o non ancora arrivata. */
+  /**
+   * Variazione attribuita a QUESTA azione: somma dei movimenti del libro mastro con `actionId` = id della riga (mai la
+   * differenza dei saldi, che conterrebbe anche altro). `null` = nessun movimento (ancora) o libro non leggibile.
+   */
   pointsDelta: number | null;
+  /** Come `pointsDelta` per i punti di livello (STS). */
+  stsDelta: number | null;
+  /** Parte dei punti accreditata «in attesa» (campagna con giorni di attesa): non è «nessuna variazione». */
+  pendingPoints: number;
+  /** `false` = il libro mastro non si è potuto leggere: i punti sono sconosciuti, non «invariati». */
+  pointsKnown: boolean;
+  /** Solo se il livello prima e dopo sono entrambi noti. */
   tierChanged: boolean;
   audit: { state: "verified" | "pending" | "missing"; actor: string; reason: string | null };
   problems: string[];
@@ -69,6 +79,7 @@ export interface ActionResult {
 }
 interface WalletSnapshot {
   points: number;
+  pending: number;
   tier: string | null;
 }
 
@@ -85,6 +96,13 @@ interface Submission {
   before: WalletSnapshot | null;
   startedAt: number;
   finishedAt: number | null;
+  /** Id della riga (`vt-act-…`): lega i movimenti del portafoglio a questa azione. */
+  rowId: string;
+  /** Firma dell'ultima lettura e quante letture consecutive identiche (assestamento: due uguali = nient'altro in arrivo). */
+  lastSig: string | null;
+  stable: number;
+  /** Esito definitivo già dato: libera l'invio successivo dello stesso operatore (O7). */
+  final: boolean;
 }
 const KEY = Symbol.for("io.loyaltyhub.web.vetrina.azione");
 type Holder = { [KEY]?: Map<string, Submission> };
@@ -99,7 +117,9 @@ export function resetActionsForTests(): void {
 const SETTLE_MS = 20_000;
 /** L'audit viaggia sul bus: dopo questo tempo senza voce è un errore esplicito (regola 21). */
 const AUDIT_MS = 60_000;
-export const actionTiming = { settleMs: SETTLE_MS, auditMs: AUDIT_MS };
+/** Un invio non definitivo da più di questo tempo non blocca più l'operatore (client chiuso, server riavviato a metà). */
+const INFLIGHT_MS = 90_000;
+export const actionTiming = { settleMs: SETTLE_MS, auditMs: AUDIT_MS, inflightMs: INFLIGHT_MS };
 
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -107,9 +127,30 @@ async function readWallet(api: Api, memberId: string): Promise<WalletSnapshot | 
   try {
     const body = (await api.request("wallet", "GET", `/v1/wallets/${encodeURIComponent(memberId)}`)).body;
     const points = Number(body?.balances?.PTS?.active);
-    return { points: Number.isFinite(points) ? points : 0, tier: typeof body?.tier?.name === "string" ? body.tier.name : null };
+    const pending = Number(body?.balances?.PTS?.pending);
+    return {
+      points: Number.isFinite(points) ? points : 0,
+      pending: Number.isFinite(pending) ? pending : 0,
+      tier: typeof body?.tier?.name === "string" ? body.tier.name : null,
+    };
   } catch {
     return null; // il portafoglio non è indispensabile: si mostra l'esito dell'import
+  }
+}
+
+/**
+ * Movimenti del libro mastro attribuiti a una riga (`actionId` = id della riga, GET /v1/wallets/{id}/ledger di wallet-service:
+ * `amount` positivo e `direction` «+» o «-»). `null` se il libro non si legge.
+ */
+async function readLedger(api: Api, memberId: string, rowId: string): Promise<{ pts: number; sts: number; entries: number } | null> {
+  try {
+    const items = asItems((await api.request("wallet", "GET", `/v1/wallets/${encodeURIComponent(memberId)}/ledger`, { query: { limit: "100" } })).body);
+    const mine = items.filter((e) => e?.actionId === rowId);
+    const sum = (currency: string) =>
+      mine.filter((e) => e.currency === currency).reduce((n, e) => n + (e.direction === "-" ? -1 : 1) * Number(e.amount ?? 0), 0);
+    return { pts: sum("PTS"), sts: sum("STS"), entries: mine.length };
+  } catch {
+    return null;
   }
 }
 
@@ -167,14 +208,20 @@ export function handlePost(req: NextRequest, doFetch?: typeof fetch): Promise<Ne
       } catch {
         body = null;
       }
-      const bad = (detail: string) => problem(400, "BAD_REQUEST", "Richiesta non valida", detail);
-      if (!body || typeof body !== "object" || Array.isArray(body)) return bad("Indica membro, azione ed eventuale importo.");
+      // Codice per ogni causa: il client mostra il messaggio giusto (membro, azione, importo).
+      const bad = (code: string, detail: string) => problem(400, code, "Richiesta non valida", detail);
+      if (!body || typeof body !== "object" || Array.isArray(body)) return bad("BAD_REQUEST", "Indica membro, azione ed eventuale importo.");
       // Solo questi campi: un id di membro (o qualunque altro campo) dal client non è mai ammesso.
-      if (Object.keys(body).some((k) => k !== "username" && k !== "type" && k !== "amount")) return bad("Campi non ammessi nella richiesta.");
+      if (Object.keys(body).some((k) => k !== "username" && k !== "type" && k !== "amount")) return bad("BAD_REQUEST", "Campi non ammessi nella richiesta.");
       const story = STORIES.find((s) => s.username === body.username);
-      if (!story) return bad("Il membro non è tra quelli di test.");
+      if (!story) return bad("INVALID_MEMBER", "Il membro non è tra quelli di test.");
       const def = ACTIONS.find((a) => a.type === body.type);
-      if (!def) return bad("Azione non inviabile dalla fonte di test.");
+      if (!def) return bad("INVALID_TYPE", "Azione non inviabile dalla fonte di test.");
+      // Un invio alla volta per operatore (O7): finché il precedente non ha l'esito definitivo, 409.
+      const running = [...store().values()].find((x) => x.actor === actor && !x.final && Date.now() - x.startedAt < actionTiming.inflightMs);
+      if (running) {
+        return problem(409, "SEND_RUNNING", "Invio già in corso", "Un invio è ancora in elaborazione: aspetta il suo esito.", { importId: running.importId });
+      }
 
       const api = hubApi(bff, sessionId, doFetch, ACTION_SCOPE);
       try {
@@ -189,7 +236,7 @@ export function handlePost(req: NextRequest, doFetch?: typeof fetch): Promise<Ne
         try {
           built = buildActionRow({ type: def.type, memberId, username: story.username, amount: body.amount, now: startedAt, uid });
         } catch (e) {
-          if (e instanceof UsageError) return bad(e.message);
+          if (e instanceof UsageError) return bad("INVALID_AMOUNT", e.message);
           throw e;
         }
         api.storySubjects = new Set([memberId]);
@@ -205,11 +252,12 @@ export function handlePost(req: NextRequest, doFetch?: typeof fetch): Promise<Ne
         sub.set(job.id, {
           importId: job.id, actor, username: story.username, memberId, type: def.type,
           amount: def.valued ? (built.row.data.amount as number) : null, before, startedAt, finishedAt: null,
+          rowId: built.row.id as string, lastSig: null, stable: 0, final: false,
         });
         for (const k of [...sub.keys()].slice(0, Math.max(0, sub.size - 20))) sub.delete(k);
         return json({ importId: job.id }, 202);
       } catch (e) {
-        if (e instanceof Error && /non ammesso/.test(e.message)) return bad(e.message);
+        if (e instanceof Error && /non ammesso/.test(e.message)) return bad("BAD_REQUEST", e.message);
         return hubFailure(e);
       }
     },
@@ -238,7 +286,8 @@ async function status(api: Api, actor: string, importId: string): Promise<NextRe
   const importStatus = String(detail?.status ?? "QUEUED");
   if (importStatus !== "DONE" && importStatus !== "FAILED") {
     const out: ActionResult = {
-      ...base, status: "running", final: false, importStatus, outcome: "pending", after: null, pointsDelta: null, tierChanged: false,
+      ...base, status: "running", final: false, importStatus, outcome: "pending", after: null, pointsDelta: null, stsDelta: null,
+      pendingPoints: 0, pointsKnown: true, tierChanged: false,
       audit: { state: "pending", actor, reason: null }, problems: [],
     };
     return json(out);
@@ -253,15 +302,30 @@ async function status(api: Api, actor: string, importId: string): Promise<NextRe
 
   let after: WalletSnapshot | null = null;
   let pointsDelta: number | null = null;
+  let stsDelta: number | null = null;
+  let pendingPoints = 0;
+  let pointsKnown = true;
   let tierChanged = false;
+  let settled = true;
   if (outcome === "accepted") {
+    // Letture fresche a ogni richiesta: livello dal portafoglio di adesso, movimenti dal libro mastro (per actionId).
     after = await readWallet(api, sub.memberId);
-    if (after && sub.before) {
-      if (after.points !== sub.before.points) pointsDelta = after.points - sub.before.points;
-      tierChanged = after.tier !== sub.before.tier;
+    const ledger = await readLedger(api, sub.memberId, sub.rowId);
+    pointsKnown = ledger !== null;
+    if (ledger && ledger.entries > 0) {
+      pointsDelta = ledger.pts;
+      stsDelta = ledger.sts;
     }
+    if (pointsDelta !== null && pointsDelta > 0 && after && sub.before) pendingPoints = Math.max(0, Math.min(pointsDelta, after.pending - sub.before.pending));
+    tierChanged = !!after?.tier && !!sub.before?.tier && after.tier !== sub.before.tier;
+    // Assestamento: più effetti (punti, STS, livello) possono arrivare in momenti diversi. Si chiude solo con due letture
+    // consecutive identiche (la prima non basta) o a finestra scaduta; un libro non leggibile non si aspetta.
+    const sig = JSON.stringify([ledger?.entries ?? -1, ledger?.pts ?? 0, ledger?.sts ?? 0, after?.tier ?? null]);
+    sub.stable = sig === sub.lastSig ? sub.stable + 1 : 0;
+    sub.lastSig = sig;
+    const expired = Date.now() - (sub.finishedAt ?? 0) > actionTiming.settleMs;
+    settled = !pointsKnown || (ledger !== null && ledger.entries > 0 && sub.stable >= 1) || expired;
   }
-  const settled = outcome !== "accepted" || pointsDelta !== null || tierChanged || Date.now() - (sub.finishedAt ?? 0) > actionTiming.settleMs || after === null;
 
   // Audit: la voce CREATE dell'import, a nome dell'operatore (regola 21). Una sola lettura per richiesta: ritenta il client.
   const checked = await verifyAudit({
@@ -277,7 +341,8 @@ async function status(api: Api, actor: string, importId: string): Promise<NextRe
 
   const out: ActionResult = {
     ...base, status: problems.length ? "error" : "done", final: settled && audit.state !== "pending",
-    importStatus, outcome, after, pointsDelta, tierChanged, audit, problems,
+    importStatus, outcome, after, pointsDelta, stsDelta, pendingPoints, pointsKnown, tierChanged, audit, problems,
   };
+  if (out.final) sub.final = true;
   return json(out);
 }

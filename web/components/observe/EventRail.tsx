@@ -6,6 +6,7 @@ import { useLiveEvents } from "@/lib/realtime/useLiveEvents";
 import { liveFeedView, type ConnectionState, type LiveFamily } from "@/lib/realtime/sse";
 import { TopicDot } from "./TopicDot";
 import { CodeText } from "@/components/bo/primitives";
+import { useIsDemo } from "@/components/bo/PersonaContext";
 import { formatTime } from "@/lib/format/dates";
 
 // Flusso eventi a righe di BO-24 (docs/08 §BO-24). Passando su una riga si evidenziano quelle con lo
@@ -27,6 +28,7 @@ const CONNECTION: Record<ConnectionState, { label: string; className: string }> 
 };
 
 export function EventRail() {
+  const isDemo = useIsDemo();
   const [family, setFamily] = useState("");
   const [memberId, setMemberId] = useState("");
   const [hovered, setHovered] = useState<string | null>(null);
@@ -91,11 +93,17 @@ export function EventRail() {
         </div>
       ) : view === "empty" ? (
         <p className="p-6 text-center text-sm text-[var(--color-bo-ink-2)]">
-          In attesa di eventi… invia un&apos;azione dal{" "}
-          <Link href="/backoffice/demo/simulator" className="text-[var(--color-bo-accent)] hover:underline">
-            simulatore
-          </Link>{" "}
-          o dal portale.
+          {isDemo ? (
+            <>
+              In attesa di eventi… invia un&apos;azione dal{" "}
+              <Link href="/backoffice/demo/simulator" className="text-[var(--color-bo-accent)] hover:underline">
+                simulatore
+              </Link>{" "}
+              o dal portale.
+            </>
+          ) : (
+            <>In attesa di eventi… invia un&apos;azione dal portale o dalla pagina Import.</>
+          )}
         </p>
       ) : (
         <ul className="max-h-[60vh] divide-y divide-[var(--color-bo-border)] overflow-y-auto">

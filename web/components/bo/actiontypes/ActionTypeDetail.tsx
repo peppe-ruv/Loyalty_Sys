@@ -8,6 +8,7 @@ import type { CampaignSummary } from "@/lib/api/types";
 import { QueryState } from "@/components/bo/QueryState";
 import { CodeText } from "@/components/bo/primitives";
 import { Can, useCan } from "@/components/bo/Can";
+import { useIsDemo } from "@/components/bo/PersonaContext";
 import { categoryLabel, ORIGIN_LABEL, type ActionField, type ActionType } from "@/lib/actiontypes/types";
 import { campaignImpact, describeField } from "@/lib/actiontypes/schema";
 import { integratorTypes } from "@/lib/actiontypes/code";
@@ -52,6 +53,7 @@ export function ActionTypeDetail({
 }) {
   const qc = useQueryClient();
   const canConfig = useCan("program.config");
+  const isDemo = useIsDemo();
   const fields = useLhQuery<ActionField[]>("ingestion", `/v1/event-types/${type.code}/fields`);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -236,12 +238,15 @@ export function ActionTypeDetail({
       </details>
 
       <div className="flex flex-wrap gap-2">
-        <Link
-          href={`/backoffice/demo/simulator?type=${encodeURIComponent(type.code)}`}
-          className="rounded bg-[var(--color-bo-accent)] px-3 py-1.5 text-sm font-medium text-white"
-        >
-          {t.tryIt}
-        </Link>
+        {/* Il simulatore chiama /v1/demo: in enterprise non esiste (V11, ADR-051). */}
+        {isDemo ? (
+          <Link
+            href={`/backoffice/demo/simulator?type=${encodeURIComponent(type.code)}`}
+            className="rounded bg-[var(--color-bo-accent)] px-3 py-1.5 text-sm font-medium text-white"
+          >
+            {t.tryIt}
+          </Link>
+        ) : null}
         {type.enabled ? (
           <Can capability="object.edit" mode="disable">
             <Link

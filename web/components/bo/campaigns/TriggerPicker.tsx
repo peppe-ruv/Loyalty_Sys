@@ -11,6 +11,7 @@ import { actionIcon } from "@/lib/icons/action-icons";
 import { INPUT } from "@/components/bo/FormBits";
 import { DegradedBox, EmptyState } from "@/components/bo/primitives";
 import { Can, useCan } from "@/components/bo/Can";
+import { useIsDemo } from "@/components/bo/PersonaContext";
 import { SideSheet } from "@/components/bo/SideSheet";
 import { ActionTypeEditor, type SavedInfo } from "@/components/bo/actiontypes/ActionTypeEditor";
 import { it } from "@/lib/i18n/it";
@@ -93,6 +94,7 @@ export function TriggerPicker({
 }) {
   const query = useLhQuery<EventType[]>("ingestion", "/v1/event-types");
   const canCreate = useCan("actiontype.custom");
+  const isDemo = useIsDemo();
   const [search, setSearch] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const [creating, setCreating] = useState<{ name: string } | null>(null);
@@ -198,7 +200,7 @@ export function TriggerPicker({
         <div role="status" className="space-y-1 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
           <p className="font-medium">{T.created(created.name)}</p>
           {created.onlySimulator ? <p>{it.actions.detail.onlySimulatorBanner}</p> : null}
-          <NewTabLink href={`/backoffice/demo/simulator?type=${encodeURIComponent(created.code)}`}>{it.actions.detail.tryIt}</NewTabLink>
+          {isDemo ? <NewTabLink href={`/backoffice/demo/simulator?type=${encodeURIComponent(created.code)}`}>{it.actions.detail.tryIt}</NewTabLink> : null}
         </div>
       ) : null}
       {created && created.failedOn.length > 0 ? (

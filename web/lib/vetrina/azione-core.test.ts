@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   ACTION_FILE_NAME,
   ACTION_SCOPE,
+  PROGRAM_SCOPE,
+  parseActionAmount,
   ACTION_TYPES,
   Api,
   assertActionImport,
@@ -102,8 +104,20 @@ describe("riga dell'azione per tipo", () => {
     expect(row("purchase.returned", "40").row.data.amount).toBe(40);
   });
 
-  it.each([["0"], ["-1"], ["abc"], [""], ["10000.01"], ["1.234"], [undefined]])("importo non valido (%s): rifiutato", (amount) => {
-    expect(() => row("purchase.completed", amount)).toThrow(/importo non valido/);
+  it.each([["0"], ["-1"], ["abc"], [""], ["10000.01"], ["1.234"], ["12.345,6"], ["1e3"], ["0x10"], [" "], [true], [[5]], [{ v: 5 }], [null], [Number.NaN], [Infinity], [-3], [0], [10.005], [undefined]])(
+    "importo non valido (%s): rifiutato",
+    (amount) => {
+      expect(() => row("purchase.completed", amount)).toThrow(/importo non valido/);
+    },
+  );
+
+  it("«1.000» è ambiguo (migliaia o decimali?): rifiutato con un messaggio chiaro, anche come «12.345»", () => {
+    expect(() => row("purchase.completed", "1.000")).toThrow(/«1\.000» è ambiguo.*senza separatore delle migliaia.*1000/);
+    expect(() => row("purchase.completed", "12.345")).toThrow(/ambiguo/);
+  });
+
+  it.each([["150", 150], ["150,5", 150.5], ["150.50", 150.5], ["0,01", 0.01], ["10000", 10000], [" 20 ", 20], [99.99, 99.99]])("importo valido %s → %s", (amount, expected) => {
+    expect(parseActionAmount(amount)).toBe(expected);
   });
 
   it("importo su un'azione senza valore o tipo sconosciuto: rifiutato", () => {
@@ -160,7 +174,9 @@ describe("ambito delle richieste di «Invia un'azione»", () => {
     expect(() => assertAllowedRequest("POST", "/v1/rewards", {}, ACTION_SCOPE)).toThrow(/non ammessa/);
     expect(() => assertAllowedRequest("POST", "/v1/campaigns", {}, ACTION_SCOPE)).toThrow(/non ammessa/);
     expect(() => assertAllowedRequest("POST", "/v1/wallets/MBR-000103/adjust", {}, ACTION_SCOPE)).toThrow(/non ammessa/);
-    expect(() => assertAllowedRequest("GET", "/v1/wallets/MBR-000103/ledger", undefined, ACTION_SCOPE)).toThrow(/non ammessa/);
+    // Il libro mastro serve ad attribuire i punti alla riga (per `actionId`); lotti e altro no.
+    expect(() => assertAllowedRequest("GET", "/v1/wallets/MBR-000103/ledger", undefined, ACTION_SCOPE)).not.toThrow();
+    expect(() => assertAllowedRequest("GET", "/v1/wallets/MBR-000103/lots", undefined, ACTION_SCOPE)).toThrow(/non ammessa/);
   });
 
   it("la lettura del portafoglio non è ammessa fuori da questo ambito (riga di comando, programma)", () => {
@@ -181,6 +197,33 @@ describe("ambito delle richieste di «Invia un'azione»", () => {
     expect(hub.writes()).toHaveLength(1);
     // Un file con altro nome ricade nella lista bianca delle storie, che pretende righe `vt-<utente>-<nn>`.
     await expect(api.request("ingestion", "POST", "/v1/imports", { multipart: { file: { ...file, name: "x.ndjson" }, fields: { kind: "EVENTS", source: "vetrina-test" } } })).rejects.toThrow(/non ammesso/);
+  });
+
+  it("la lista bianca dell'import la decide l'AMBITO, non il nome del file (O4)", async () => {
+    const hub = makeHub({ members: {} });
+    const action = row("app.login.daily").file;
+    const fields = { kind: "EVENTS", source: "vetrina-test" };
+    const storyLine = JSON.stringify({ source: STORY_SOURCE_URN, subject: "member:MBR-000103", id: "vt-giulia.ferri-01", type: "app.login.daily", data: {} });
+    const storyFile = { name: STORY_FILE_NAME, type: "application/x-ndjson", text: `${storyLine}\n` };
+    // Azione singola: solo con ACTION_SCOPE. Con PROGRAM_SCOPE rifiutata anche con il nome «giusto».
+    const program = new Api({ transport: hub.transport, scope: PROGRAM_SCOPE });
+    program.storySubjects = new Set(["MBR-000103"]);
+    await expect(program.request("ingestion", "POST", "/v1/imports", { multipart: { file: action, fields } })).rejects.toThrow(/non ammesso/);
+    // Storie: solo con PROGRAM_SCOPE. Con ACTION_SCOPE rifiutate, anche con una riga dell'azione in un file «delle storie».
+    const single = new Api({ transport: hub.transport, scope: ACTION_SCOPE });
+    single.storySubjects = new Set(["MBR-000103"]);
+    await expect(single.request("ingestion", "POST", "/v1/imports", { multipart: { file: storyFile, fields } })).rejects.toThrow(/non ammesso/);
+    await expect(single.request("ingestion", "POST", "/v1/imports", { multipart: { file: { ...action, name: STORY_FILE_NAME }, fields } })).rejects.toThrow(/vetrina-azione/);
+    // Né la riga di comando né un ambito senza storie possono importare.
+    const none = new Api({ transport: hub.transport });
+    await expect(none.request("ingestion", "POST", "/v1/imports", { multipart: { file: action, fields } })).rejects.toThrow(/non ammessa/);
+    expect(hub.writes()).toEqual([]);
+  });
+
+  it("reso: l'etichetta dice che non storna punti (nessuna campagna del seed lo premia)", () => {
+    expect(ACTION_TYPES.find((a) => a.type === "purchase.returned")?.label).toMatch(/non storna punti/);
+    const campaigns = (SEED.campaigns ?? []) as { triggerActionTypes?: string[] }[];
+    expect(campaigns.some((c) => (c.triggerActionTypes ?? []).includes("purchase.returned"))).toBe(false);
   });
 
   it("findTestMember: nessuna corrispondenza o più corrispondenze → null", async () => {

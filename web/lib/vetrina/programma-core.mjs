@@ -64,14 +64,15 @@ export const CLI_SCOPE = Object.freeze({ campaigns: false, stories: false });
 /** Ambito del programma dal backoffice (V10): in più campagne in DRAFT, ricerca dei membri di test e import delle storie. */
 export const PROGRAM_SCOPE = Object.freeze({ campaigns: true, stories: true });
 /** Ambito di «Invia un'azione» (V11): niente campagne; ricerca membri, import e lettura del portafoglio (saldo e livello). */
-export const ACTION_SCOPE = Object.freeze({ campaigns: false, stories: true, wallets: true, readOnly: true });
+export const ACTION_SCOPE = Object.freeze({ campaigns: false, stories: true, wallets: true, readOnly: true, actionImport: true });
 
 const READ_RESOURCES = /^\/v1\/(currencies|tiers|event-types|sources|internal-mappings|theme|message-templates|notification-rules|reward-categories|reward-bands|coupon-pools|rewards|attribute-definitions|segments|badges|achievements|leaderboards|audit)$/;
 const CREATE_RESOURCES = /^\/v1\/(event-types|sources|message-templates|notification-rules|reward-categories|reward-bands|coupon-pools|rewards|segments|achievements|badges|leaderboards)$/;
 const REPLACE_RESOURCES = /^\/v1\/(attribute-definitions|theme)$/;
 // Solo con PROGRAM_SCOPE: elenco campagne (stato), ricerca dei membri di test, elenco e dettaglio degli import.
 const SCOPE_READ_CAMPAIGNS = /^\/v1\/campaigns$/;
-const SCOPE_READ_WALLETS = /^\/v1\/wallets\/[A-Za-z0-9-]{3,40}$/;
+// Portafoglio e libro mastro del solo membro (V11): saldo e livello, e i movimenti attribuiti a una riga (`actionId`).
+const SCOPE_READ_WALLETS = /^\/v1\/wallets\/[A-Za-z0-9-]{3,40}(\/ledger)?$/;
 const SCOPE_READ_STORIES = /^\/v1\/(members|imports|imports\/[A-Za-z0-9]{10,40})$/;
 
 /** Difesa in profondità: solo queste richieste possono partire, mai movimenti, demo, transizioni. */
@@ -128,7 +129,7 @@ export function assertStoryImport(multipart, subjects) {
  */
 export const ACTION_TYPES = [
   { type: 'purchase.completed', label: 'Acquisto completato', valued: true },
-  { type: 'purchase.returned', label: 'Reso di un acquisto', valued: true },
+  { type: 'purchase.returned', label: 'Reso di un acquisto (non storna punti)', valued: true },
   { type: 'selfreading.submitted', label: 'Autolettura inviata', valued: false },
   { type: 'app.login.daily', label: "Accesso giornaliero all'app", valued: false },
   { type: 'review.submitted', label: 'Recensione inviata', valued: false },
@@ -208,7 +209,9 @@ export class Api {
   async request(service, method, pathname, { query, body, multipart, headers } = {}) {
     if (method === 'POST' && pathname === '/v1/imports') {
       if (!this.scope.stories) throw new Error(`richiesta non ammessa dallo script: ${method} ${pathname}`);
-      if (multipart?.file?.name === ACTION_FILE_NAME) assertActionImport(multipart, this.storySubjects);
+      // La lista bianca la decide l'AMBITO, non il nome del file: azione singola solo con ACTION_SCOPE, storie solo con
+      // PROGRAM_SCOPE; l'altra forma è rifiutata anche se il file ha il nome «giusto».
+      if (this.scope.actionImport) assertActionImport(multipart, this.storySubjects);
       else assertStoryImport(multipart, this.storySubjects);
     } else {
       assertAllowedRequest(method, pathname, body, this.scope);
@@ -742,6 +745,30 @@ export function campaignsNeededByStories(seed) {
  * identificativi (ordine, contratto…) si derivano da `uid` (esadecimale minuscolo, almeno 16 caratteri: un UUID senza
  * trattini). Importo solo per le azioni con valore (acquisto, reso): positivo, al più MAX_ACTION_AMOUNT, al più due decimali.
  */
+/**
+ * Importo in euro: un numero finito, oppure una stringa `^\d{1,5}([.,]\d{1,2})?$` (la virgola è il separatore dei
+ * decimali). Un punto seguito da esattamente tre cifre («1.000») è ambiguo (migliaia o decimali?) e si rifiuta con un
+ * messaggio chiaro; booleani, liste, esadecimali ed esponenti non sono importi. Positivo, al più MAX_ACTION_AMOUNT.
+ */
+export function parseActionAmount(amount) {
+  const bad = (why) => new UsageError(`importo non valido: ${why}`);
+  const rule = `serve un numero positivo, al più ${MAX_ACTION_AMOUNT}, con la virgola per i decimali (al più due) e senza separatore delle migliaia`;
+  let value;
+  if (typeof amount === 'number') {
+    value = amount;
+  } else if (typeof amount === 'string') {
+    const s = amount.trim();
+    if (/^\d{1,3}\.\d{3}$/.test(s)) throw bad(`«${s}» è ambiguo (migliaia o decimali?): senza separatore delle migliaia, e con la virgola per i decimali (per esempio ${s.replace('.', '')} oppure 1,5)`);
+    if (!/^\d{1,5}([.,]\d{1,2})?$/.test(s)) throw bad(rule);
+    value = Number(s.replace(',', '.'));
+  } else {
+    throw bad(rule);
+  }
+  const cents = Math.round(value * 100);
+  if (!Number.isFinite(value) || value <= 0 || value > MAX_ACTION_AMOUNT || Math.abs(cents - value * 100) > 1e-6) throw bad(rule);
+  return cents / 100;
+}
+
 export function buildActionRow({ type, memberId, username, amount, now, uid }) {
   const def = ACTION_TYPES.find((a) => a.type === type);
   if (!def) throw new UsageError(`tipo di azione non inviabile: ${type}`);
@@ -750,12 +777,7 @@ export function buildActionRow({ type, memberId, username, amount, now, uid }) {
   const tag = hex.slice(0, 8).toUpperCase();
   let value;
   if (def.valued) {
-    value = typeof amount === 'string' ? Number(amount.replace(',', '.')) : Number(amount);
-    const cents = Math.round(value * 100);
-    if (!Number.isFinite(value) || value <= 0 || value > MAX_ACTION_AMOUNT || Math.abs(cents - value * 100) > 1e-6) {
-      throw new UsageError(`importo non valido: serve un numero positivo, al più ${MAX_ACTION_AMOUNT} e con al più due decimali`);
-    }
-    value = cents / 100;
+    value = parseActionAmount(amount);
   } else if (amount !== undefined && amount !== null && amount !== '') {
     throw new UsageError('questa azione non ha un importo');
   }

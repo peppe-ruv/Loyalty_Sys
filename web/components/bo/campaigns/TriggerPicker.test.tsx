@@ -91,9 +91,9 @@ function Harness({
   );
 }
 
-function renderPicker(role: Role = "MARKETING", props: Partial<Parameters<typeof Harness>[0]> = {}) {
+function renderPicker(role: Role = "MARKETING", props: Partial<Parameters<typeof Harness>[0]> = {}, mode: "demo" | "enterprise" = "demo") {
   const onChange = vi.fn();
-  renderWithProviders(<Harness onChange={onChange} {...props} />, role);
+  renderWithProviders(<Harness onChange={onChange} {...props} />, role, mode);
   return onChange;
 }
 
@@ -139,6 +139,18 @@ describe("TriggerPicker: crea una nuova azione", () => {
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("href", "/backoffice/demo/simulator?type=visita.fiera");
     expect(link).toHaveTextContent("(si apre in una nuova scheda)");
+  });
+
+  it("enterprise: dopo la creazione non c'è il collegamento al simulatore (/v1/demo non esiste)", async () => {
+    renderPicker("MARKETING", {}, "enterprise");
+    fireEvent.click(await screen.findByRole("button", { name: "+ Crea una nuova azione" }));
+    const sheet = await screen.findByRole("dialog", { name: "Nuova azione" });
+    fireEvent.change(within(sheet).getByLabelText("Nome"), { target: { value: "Visita in fiera" } });
+    fireEvent.change(within(sheet).getByLabelText("Etichetta 1"), { target: { value: "Codice fiera" } });
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Crea l'azione" })).not.toBeDisabled());
+    fireEvent.click(within(sheet).getByRole("button", { name: "Crea l'azione" }));
+    expect(await screen.findByText("Visita in fiera è stata creata e aggiunta a Quando.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Prova nel simulatore/ })).toBeNull();
   });
 
   it("ADMIN: se abilitare la nuova azione su una fonte non riesce, lo dice", async () => {

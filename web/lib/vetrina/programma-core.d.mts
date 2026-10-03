@@ -24,6 +24,8 @@ export interface Scope {
   readonly wallets?: boolean;
   /** Solo letture (le uniche scritture sono i POST /v1/imports, che hanno la propria lista bianca). */
   readonly readOnly?: boolean;
+  /** Il POST /v1/imports ammesso è quello dell'azione singola (altrimenti quello delle storie). */
+  readonly actionImport?: boolean;
 }
 export const CLI_SCOPE: Scope;
 export const PROGRAM_SCOPE: Scope;
@@ -56,6 +58,7 @@ export interface ActionType {
 }
 export const ACTION_TYPES: readonly ActionType[];
 export const MAX_ACTION_AMOUNT: number;
+export function parseActionAmount(amount: unknown): number;
 export function buildActionRow(args: {
   type: string;
   memberId: string;
