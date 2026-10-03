@@ -1,8 +1,9 @@
 # SOLO CI. Reverse proxy TLS dello smoke enterprise (F2-QA-04, ADR-049, M8.14 V6), letto dal servizio `proxy` di
-# deploy/compose/ci/smoke-enterprise.yml. Stesse regole del proxy della vetrina (deploy/vetrina/caddy/Caddyfile):
+# deploy/compose/ci/smoke-enterprise.yml. Stesse regole del proxy della vetrina (deploy/vetrina/caddy/Caddyfile.codespace):
 # web intero, di Keycloak solo i realm `loyaltyhub` e `loyaltyhub-members` (ADR-051) e le risorse statiche, console /admin e realm `master` in 404.
-# Differenze: certificato della CA di prova generata nel job (niente ACME, niente uscita verso Internet), porta 8443
-# (il proxy gira come utente del runner, senza capability), nessun redirect da http.
+# Differenze da Caddyfile.codespace: in CI il TLS lo termina questo proxy con un certificato della CA di prova generata
+# nel job, sulla porta 8443 (nella vetrina lo termina l'inoltro delle porte di GitHub su 8000 e 8001); il proxy gira come
+# utente del runner, senza capability; non ci sono le console dei realm, quindi `/admin` risponde 404.
 {
 	admin off
 	auto_https disable_redirects

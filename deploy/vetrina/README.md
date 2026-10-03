@@ -1,6 +1,6 @@
 # Vetrina enterprise: runbook
 
-Questa cartella installa e mantiene la **vetrina enterprise** (F2-DIST-09, ADR-049): una seconda installazione di Loyalty Hub in `LH_PROFILE=enterprise`, separata dalla demo, in un GitHub Codespace acceso su richiesta (ADR-050, ADR-051). Usa il compose di riferimento (`deploy/compose/reference.yml`, F2-DIST-03) più l'overlay di questa cartella.
+Questa cartella installa e mantiene la **vetrina enterprise** (F2-DIST-09, ADR-049): una seconda installazione di Loyalty Hub in `LH_PROFILE=enterprise`, separata dalla demo, in un GitHub Codespace acceso su richiesta (ADR-050, ADR-051). Usa il compose di riferimento (`deploy/compose/reference.yml`, F2-DIST-03) più gli overlay di questa cartella.
 
 La vetrina serve a far vedere online login reale, MFA e audit con l'attore del token. Non è ad alta disponibilità, contiene solo dati fittizi e riparte vuota a ogni codespace nuovo, senza backup (Q-663). Il contesto per chi legge la documentazione è nella pagina «Vetrina enterprise» del sito (`concetti/vetrina-enterprise.mdx`).
 
@@ -8,13 +8,12 @@ La vetrina serve a far vedere online login reale, MFA e audit con l'attore del t
 
 | File | A cosa serve |
 |---|---|
-| `compose.vetrina.yml` | Overlay del compose di riferimento: reverse proxy TLS, TLS verso Kafka e Postgres, segreti da file, profilo fisso. |
-| `caddy/Caddyfile` | Proxy dell'overlay di base: nel codespace lo sostituisce `caddy/Caddyfile.codespace`. |
+| `compose.vetrina.yml` | Overlay del compose di riferimento: reverse proxy in HTTP su `127.0.0.1:8000` e `8001`, TLS verso Kafka e Postgres, segreti da file, profilo fisso. |
 | `postgres/pg_hba.conf` | Postgres accetta dalla rete solo connessioni TLS (Q-621). |
 | `kafka/client-ssl.properties` | Client TLS del controllo di salute di Kafka. |
-| `compose.codespace.yml` | Overlay aggiuntivo per il codespace: proxy in HTTP su `127.0.0.1:8000` e `8001`, niente ACME né alias (Q-661). |
+| `compose.codespace.yml` | Overlay aggiuntivo per il codespace: console di Keycloak (Q-670), utenti di test (Q-676) e controlli di salute con Node. |
 | `caddy/Caddyfile.codespace` | Proxy del codespace: instrada per porta; Keycloak solo per i realm `loyaltyhub` e `loyaltyhub-members` con le loro console, `master` sempre `404` (Q-670). |
-| `vetrina.sh` | Comandi per il codespace: `codespace`, `provision`, `preflight`, `up`, `down`, `reset`, `idp-reset`, `operators`, `membri`, `programma`, `compose`. Contiene ancora una modalità per un host fisso: non è supportata e si rimuove (ADR-051 decisione 5). |
+| `vetrina.sh` | Comandi per il codespace: `codespace`, `provision`, `preflight`, `up`, `down`, `reset`, `idp-reset`, `operators`, `membri`, `programma`, `compose`. Un file di configurazione già scritto con `LH_VETRINA_MODE=codespace` resta valido; ogni altro valore è rifiutato. |
 | `scripts/vetrina-membri.mjs` | Registra Anna, Marco e Giulia dal portale e riporta Laura alla registrazione da zero (Q-673). |
 | `operatori.py` | Crea gli account operatore nominativi con MFA (Q-618) a ogni azzeramento. |
 | `vetrina.env.example` | Elenco delle chiavi di configurazione, senza segreti: nel codespace le scrive da solo `vetrina.sh codespace`. |
@@ -116,10 +115,10 @@ flowchart TD
 
 ### Ingresso e rete
 
-- **Ingresso.** Niente IP pubblico né certificati ACME: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy Caddy resta, in HTTP su `127.0.0.1:8000` (web) e `127.0.0.1:8001` (Keycloak), per tenere fuori il realm `master`, aprire solo le console dei due realm di vetrina e aggiungere le intestazioni di sicurezza.
+- **Ingresso.** Nessun certificato da gestire: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy Caddy resta, in HTTP su `127.0.0.1:8000` (web) e `127.0.0.1:8001` (Keycloak), per tenere fuori il realm `master`, aprire solo le console dei due realm di vetrina e aggiungere le intestazioni di sicurezza.
 - **Emittente OIDC.** Web e hub chiamano Keycloak con lo stesso indirizzo pubblico del browser, passando dall'inoltro di GitHub (Q-420): per questo la porta 8001 deve essere pubblica.
 - **Console di Keycloak.** Quelle dei realm `loyaltyhub` e `loyaltyhub-members` sono pubbliche sulla porta 8001; quella del realm `master` è solo sulla porta 8180 privata. Indirizzi, accessi e limiti sono nella sezione «Console di Keycloak».
-- **Azzeramento.** Niente timer settimanale (non gira a codespace fermo): un codespace nuovo parte vuoto e quello attuale si azzera a mano con `vetrina.sh reset` (Q-663).
+- **Azzeramento.** Nessuna pianificazione (non girerebbe a codespace fermo): un codespace nuovo parte vuoto e quello attuale si azzera a mano con `vetrina.sh reset` (Q-663).
 
 ### Utenti di test (ADR-051 decisione 1)
 

@@ -1,6 +1,6 @@
-# Proxy della vetrina enterprise nel codespace (F2-DIST-09, ADR-050, Q-661). Letto dal servizio `proxy` con
-# deploy/vetrina/compose.codespace.yml. Niente ACME: il TLS lo termina l'inoltro delle porte di GitHub, che porta qui il
-# traffico di https://<codespace>-8000.<dominio> e https://<codespace>-8001.<dominio>. Il proxy instrada per porta,
+# Proxy della vetrina enterprise nel codespace (F2-DIST-09, ADR-050, Q-661). Letto dal servizio `proxy` di
+# deploy/vetrina/compose.vetrina.yml. Nessun certificato da ottenere: il TLS lo termina l'inoltro delle porte di GitHub,
+# che porta qui il traffico di https://<codespace>-8000.<dominio> e https://<codespace>-8001.<dominio>. Il proxy instrada per porta,
 # qualunque sia l'intestazione Host, e parla solo con `web` e `idp` sulla rete interna.
 {
 	# API di amministrazione spenta: niente configurazione a runtime da localhost:2019.

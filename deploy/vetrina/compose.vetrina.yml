@@ -1,14 +1,15 @@
-# Overlay della vetrina enterprise ospitata sul compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, M8.14 V3).
+# Overlay della vetrina enterprise ospitata sul compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, ADR-050, M8.14 V3).
 #
 # Si usa SOLO insieme a deploy/compose/reference.yml e SOLO tramite deploy/vetrina/vetrina.sh, che legge la
-# configurazione dell'host, genera segreti e certificati e fa i controlli preliminari (runbook: deploy/vetrina/README.md):
-#   deploy/vetrina/vetrina.sh up
+# configurazione, genera segreti e certificati e fa i controlli preliminari (runbook: deploy/vetrina/README.md). Gira solo
+# in un GitHub Codespace (ADR-050, ADR-051 decisione 5), insieme a deploy/vetrina/compose.codespace.yml:
+#   deploy/vetrina/vetrina.sh codespace
 # I percorsi relativi valgono dalla cartella del primo file (deploy/compose), come nel compose di riferimento.
 #
 # Cosa aggiunge al compose di riferimento:
-# - `proxy`: reverse proxy TLS con certificati ACME per due nomi, `web` e `idp`, su un sottodominio gratuito (Q-620).
-#   È l'unico componente nuovo, dichiarato solo qui (regola 8-bis, ADR-049) e l'unico con porte pubbliche (80 e 443),
-#   pubblicate sull'indirizzo dell'host scelto in LH_VETRINA_PUBLIC_ADDRESS, mai su 0.0.0.0.
+# - `proxy`: reverse proxy HTTP dietro l'inoltro delle porte del codespace (ADR-050, Q-661), che termina il TLS.
+#   È l'unico componente nuovo, dichiarato solo qui (regola 8-bis, ADR-049) e l'unico con porte pubblicate nel
+#   codespace (8000 e 8001, solo su loopback).
 # - TLS verso bus e database con una CA locale generata sull'host (Q-621): Kafka con un listener SSL e autenticazione
 #   del client (KAFKA_SECURITY=SSL_PEM nell'hub), Postgres che accetta solo connessioni TLS (pg_hba `hostssl`) e client
 #   con sslmode=verify-full (più stretto di `require`: verifica anche nome e CA). Nessuna eccezione di vetrina alla
@@ -19,7 +20,7 @@
 # - Profilo fisso: LH_PROFILE=enterprise e LH_IDENTITY_MODE=oidc, senza telemetria in uscita (ADR-044).
 # - Rete: web e idp restano su 127.0.0.1 (LH_BIND_ADDRESS, imposto da vetrina.sh); hub su 127.0.0.1:8080 solo per lo
 #   script del programma (scripts/vetrina-programma.mjs); Postgres e Kafka solo sulla rete interna.
-# Non è HA (un host, un broker, un Postgres, una replica del web) e si azzera ogni settimana senza backup (Q-624).
+# Non è HA (un codespace, un broker, un Postgres, una replica del web) e si azzera senza backup (Q-624).
 name: loyaltyhub-vetrina
 
 # Segreti da file e guardie di trasporto (POSIX sh con soli builtin: vale per l'immagine unica, Keycloak e Postgres).
@@ -65,12 +66,15 @@ x-lh-vetrina-env: &lh-vetrina-env
     exec "$$@"
 
 services:
-  # ---------- Reverse proxy TLS (Q-620): unico componente nuovo, unico esposto ----------
-  # Certificati ACME automatici per LH_VETRINA_WEB_HOST e LH_VETRINA_IDP_HOST, conservati nel volume
-  # lh-vetrina-caddy-data, che l'azzeramento settimanale NON tocca (limiti di emissione della CA ACME).
-  # Gli alias di rete fanno risolvere i due nomi pubblici al proxy anche dentro la rete compose: il web chiama
-  # l'emittente e Keycloak il back-channel logout con l'URL pubblico, lo stesso del browser (Q-420), senza uscire
-  # dall'host. Senza healthcheck: l'API di amministrazione è spenta (`admin off`) e lo stato si vede da `ps` e dai log.
+  # ---------- Reverse proxy della vetrina (ADR-050): unico componente nuovo, unico esposto ----------
+  # Nel codespace il TLS lo termina l'inoltro delle porte di GitHub: il proxy resta in HTTP su due porte di loopback,
+  # 8000 (web) e 8001 (Keycloak), rese pubbliche nel codespace. Apre solo i due realm di vetrina e le loro console
+  # (404 su `master`) e aggiunge le intestazioni di sicurezza (caddy/Caddyfile.codespace). NET_BIND_SERVICE resta
+  # nell'insieme limite: il binario caddy ha la file capability cap_net_bind_service e senza il kernel ne rifiuta
+  # l'esecuzione ("exec /usr/bin/caddy: operation not permitted", visto nello smoke enterprise in CI).
+  # Niente alias di rete: i nomi pubblici puntano a GitHub, non al proxy. Web e hub raggiungono l'emittente con lo
+  # stesso URL del browser, passando dall'inoltro delle porte (Q-420), con un certificato pubblico verificato.
+  # Senza healthcheck: l'API di amministrazione è spenta (`admin off`) e lo stato si vede da `ps` e dai log.
   proxy:
     image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
     restart: unless-stopped
@@ -83,20 +87,15 @@ services:
     cap_add:
       - NET_BIND_SERVICE
     ports:
-      - "${LH_VETRINA_PUBLIC_ADDRESS:?LH_VETRINA_PUBLIC_ADDRESS obbligatoria, indirizzo privato dell'host}:80:80"
-      - "${LH_VETRINA_PUBLIC_ADDRESS:?LH_VETRINA_PUBLIC_ADDRESS obbligatoria, indirizzo privato dell'host}:443:443"
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8001:8001"
     environment:
       LH_VETRINA_WEB_HOST: "${LH_VETRINA_WEB_HOST:?LH_VETRINA_WEB_HOST obbligatoria}"
       LH_VETRINA_IDP_HOST: "${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}"
     volumes:
-      - ../vetrina/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../vetrina/caddy/Caddyfile.codespace:/etc/caddy/Caddyfile:ro
       - lh-vetrina-caddy-data:/data
       - lh-vetrina-caddy-config:/config
-    networks:
-      default:
-        aliases:
-          - "${LH_VETRINA_WEB_HOST:?LH_VETRINA_WEB_HOST obbligatoria}"
-          - "${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}"
     mem_limit: 128m
     cpus: 0.5
 
@@ -193,8 +192,8 @@ services:
       KAFKA_SSL_KEY_B64_FILE: /run/secrets/lh_kafka_client_key_b64
       LH_SUBJECT_KEY: ""
       LH_SUBJECT_KEY_FILE: /run/secrets/lh_subject_key
-      # Emittente e JWKS con l'URL pubblico https: il JWKS passa dal proxy (alias di rete) con il certificato ACME,
-      # non in chiaro sulla rete interna.
+      # Emittente e JWKS con l'URL pubblico https: il JWKS passa dall'inoltro delle porte del codespace con
+      # un certificato pubblico, non in chiaro sulla rete interna.
       LH_OIDC_ISSUER: "https://${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}/realms/loyaltyhub"
       LH_OIDC_JWKS_URI: "https://${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}/realms/loyaltyhub/protocol/openid-connect/certs"
       # Realm dei membri (ADR-051), con lo stesso giro dal proxy.
@@ -233,8 +232,8 @@ services:
       - lh_portal_client_secret
       - lh_web_session_key
 
-  # Keycloak: database con TLS verificato, console /admin solo da 127.0.0.1:8180 (il proxy non la espone; si
-  # raggiunge con un tunnel SSH), realm reimportato a ogni azzeramento (volume di Postgres ricreato).
+  # Keycloak: database con TLS verificato, console del realm `master` solo da 127.0.0.1:8180 (inoltro
+  # privato del codespace, il proxy non la espone), realm reimportato a ogni azzeramento e a ogni avvio.
   idp:
     entrypoint: *lh-vetrina-env
     environment:

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Verifiche dell'overlay di vetrina del compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, M8.14 V3;
-// Q-616, Q-620, Q-621, Q-624). Uso: node --test scripts/check-vetrina.mjs (job `seed` della CI).
+// Verifiche degli overlay di vetrina del compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, ADR-050, ADR-051,
+// M8.14 V3 e V12; Q-616, Q-621, Q-624). Uso: node --test scripts/check-vetrina.mjs (job `seed` della CI).
+// La vetrina gira solo in un GitHub Codespace (V12): nessun residuo dell'host fisso (ACME, systemd, Oracle) in deploy/vetrina/.
 //
-// - statiche: overlay, Caddyfile, pg_hba, timer; nessun segreto in chiaro, TLS verso bus e database, porte;
+// - statiche: overlay, Caddyfile del codespace, pg_hba; nessun segreto in chiaro, TLS verso bus e database, porte;
 // - compose unito (solo se c'è `docker compose`): limiti di memoria, porte pubblicate, ambiente dei servizi;
 // - entrypoint dell'overlay eseguito con sh: segreti solo da file, guardie TLS, nessun valore stampato;
 // - vetrina.sh: configurazione, provisioning in una cartella temporanea (permessi, idempotenza, certificati);
@@ -22,6 +23,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pemHeader = (label) => `-----BEGIN ${label}-----`;
 const DIR = path.join(ROOT, 'deploy/vetrina');
 const OVERLAY = path.join(DIR, 'compose.vetrina.yml');
+const CODESPACE_OVERLAY = path.join(DIR, 'compose.codespace.yml');
 const REFERENCE = path.join(ROOT, 'deploy/compose/reference.yml');
 const VETRINA_SH = path.join(DIR, 'vetrina.sh');
 const OPERATORI = path.join(DIR, 'operatori.py');
@@ -41,32 +43,28 @@ const SECRET_FILES = shellArray('SECRETS').map((e) => e.split(':')[0]);
 const EXAMPLE_ENV = {
   LH_IMAGE: 'ghcr.io/example/loyaltyhub:ci',
   LH_VETRINA_DIR: '/etc/loyaltyhub-vetrina',
-  LH_VETRINA_WEB_HOST: 'web-vetrina.example.org',
-  LH_VETRINA_IDP_HOST: 'idp-vetrina.example.org',
-  LH_VETRINA_PUBLIC_ADDRESS: '10.0.0.10',
+  LH_VETRINA_WEB_HOST: 'prova-vetrina-8000.app.github.dev',
+  LH_VETRINA_IDP_HOST: 'prova-vetrina-8001.app.github.dev',
+  LH_VETRINA_ADMIN_HOST: 'prova-vetrina-8180.app.github.dev',
 };
+const CODESPACE_ENV = EXAMPLE_ENV;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Statiche
 
-test('overlay: progetto separato dalla demo e dal riferimento, proxy dichiarato con digest e porte sull\'indirizzo dell\'host', () => {
+test('overlay: progetto separato dalla demo e dal riferimento, proxy dichiarato con digest e porte HTTP solo su loopback (ADR-050)', () => {
   assert.equal(overlay.name, 'loyaltyhub-vetrina');
   const proxy = overlay.services.proxy;
   assert.match(proxy.image, /^caddy:\d+\.\d+\.\d+-alpine@sha256:[0-9a-f]{64}$/, 'proxy con tag e digest');
-  assert.deepEqual(proxy.ports, [
-    '${LH_VETRINA_PUBLIC_ADDRESS:?LH_VETRINA_PUBLIC_ADDRESS obbligatoria, indirizzo privato dell\'host}:80:80',
-    '${LH_VETRINA_PUBLIC_ADDRESS:?LH_VETRINA_PUBLIC_ADDRESS obbligatoria, indirizzo privato dell\'host}:443:443',
-  ]);
+  assert.deepEqual(proxy.ports, ['127.0.0.1:8000:8000', '127.0.0.1:8001:8001']);
   assert.equal(proxy.read_only, true);
   assert.deepEqual(proxy.cap_drop, ['ALL']);
   assert.deepEqual(proxy.cap_add, ['NET_BIND_SERVICE']);
   assert.ok(proxy.security_opt.includes('no-new-privileges:true'));
   assert.ok(proxy.mem_limit, 'limite di memoria del proxy');
   assert.equal(proxy.user, undefined, 'nessun utente root esplicito (LH-DC-0001)');
-  assert.deepEqual(proxy.networks.default.aliases, [
-    '${LH_VETRINA_WEB_HOST:?LH_VETRINA_WEB_HOST obbligatoria}',
-    '${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}',
-  ], 'i nomi pubblici risolvono al proxy anche dentro la rete compose (Q-420)');
+  assert.equal(proxy.networks, undefined, 'nessun alias: i nomi pubblici puntano all\'inoltro di GitHub (Q-420)');
+  assert.ok(proxy.volumes.includes('../vetrina/caddy/Caddyfile.codespace:/etc/caddy/Caddyfile:ro'));
   // Solo l'hub ha in più una porta, e solo su loopback.
   assert.deepEqual(overlay.services.hub.ports, ['127.0.0.1:8080:8080']);
   for (const [name, svc] of Object.entries(overlay.services)) {
@@ -155,28 +153,7 @@ test('pg_hba: dalla rete solo TLS, connessioni in chiaro rifiutate', () => {
   assert.ok(rules.some((r) => r[0] === 'hostnossl' && r[3] === '::/0'));
 });
 
-test('Caddyfile: API di amministrazione spenta, Keycloak esposto solo per i realm loyaltyhub e loyaltyhub-members e le risorse', () => {
-  const c = read(path.join(DIR, 'caddy/Caddyfile'));
-  assert.match(c, /^\s*admin off$/m);
-  assert.match(c, /^\{\$LH_VETRINA_WEB_HOST\} \{[\s\S]*?reverse_proxy web:3000/m);
-  const idp = c.split('{$LH_VETRINA_IDP_HOST} {')[1];
-  assert.ok(idp, 'blocco del nome idp');
-  // I due realm (ADR-051): operatori e membri; nessun altro realm, nessuna console.
-  assert.match(idp, /@realm path \/realms\/loyaltyhub \/realms\/loyaltyhub\/\* \/realms\/loyaltyhub-members \/realms\/loyaltyhub-members\/\* \/resources\/\*\n/);
-  assert.match(idp, /handle @realm \{\s*reverse_proxy idp:8080\s*\}/);
-  assert.match(idp, /handle \{\s*respond 404\s*\}/);
-  assert.equal((c.match(/reverse_proxy/g) ?? []).length, 2, 'solo web e idp dietro il proxy');
-  assert.doesNotMatch(c.replace(/^\s*#.*$/gm, ''), /\/admin|realms\/master/);
-});
-
-test('timer: azzeramento settimanale con vetrina.sh reset (Q-624)', () => {
-  const timer = read(path.join(DIR, 'systemd/loyaltyhub-vetrina-reset.timer'));
-  assert.match(timer, /^OnCalendar=Mon \*-\*-\* 03:00:00 UTC$/m);
-  assert.match(timer, /^Persistent=true$/m);
-  const svc = read(path.join(DIR, 'systemd/loyaltyhub-vetrina-reset.service'));
-  assert.match(svc, /^ExecStart=\/opt\/loyaltyhub\/deploy\/vetrina\/vetrina\.sh reset$/m);
-  assert.match(svc, /^Type=oneshot$/m);
-  // Azzeramento: solo i volumi di Postgres e Kafka, mai quelli del proxy (certificati ACME).
+test('azzeramento: solo i volumi di Postgres e Kafka (Q-624), a mano con vetrina.sh reset', () => {
   assert.deepEqual(shellArray('RESET_VOLUMES'), ['lh-ref-postgres', 'lh-ref-kafka']);
 });
 
@@ -194,12 +171,12 @@ test('script: sintassi di vetrina.sh e operatori.py', () => {
 const haveCompose = has('docker') && spawnSync('docker', ['compose', 'version']).status === 0;
 
 function composeConfig(env) {
-  return spawnSync('docker', ['compose', '-f', REFERENCE, '-f', OVERLAY, 'config', '--format', 'json'], {
+  return spawnSync('docker', ['compose', '-f', REFERENCE, '-f', OVERLAY, '-f', CODESPACE_OVERLAY, 'config', '--format', 'json'], {
     env: { PATH: process.env.PATH, HOME: process.env.HOME ?? os.tmpdir(), ...env }, encoding: 'utf8',
   });
 }
 
-test('compose unito: limiti di memoria per ogni container, porte solo su loopback salvo il proxy', { skip: !haveCompose && 'docker compose assente' }, () => {
+test('compose unito: limiti di memoria per ogni container, porte solo su loopback, nessun servizio in più', { skip: !haveCompose && 'docker compose assente' }, () => {
   const r = composeConfig(EXAMPLE_ENV);
   assert.equal(r.status, 0, r.stderr);
   const cfg = JSON.parse(r.stdout);
@@ -208,31 +185,26 @@ test('compose unito: limiti di memoria per ogni container, porte solo su loopbac
   assert.deepEqual(names, ['hub', 'idp', 'kafka', 'migrate', 'postgres', 'proxy', 'web'], 'nessun servizio di osservabilità né altri');
   for (const [name, svc] of Object.entries(cfg.services)) {
     assert.ok(svc.mem_limit, `${name}: limite di memoria`);
-    for (const p of svc.ports ?? []) {
-      if (name === 'proxy') {
-        assert.equal(p.host_ip, '10.0.0.10');
-        assert.ok(['80', '443'].includes(String(p.published)));
-      } else {
-        assert.equal(p.host_ip, '127.0.0.1', `${name}: porta ${p.published} solo su loopback`);
-      }
-    }
+    for (const p of svc.ports ?? []) assert.equal(p.host_ip, '127.0.0.1', `${name}: porta ${p.published} solo su loopback`);
   }
-  assert.equal(cfg.services.hub.environment.LH_OIDC_ISSUER, 'https://idp-vetrina.example.org/realms/loyaltyhub');
+  assert.equal(cfg.services.hub.environment.LH_OIDC_ISSUER, 'https://prova-vetrina-8001.app.github.dev/realms/loyaltyhub');
   // Realm dei membri (ADR-051): stesso emittente pubblico per hub e web, JWKS dal proxy, client portal con il segreto da file.
-  assert.equal(cfg.services.hub.environment.LH_OIDC_MEMBER_ISSUER, 'https://idp-vetrina.example.org/realms/loyaltyhub-members');
-  assert.equal(cfg.services.hub.environment.LH_OIDC_MEMBER_JWKS_URI, 'https://idp-vetrina.example.org/realms/loyaltyhub-members/protocol/openid-connect/certs');
+  assert.equal(cfg.services.hub.environment.LH_OIDC_MEMBER_ISSUER, 'https://prova-vetrina-8001.app.github.dev/realms/loyaltyhub-members');
+  assert.equal(cfg.services.hub.environment.LH_OIDC_MEMBER_JWKS_URI, 'https://prova-vetrina-8001.app.github.dev/realms/loyaltyhub-members/protocol/openid-connect/certs');
   assert.equal(cfg.services.web.environment.LH_OIDC_MEMBER_ISSUER, cfg.services.hub.environment.LH_OIDC_MEMBER_ISSUER);
   assert.equal(cfg.services.web.environment.LH_WEB_MEMBER_CLIENT_ID, 'portal');
   assert.equal(cfg.services.web.environment.LH_WEB_MEMBER_CLIENT_SECRET_FILE, '/run/secrets/lh_portal_client_secret');
   assert.equal(cfg.services.idp.environment.LH_PORTAL_CLIENT_SECRET_FILE, '/run/secrets/lh_portal_client_secret');
   assert.ok(cfg.services.idp.volumes.some((v) => v.target === '/opt/keycloak/data/import/loyaltyhub-members-realm.json'), 'realm dei membri importato');
-  assert.equal(cfg.services.web.environment.LH_WEB_URL, 'https://web-vetrina.example.org');
-  // Utenti di test (Q-676): fuori dal codespace l'overlay non dichiara le variabili.
-  for (const svc of ['hub', 'web', 'idp']) {
-    assert.equal(cfg.services[svc].environment.LH_TEST_USERS_ALLOWED, undefined, svc);
-    assert.equal(cfg.services[svc].environment.LH_ENVIRONMENT, undefined, svc);
+  assert.equal(cfg.services.web.environment.LH_WEB_URL, 'https://prova-vetrina-8000.app.github.dev');
+  // Utenti di test (Q-676): senza che vetrina.sh le passi (CODESPACES=true) le variabili sono vuote; idp non le ha.
+  for (const svc of ['hub', 'web']) {
+    assert.equal(cfg.services[svc].environment.LH_TEST_USERS_ALLOWED ?? '', '', svc);
+    assert.equal(cfg.services[svc].environment.LH_ENVIRONMENT ?? '', '', svc);
   }
-  assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://idp-vetrina.example.org');
+  assert.equal(cfg.services.idp.environment.LH_TEST_USERS_ALLOWED, undefined);
+  assert.equal(cfg.services.idp.environment.LH_ENVIRONMENT, undefined);
+  assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://prova-vetrina-8001.app.github.dev');
   assert.equal(cfg.secrets.lh_db_password.file, '/etc/loyaltyhub-vetrina/secrets/db-password');
   // Anche con le variabili di segreto del riferimento esportate, nel compose unito restano vuote.
   const leaked = composeConfig({ ...EXAMPLE_ENV, LH_DB_PASSWORD: 'non-deve-entrare', LH_SUBJECT_KEY: 'non-deve-entrare', LH_PORTAL_CLIENT_SECRET: 'non-deve-entrare' });
@@ -241,8 +213,8 @@ test('compose unito: limiti di memoria per ogni container, porte solo su loopbac
   assert.doesNotMatch(JSON.stringify(JSON.parse(leaked.stdout).services), /non-deve-entrare/);
 });
 
-test('compose unito: senza indirizzo, nomi o cartella dei segreti non si avvia', { skip: !haveCompose && 'docker compose assente' }, () => {
-  for (const missing of ['LH_VETRINA_PUBLIC_ADDRESS', 'LH_VETRINA_IDP_HOST', 'LH_VETRINA_DIR']) {
+test('compose unito: senza nomi o cartella dei segreti non si avvia', { skip: !haveCompose && 'docker compose assente' }, () => {
+  for (const missing of ['LH_VETRINA_WEB_HOST', 'LH_VETRINA_IDP_HOST', 'LH_VETRINA_DIR']) {
     const env = { ...EXAMPLE_ENV };
     delete env[missing];
     const r = composeConfig(env);
@@ -320,20 +292,29 @@ function vetrina(args, cfg, env = {}) {
   });
 }
 
-test('vetrina.sh: configurazione rifiutata (uscita 2) con chiavi ignote, bind non loopback, nomi o indirizzi non validi', () => {
+test('vetrina.sh: configurazione rifiutata (uscita 2) con chiavi ignote, bind non loopback, nomi, indirizzo o modalità non validi', () => {
   const d = tmp();
   const cases = [
     ['LH_DB_PASSWORD=x\n', /chiave non ammessa: LH_DB_PASSWORD/],
     ['LH_BIND_ADDRESS=0.0.0.0\n', /LH_BIND_ADDRESS deve essere 127\.0\.0\.1/],
-    ['LH_VETRINA_PUBLIC_ADDRESS=0.0.0.0\n', /non può essere 0\.0\.0\.0/],
+    ['LH_VETRINA_PUBLIC_ADDRESS=0.0.0.0\n', /LH_VETRINA_PUBLIC_ADDRESS, se presente, deve essere 127\.0\.0\.1/],
+    ['LH_VETRINA_MODE=host\n', /LH_VETRINA_MODE ammette solo codespace/],
+    ['LH_VETRINA_MODE=cloud\n', /LH_VETRINA_MODE ammette solo codespace/],
     ['LH_VETRINA_WEB_HOST=https://web.example.org\n', /LH_VETRINA_WEB_HOST non è un nome DNS valido/],
-    ['LH_VETRINA_IDP_HOST=web-vetrina.example.org\n', /devono essere diversi/],
+    ['LH_VETRINA_IDP_HOST=prova-vetrina-8000.app.github.dev\n', /devono essere diversi/],
     ['LH_HUB_DEMO_URL=http://demo.example.org\n', /LH_HUB_DEMO_URL deve essere un'origine https/],
   ];
   for (const [extra, msg] of cases) {
     const r = vetrina(['provision'], writeConfig(d, extra));
     assert.equal(r.status, 2, `${extra.trim()}: ${r.stderr}`);
     assert.match(r.stderr, msg);
+  }
+  // File già scritti (regola 14): la modalità `codespace` e l'indirizzo 127.0.0.1 si accettano ancora, senza effetto.
+  const legacy = vetrina(['preflight', '--offline'], writeConfig(d, 'LH_VETRINA_MODE=codespace\nLH_VETRINA_PUBLIC_ADDRESS=127.0.0.1\n'));
+  assert.notEqual(legacy.status, 2, `configurazione valida rifiutata: ${legacy.stderr}`);
+  if (has('openssl')) {
+    const prov = vetrina(['provision'], writeConfig(d, 'LH_VETRINA_MODE=codespace\nLH_VETRINA_PUBLIC_ADDRESS=127.0.0.1\n'));
+    assert.equal(prov.status, 0, `provision con la configurazione vecchia: ${prov.stderr}`);
   }
   const cfg = writeConfig(d);
   fs.chmodSync(cfg, 0o666);
@@ -537,24 +518,16 @@ test('operatori.py: account nominativi con ruolo e MFA_REQUIRED_ROLE, password s
 // ---------------------------------------------------------------------------------------------------------------
 // Codespace (ADR-050, M8.14 V7; Q-660…Q-663)
 
-const CODESPACE_OVERLAY = path.join(DIR, 'compose.codespace.yml');
 const DEVCONTAINER = path.join(ROOT, '.devcontainer/vetrina/devcontainer.json');
 const AVVIO = path.join(ROOT, '.devcontainer/vetrina/avvio.sh');
-const CODESPACE_ENV = {
-  ...EXAMPLE_ENV,
-  LH_VETRINA_WEB_HOST: 'prova-vetrina-8000.app.github.dev',
-  LH_VETRINA_IDP_HOST: 'prova-vetrina-8001.app.github.dev',
-  LH_VETRINA_ADMIN_HOST: 'prova-vetrina-8180.app.github.dev',
-  LH_VETRINA_PUBLIC_ADDRESS: '127.0.0.1',
-};
 
 test('vetrina.sh: utenti di test ammessi solo nel codespace con CODESPACES=true, altrove variabili forzate a vuoto (Q-676)', () => {
   const sh = read(VETRINA_SH);
   const fn = sh.split('\ncompose() {')[1]?.split('\n}\n')[0] ?? '';
   assert.match(fn, /local test_env=\(LH_TEST_USERS_ALLOWED= LH_ENVIRONMENT=\)/, 'default: vuote, anche se esportate');
-  assert.match(fn, /if \[ "\$\{LH_VETRINA_MODE:-host\}" = codespace \] && \[ "\$\{CODESPACES:-\}" = true \]; then\n\s+test_env=\(LH_TEST_USERS_ALLOWED=true LH_ENVIRONMENT=test\)/);
+  assert.match(fn, /if \[ "\$\{CODESPACES:-\}" = true \]; then\n\s+test_env=\(LH_TEST_USERS_ALLOWED=true LH_ENVIRONMENT=test\)/);
   assert.match(fn, /env "\$\{unset_args\[@\]\}" "\$\{test_env\[@\]\}" docker compose/);
-  // Né il compose di riferimento né l'overlay dell'host fisso né il chart le dichiarano.
+  // Né il compose di riferimento né l'overlay di base né il chart le dichiarano.
   for (const f of [REFERENCE, OVERLAY, path.join(ROOT, 'deploy/helm/loyaltyhub/templates/hub.yaml'), path.join(ROOT, 'deploy/helm/loyaltyhub/templates/web.yaml')]) {
     assert.doesNotMatch(read(f), /LH_TEST_USERS_ALLOWED|LH_ENVIRONMENT/, path.relative(ROOT, f));
   }
@@ -704,7 +677,7 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
     assert.equal(cfg.services[svc].environment.LH_ENVIRONMENT, 'test', svc);
   }
   assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://prova-vetrina-8001.app.github.dev');
-  // Q-670: nel codespace KC_HOSTNAME_ADMIN non e' impostato (l'overlay dell'host fisso lo fissa a 127.0.0.1:8180 e qui lo
+  // Q-670: nel codespace KC_HOSTNAME_ADMIN non e' impostato (l'overlay di base lo fissa a 127.0.0.1:8180 e qui lo
   // toglie): la console dei due realm usa l'indirizzo pubblico, quella di master il frontendUrl del suo realm (8180).
   assert.ok((cfg.services.idp.environment.KC_HOSTNAME_ADMIN ?? null) === null, `KC_HOSTNAME_ADMIN impostato: ${cfg.services.idp.environment.KC_HOSTNAME_ADMIN}`);
   assert.deepEqual(cfg.services.idp.ports.map((p) => `${p.host_ip}:${p.published}`), ['127.0.0.1:8180']);
@@ -713,7 +686,7 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
   assert.match(cfg.services.hub.environment.DB_URL, /sslmode=verify-full/);
 });
 
-test('vetrina.sh in modalità codespace: configurazione rifiutata se il proxy esce da loopback o i nomi non sono del codespace', () => {
+test('vetrina.sh: configurazione rifiutata se il proxy esce da loopback o i nomi non sono del codespace', () => {
   const d = tmp();
   const write = (env, extra = '') => {
     const cfg = path.join(d, 'vetrina.env');
@@ -722,12 +695,12 @@ test('vetrina.sh in modalità codespace: configurazione rifiutata se il proxy es
     return cfg;
   };
   const cases = [
-    [{ ...CODESPACE_ENV, LH_VETRINA_PUBLIC_ADDRESS: '10.0.0.10' }, /deve essere 127\.0\.0\.1 nel codespace/],
+    [{ ...CODESPACE_ENV, LH_VETRINA_PUBLIC_ADDRESS: '10.0.0.10' }, /LH_VETRINA_PUBLIC_ADDRESS, se presente, deve essere 127\.0\.0\.1/],
     [{ ...CODESPACE_ENV, LH_VETRINA_WEB_HOST: 'web-vetrina.example.org' }, /LH_VETRINA_WEB_HOST nel codespace/],
     [{ ...CODESPACE_ENV, LH_VETRINA_IDP_HOST: 'prova-vetrina-8443.app.github.dev' }, /LH_VETRINA_IDP_HOST nel codespace/],
     [{ ...CODESPACE_ENV, LH_VETRINA_ADMIN_HOST: '' }, /LH_VETRINA_ADMIN_HOST nel codespace/],
     [{ ...CODESPACE_ENV, LH_VETRINA_ADMIN_HOST: 'prova-vetrina-8001.app.github.dev' }, /LH_VETRINA_ADMIN_HOST nel codespace/],
-    [{ ...CODESPACE_ENV, LH_VETRINA_MODE: 'cloud' }, /LH_VETRINA_MODE deve essere host o codespace/],
+    [{ ...CODESPACE_ENV, LH_VETRINA_MODE: 'host' }, /LH_VETRINA_MODE ammette solo codespace/],
   ];
   for (const [env, msg] of cases) {
     const r = vetrina(['provision'], write(env));
@@ -760,12 +733,11 @@ test('vetrina.sh codespace: configurazione dall\'ambiente, segreti generati, ele
   assert.doesNotMatch(r.stdout + r.stderr, /example\.org/, 'l\'elenco degli operatori non si stampa');
   const conf = read(cfg);
   assert.equal(fs.statSync(cfg).mode & 0o777, 0o600);
-  assert.match(conf, /^LH_VETRINA_MODE=codespace$/m);
+  assert.doesNotMatch(conf, /^LH_VETRINA_MODE=|^LH_VETRINA_PUBLIC_ADDRESS=/m, 'chiavi dell\'host fisso non più scritte (V12)');
   assert.match(conf, /^LH_IMAGE=ghcr\.io\/example\/loyaltyhub:v1\.2\.3$/m);
   assert.match(conf, /^LH_VETRINA_WEB_HOST=prova-vetrina-x5g7-8000\.app\.github\.dev$/m);
   assert.match(conf, /^LH_VETRINA_IDP_HOST=prova-vetrina-x5g7-8001\.app\.github\.dev$/m);
   assert.match(conf, /^LH_VETRINA_ADMIN_HOST=prova-vetrina-x5g7-8180\.app\.github\.dev$/m);
-  assert.match(conf, /^LH_VETRINA_PUBLIC_ADDRESS=127\.0\.0\.1$/m);
   assert.match(conf, new RegExp(`^LH_VETRINA_DIR=${path.join(d, 'cs').replaceAll('/', '\\/')}$`, 'm'));
   for (const s of SECRET_FILES) assert.equal(fs.statSync(path.join(d, 'cs', 'secrets', s)).mode & 0o777, 0o600, s);
   const list = path.join(d, 'cs', 'operators.list');
@@ -790,7 +762,7 @@ function fakeCodespace() {
     fs.writeFileSync(path.join(bin, cmd), `#!/bin/sh\nprintf '${cmd} %s\\n' "$*" >> "${log}"\nexit 0\n`, { mode: 0o755 });
   }
   const cfg = path.join(d, 'vetrina.env');
-  const lines = Object.entries({ ...CODESPACE_ENV, LH_VETRINA_MODE: 'codespace', LH_VETRINA_DIR: path.join(d, 'host') }).map(([k, v]) => `${k}=${v}`);
+  const lines = Object.entries({ ...CODESPACE_ENV, LH_VETRINA_DIR: path.join(d, 'host') }).map(([k, v]) => `${k}=${v}`);
   fs.writeFileSync(cfg, `${lines.join('\n')}\n`, { mode: 0o600 });
   return { cfg, bin, log, run: (args, env = {}) => vetrina(args, cfg, { PATH: `${bin}:${process.env.PATH}`, ...env }) };
 }
@@ -820,9 +792,9 @@ test('vetrina.sh codespace: a ogni avvio database di Keycloak da zero PRIMA dell
   assert.match(sh.split('\ncmd_reset() {')[1]?.split('\n}\n')[0] ?? '', /cmd_membri --if-reachable/);
 });
 
-test('vetrina.sh: gli utenti di test negli overlay solo nel codespace; sull\'host fisso --no-test-users (ADR-051 decisione 1, Q-676)', () => {
+test('vetrina.sh: gli utenti di test negli overlay solo con CODESPACES=true, altrimenti --no-test-users (ADR-051 decisione 1, Q-676)', () => {
   const sh = read(VETRINA_SH);
-  assert.match(sh, /^test_users_allowed\(\) \{ \[ "\$\{LH_VETRINA_MODE:-host\}" = codespace \] && \[ "\$\{CODESPACES:-\}" = true \]; \}$/m);
+  assert.match(sh, /^test_users_allowed\(\) \{ \[ "\$\{CODESPACES:-\}" = true \]; \}$/m);
   assert.match(sh, /test_users_allowed \|\| args\+=\(--no-test-users\)/);
   // Lo stesso criterio di LH_TEST_USERS_ALLOWED in compose().
   assert.match(sh, /test_env=\(LH_TEST_USERS_ALLOWED=true LH_ENVIRONMENT=test\)/);
@@ -847,7 +819,7 @@ test('vetrina.sh membri: solo nel codespace con CODESPACES=true; lancia vetrina-
 // ---------------------------------------------------------------------------------------------------------------
 // Console di Keycloak (M8.14 V9; ADR-051 decisione 8; Q-670)
 
-test('compose.codespace.yml: KC_HOSTNAME_ADMIN non impostato (valore nullo che toglie quello dell\'host fisso); la porta 8180 resta privata (Q-670)', () => {
+test('compose.codespace.yml: KC_HOSTNAME_ADMIN non impostato (valore nullo che toglie quello dell\'overlay di base); la porta 8180 resta privata (Q-670)', () => {
   const text = read(CODESPACE_OVERLAY);
   const cs = YAML.parse(text);
   assert.ok('KC_HOSTNAME_ADMIN' in cs.services.idp.environment && cs.services.idp.environment.KC_HOSTNAME_ADMIN === null, 'valore nullo esplicito (toglie quello dell\'overlay di base)');
@@ -856,13 +828,13 @@ test('compose.codespace.yml: KC_HOSTNAME_ADMIN non impostato (valore nullo che t
   assert.match(read(AVVIO), /gh codespace ports visibility 8000:public 8001:public/);
 });
 
-test('vetrina.sh: nel codespace KC_HOSTNAME_ADMIN si toglie anche dall\'ambiente; master riceve il frontendUrl della porta privata solo nel codespace (Q-670)', () => {
+test('vetrina.sh: KC_HOSTNAME_ADMIN si toglie anche dall\'ambiente; master riceve il frontendUrl della porta privata (Q-670)', () => {
   const sh = read(VETRINA_SH);
   const fn = sh.split('\ncompose() {')[1]?.split('\n}\n')[0] ?? '';
-  assert.match(fn, /if \[ "\$\{LH_VETRINA_MODE:-host\}" = codespace \]; then\s+files\+=\(-f "\$CODESPACE_OVERLAY"\)\s+unset_args\+=\(-u KC_HOSTNAME_ADMIN\)\s+fi/);
+  assert.match(fn, /local files=\(-f "\$REFERENCE" -f "\$OVERLAY" -f "\$CODESPACE_OVERLAY"\)/);
+  assert.match(fn, /^\s+unset_args\+=\(-u KC_HOSTNAME_ADMIN\)$/m);
   const ap = sh.split('\napply_realm_overlay() {')[1]?.split('\n}\n')[0] ?? '';
-  assert.match(ap, /\[ "\$\{LH_VETRINA_MODE:-host\}" = codespace \] && master_frontend="https:\/\/\$LH_VETRINA_ADMIN_HOST"/);
-  assert.match(ap, /MASTER_FRONTEND_URL="\$master_frontend" KC_BOOTSTRAP_ADMIN_PASSWORD="\$pw"/);
+  assert.match(ap, /MASTER_FRONTEND_URL="https:\/\/\$LH_VETRINA_ADMIN_HOST" KC_BOOTSTRAP_ADMIN_PASSWORD="\$pw"/);
   assert.doesNotMatch(read(path.join(ROOT, 'deploy/idp/vetrina/master.json')), /frontendUrl":/, 'master.json senza indirizzi (dinamici)');
   // Il messaggio finale distingue le console pubbliche dei due realm da quella privata di master.
   assert.match(fn.length ? sh : '', /console dei realm \(pubbliche[^\n]*\/admin\/loyaltyhub\/console\/[^\n]*\/admin\/loyaltyhub-members\/console\//);
@@ -971,4 +943,27 @@ test('web/lib/vetrina/programma-core.mjs: nucleo puro, senza node:fs, alias @/ n
   assert.match(read(path.join(ROOT, 'scripts/vetrina-programma.mjs')), /from '\.\.\/web\/lib\/vetrina\/programma-core\.mjs'/);
   assert.match(read(path.join(ROOT, 'web/lib/vetrina/programma.ts')), /from "\.\/programma-core\.mjs"/);
   assert.match(read(path.join(ROOT, 'web/lib/hub/serverOnly.test.ts')), /"vetrina\/programma"/, 'il modulo server del programma di esempio è registrato in serverOnly.test.ts');
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Nessun residuo della modalità host fisso (V12; ADR-051 decisione 5, F2-DIST-09)
+
+const WORKFLOW = path.join(ROOT, '.github/workflows/smoke-vetrina.yml');
+const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+
+test('deploy/vetrina/ e smoke-vetrina.yml: nessun residuo dell\'host fisso (Oracle, Ampere, systemd, proxy ACME, tunnel SSH, modalità host)', () => {
+  assert.ok(!fs.existsSync(path.join(DIR, 'systemd')), 'deploy/vetrina/systemd/ rimossa');
+  assert.ok(!fs.existsSync(path.join(DIR, 'caddy/Caddyfile')), 'Caddyfile ACME rimosso: resta Caddyfile.codespace');
+  const residue = /oracle|ampere|systemd|journalctl|\bACME\b|let'?s ?encrypt|host fisso|tunnel ssh|LH_VETRINA_MODE=host|\.timer\b|OnCalendar|:80:80|:443:443/i;
+  const files = [...walk(DIR), WORKFLOW].filter((f) => !/\.(pem|key|crt)$/.test(f));
+  for (const f of files) {
+    const lines = read(f).split('\n');
+    // Il README e lo script dichiarano i valori rifiutati e le chiavi di compatibilità: si leggono solo righe non di rifiuto.
+    lines.forEach((line, i) => {
+      if (/LH_VETRINA_PUBLIC_ADDRESS|regola 14/.test(line) && path.basename(f) === 'vetrina.sh') return;
+      assert.doesNotMatch(line, residue, `${path.relative(ROOT, f)}:${i + 1}: residuo dell'host fisso: ${line.trim()}`);
+    });
+  }
+  // Il compose di riferimento non pubblica porte 80 e 443: il proxy ascolta su 8000 e 8001.
+  assert.ok(!JSON.stringify(overlay).includes(':443'), 'nessuna porta 443');
 });

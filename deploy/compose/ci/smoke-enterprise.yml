@@ -6,8 +6,8 @@
 #   docker compose --env-file <ci.env> -f deploy/compose/reference.yml -f deploy/compose/ci/smoke-enterprise.yml up -d
 #
 # Cosa aggiunge al compose di riferimento (profilo enterprise invariato, stesse guardie):
-# - `proxy`: reverse proxy TLS di prova, come quello della vetrina (deploy/vetrina/caddy/Caddyfile) ma con un
-#   certificato firmato da una CA generata nel job al posto di ACME, su 127.0.0.1:8443. Il web e Keycloak lo
+# - `proxy`: reverse proxy TLS di prova, come quello della vetrina (deploy/vetrina/caddy/Caddyfile.codespace) ma con un
+#   certificato firmato da una CA generata nel job, su 127.0.0.1:8443, al posto dell'inoltro delle porte di GitHub. Il web e Keycloak lo
 #   raggiungono con gli stessi URL https del runner (alias di rete web.lh.test e idp.lh.test), come chiede Q-420.
 #   Strumento di verifica in CI, non componente del prodotto (regola 8-bis non applicabile, come ZAP e Schemathesis).
 # - `ldap`: l'LDAP di prova di deploy/docker-compose.yml (profilo idp-test), perché l'overlay di test del realm
