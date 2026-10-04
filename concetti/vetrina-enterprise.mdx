@@ -55,12 +55,28 @@ L'hosting è un GitHub Codespace del repository: il proprietario lo accende dal 
 
 Il proprietario crea il codespace dal repository scegliendo la configurazione «Vetrina enterprise» (macchina da 4 core e 16 GB, Q-660) e lo riaccende prima di ogni demo. A ogni avvio lo script del dev container prepara tutto da solo (Q-663):
 
-1. sceglie l'immagine unica pubblicata, all'ultimo tag `v*` o quella indicata nei segreti del codespace;
+1. porta il clone a `main` e sceglie l'immagine unica `build-<commit>` dell'ultimo commit che ha toccato l'immagine, oppure quella indicata nei segreti del codespace;
 2. scrive la configurazione con i due indirizzi pubblici, `https://<codespace>-8000.app.github.dev` per il web e `-8001` per Keycloak;
 3. genera segreti, CA locale e certificati solo la prima volta, poi li riusa;
 4. ricrea da zero il database di Keycloak, avvia lo stack e applica gli overlay dei realm con gli utenti di test, a ogni avvio (Q-672);
 5. crea gli account operatore che mancano, dall'elenco tenuto nei segreti del codespace;
 6. rende pubbliche le due porte, controlla che la discovery OIDC risponda dall'indirizzo pubblico e registra i membri di prova dal portale (Q-673).
+
+La vetrina segue `main` senza comandi né tag: ogni merge che tocca l'immagine pubblica una `build-<commit>` firmata, e l'avvio successivo del codespace la sceglie da sola.
+
+```mermaid
+flowchart LR
+  accTitle: La vetrina segue main
+  accDescr: Un merge su main fa pubblicare a image.yml l'immagine build-commit firmata. All'avvio del codespace il clone avanza in fast-forward a main, la vetrina sceglie la build-commit dell'ultimo commit che ha toccato l'immagine, ne verifica la freschezza rispetto agli script e solo allora avvia il compose.
+  A["Merge su main"] --> B["image.yml pubblica build-sha firmata"]
+  C["Avvio del codespace"] --> D["Clone avanzato a main (ff-only)"]
+  D --> E["Sceglie build-sha dell'ultimo commit dell'immagine"]
+  B -.-> E
+  E --> F["Controllo di freschezza"]
+  F --> G["Compose"]
+```
+
+Prima di avviare lo stack, lo script rifiuta un'immagine più vecchia degli script del repository: confronta la revisione dell'immagine (etichetta OCI `org.opencontainers.image.revision`, oppure il commit del tag `vX.Y.Z`) con `HEAD` e, se differiscono nelle cartelle che finiscono nell'immagine (`web`, `services`, `libs`, `contracts`, `seed`, `deploy/hub`, `deploy/image`, `pom.xml`, `.mvn` e `mvnw`), si ferma con un messaggio che chiede un'immagine costruita da questo commit o un nuovo tag di rilascio (M8.14, F2-DIST-09).
 
 Nel codespace il proxy resta, ma parla HTTP su due porte locali: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy espone di Keycloak solo i realm `loyaltyhub` e `loyaltyhub-members` con le loro console; il realm `master`, con la sua console, resta su una porta privata, visibile solo al proprietario (Q-661, Q-670).
 
@@ -75,7 +91,7 @@ sequenceDiagram
   participant D as Docker nel codespace
   P->>G: crea o riaccende il codespace «Vetrina enterprise»
   G->>A: postStartCommand
-  A->>A: immagine dal segreto LH_IMAGE o dall'ultimo tag v*
+  A->>A: clone a main, immagine dal segreto LH_IMAGE o build-commit
   A->>S: sudo, ambiente del codespace
   S->>S: configurazione con gli indirizzi pubblici
   S->>S: segreti e certificati, solo la prima volta

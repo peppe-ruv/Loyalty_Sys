@@ -25,6 +25,9 @@
 #                                   lo fa da solo `codespace` a ogni avvio
 #   vetrina.sh membri               membri di test dal portale (Anna, Marco, Giulia registrati; Laura da zero, Q-673):
 #                                   solo nel codespace, con hub e web su e le porte pubbliche
+#   vetrina.sh immagine             rifiuta (uscita 2) un'immagine LH_IMAGE più vecchia degli script del repository
+#                                   (etichetta OCI di revisione o tag vX.Y.Z); lo lancia avvio.sh dopo il pull;
+#                                   `--scegli` e `--risolvi` scelgono e scaricano build-<commit> di main (vedi sotto)
 #   vetrina.sh operators            account operatore nominativi da operators.list (Q-618), password temporanee in un
 #                                   file 0600, poi verifica della MFA (apply-overlay.sh --check-operators)
 #   vetrina.sh programma            configurazione di programma da seed/ con il token di un operatore (Q-617, Q-626):
@@ -422,7 +425,7 @@ cmd_up() {
 
 # Variabili del codespace lette da `vetrina.sh codespace` (nessun segreto della vetrina: quelli li genera provision).
 #   CODESPACES, CODESPACE_NAME, GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN  impostate da GitHub
-#   LH_IMAGE                immagine unica (segreto del codespace o derivata dall'ultimo tag v* da avvio.sh)
+#   LH_IMAGE                immagine unica (segreto del codespace o build-<commit> scelta da avvio.sh se il segreto manca)
 #   LH_HUB_DEMO_URL         facoltativa, collegamento di ritorno alla demo in HUB-02
 #   LH_VETRINA_OPERATORS    facoltativa, elenco degli account operatore (righe o `;`), segreto del codespace (Q-663)
 cmd_codespace() {
@@ -430,7 +433,7 @@ cmd_codespace() {
   local name="${CODESPACE_NAME:-}" domain="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}"
   [[ "$name" =~ ^[a-z0-9][a-z0-9-]{0,80}[a-z0-9]$ ]] || usage_error "CODESPACE_NAME assente o non valido"
   [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]] || usage_error "GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN assente o non valido"
-  [ -n "${LH_IMAGE:-}" ] || usage_error "LH_IMAGE obbligatoria: segreto del codespace o ultimo tag v* (.devcontainer/vetrina/avvio.sh)"
+  [ -n "${LH_IMAGE:-}" ] || usage_error "LH_IMAGE obbligatoria: segreto del codespace o immagine scelta da .devcontainer/vetrina/avvio.sh"
   if [ "$(id -u)" != 0 ] && [ "${LH_VETRINA_TEST_NO_CHOWN:-}" != 1 ]; then
     die "codespace va eseguito come root (sudo): provision assegna i file agli utenti dei container"
   fi
@@ -478,6 +481,166 @@ cmd_codespace() {
   info "console dei realm (pubbliche, ADR-051 decisione 8): https://$LH_VETRINA_IDP_HOST/admin/loyaltyhub/console/ e https://$LH_VETRINA_IDP_HOST/admin/loyaltyhub-members/console/ (utenti vetrina.admin e membri.admin, credenziali nel runbook)"
   info "console del realm master (Q-670): https://$LH_VETRINA_ADMIN_HOST/admin/master/console/ (porta $CODESPACE_ADMIN_PORT privata: solo il proprietario del codespace; utente admin, password in $LH_VETRINA_DIR/secrets/idp-admin-password)"
   info "se il programma è vuoto: pulsante \"Carica il programma di esempio\" nel backoffice (V10), oppure vetrina.sh programma (Q-630)"
+}
+
+# Freschezza dell'immagine (F2-DIST-09, ADR-051, ADR-050, M8.14): gli script del repository (overlay, vetrina.sh,
+# vetrina-membri.mjs) presuppongono un web e un hub della stessa epoca. Un'immagine costruita da un commit più vecchio che
+# differisce da HEAD nelle cartelle che finiscono nell'immagine (quelle copiate da deploy/image/Dockerfile; un solo ritocco agli script non la invecchia) fa fallire l'avvio in modo oscuro (es. login dei membri sul realm sbagliato),
+# quindi si rifiuta subito. Revisione dell'immagine: etichetta OCI `org.opencontainers.image.revision`; se manca e il
+# riferimento termina con un tag `:vX.Y.Z` noto a git, il commit del tag. Se resta ignota: avviso e si continua.
+# Non legge la configurazione (gira prima di `codespace`); LH_IMAGE arriva dall'ambiente. Nessun segreto in uscita.
+# Uscita: 0 ok o non verificabile · 2 immagine più vecchia del repository.
+IMAGE_FRESHNESS_PATHS=(web services libs contracts seed deploy/hub deploy/image pom.xml .mvn mvnw)
+
+# Scelta automatica dell'immagine (M8.14): la vetrina segue main. image.yml pubblica `build-<commit>` firmata a ogni merge
+# su main che tocca IMAGE_FRESHNESS_PATHS; l'immagine giusta per HEAD e' quella dell'ultimo commit, fino a HEAD, che ha
+# toccato quei percorsi (un commit di sola documentazione non ne costruisce una).
+#   vetrina.sh immagine --scegli    stampa il riferimento ghcr.io/<proprietario>/loyaltyhub:build-<commit>
+#   vetrina.sh immagine --risolvi   come --scegli, poi la scarica. Se build-<commit> non c'e': prima un tag v* senza
+#                                   differenze nelle cartelle dell'immagine (equivalente, subito); poi, solo se
+#                                   un'esecuzione di image.yml per il commit e' in corso (o lo stato non e' verificabile),
+#                                   riprova ogni LH_AVVIO_INTERVALLO_S (30) fino a LH_AVVIO_ATTESA_S (900) secondi; se
+#                                   manca ancora (o l'esecuzione e' fallita o assente) errore subito o a fine attesa
+#                                   (uscita 1). Stampa su stdout solo il riferimento.
+# Il proprietario viene da GITHUB_REPOSITORY (impostata dal codespace). Nessun segreto in uscita.
+image_git() { git -c "safe.directory=$REPO_ROOT" -C "$REPO_ROOT" "$@"; }
+
+choose_image() {
+  local repo="${GITHUB_REPOSITORY:-}" owner sha
+  [ -n "$repo" ] && [[ "$repo" == */* ]] || usage_error "GITHUB_REPOSITORY assente: serve per scegliere l'immagine (oppure imposta il segreto LH_IMAGE)"
+  owner="${repo%%/*}"
+  sha="$(image_git log -1 --format=%H HEAD -- "${IMAGE_FRESHNESS_PATHS[@]}" 2>/dev/null)" || sha=""
+  [ -n "$sha" ] || usage_error "nessun commit del clone ha toccato i percorsi dell'immagine: clone incompleto? Imposta il segreto LH_IMAGE"
+  echo "ghcr.io/${owner,,}/loyaltyhub:build-$sha"
+}
+
+# docker pull; se fallisce e il codespace ha un token, accede a ghcr.io (pacchetto non pubblico) una sola volta e riprova.
+# Il token passa solo da stdin, mai negli argomenti. Uscita: 0 scaricata · 1 non esiste (manifest sconosciuto o non
+# trovato) · 2 altro errore (rete, accesso, GHCR): la causa reale resta in PULL_CAUSE (una riga, senza segreti).
+PULL_LOGIN_DONE=0
+PULL_CAUSE=""
+pull_image() {
+  local out
+  if out="$(docker pull --quiet "$1" 2>&1 >/dev/null)"; then return 0; fi
+  if [ "$PULL_LOGIN_DONE" = 0 ] && [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_USER:-}" ]; then
+    PULL_LOGIN_DONE=1
+    printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1 || true
+    if out="$(docker pull --quiet "$1" 2>&1 >/dev/null)"; then return 0; fi
+  fi
+  PULL_CAUSE="$(printf '%s' "$out" | head -n 1 | cut -c1-200)"
+  if [ -z "$PULL_CAUSE" ] || [[ "$PULL_CAUSE" =~ [Mm]anifest\ unknown|[Nn]ot\ [Ff]ound|[Nn]ame\ unknown ]]; then return 1; fi
+  return 2
+}
+
+# Stato delle esecuzioni di image.yml per il commit dell'immagine (e per HEAD, perche' un recupero a mano porta l'sha
+# del suo HEAD): `in_corso` (accodata o in esecuzione), `assente` (nessuna esecuzione), `fallita`, `non_verificabile`
+# (gh o token assenti, errore dell'API, esecuzione riuscita ma immagine non ancora scaricabile). gh usa il token del codespace.
+build_state() {
+  local sha="$1" repo="${GITHUB_REPOSITORY:-}" head runs="" part s
+  command -v gh >/dev/null 2>&1 || { echo non_verificabile; return; }
+  head="$(image_git rev-parse HEAD 2>/dev/null || true)"
+  for s in "$sha" "$head"; do
+    [ -n "$s" ] || continue
+    part="$(GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}" gh api "repos/$repo/actions/workflows/image.yml/runs?head_sha=$s&per_page=5" \
+      --jq '.workflow_runs[] | .status + ":" + (.conclusion // "")' 2>/dev/null)" || { echo non_verificabile; return; }
+    runs="$runs$part"$'\n'
+    [ "$s" = "$head" ] && break
+  done
+  runs="$(printf '%s' "$runs" | sed '/^$/d')"
+  if printf '%s\n' "$runs" | grep -Eq '^(queued|in_progress|waiting|pending|requested):'; then echo in_corso
+  elif [ -z "$runs" ]; then echo assente
+  elif printf '%s\n' "$runs" | grep -q '^completed:success$'; then echo non_verificabile
+  else echo fallita; fi
+}
+
+resolve_image() {
+  local ref sha short waited=0 st state tag="" tagref owner limit="${LH_AVVIO_ATTESA_S:-900}" step="${LH_AVVIO_INTERVALLO_S:-30}"
+  [[ "$limit" =~ ^[0-9]+$ ]] && [[ "$step" =~ ^[1-9][0-9]*$ ]] || usage_error "LH_AVVIO_ATTESA_S e LH_AVVIO_INTERVALLO_S devono essere numeri interi (secondi)"
+  ref="$(choose_image)"
+  sha="${ref##*:build-}"
+  short="${sha:0:7}"
+  owner="${GITHUB_REPOSITORY%%/*}"
+  pull_image "$ref" && { echo "immagine build-$short scaricata" >&2; echo "$ref"; return 0; }
+  st=$?
+  [ "$st" = 2 ] && echo "Avviso: scaricamento di build-$short non riuscito: $PULL_CAUSE" >&2
+  # Un tag v* senza differenze nelle cartelle dell'immagine e' equivalente a build-<commit>: lo si usa subito.
+  tag="$(image_git tag --list 'v*' --sort=-v:refname 2>/dev/null | head -n 1)"
+  tagref="ghcr.io/${owner,,}/loyaltyhub:$tag"
+  if [ -n "$tag" ] && image_git diff --quiet "refs/tags/$tag" HEAD -- "${IMAGE_FRESHNESS_PATHS[@]}" 2>/dev/null && pull_image "$tagref"; then
+    echo "immagine build-$short non pubblicata: uso il tag $tag, che non differisce da HEAD nelle cartelle dell'immagine (equivalente)" >&2
+    echo "$tagref"
+    return 0
+  fi
+  local rilancio="Rilancia la build con «Run workflow» da main sul workflow «Build and Release Image» (.github/workflows/image.yml, workflow_dispatch), poi riavvia il codespace; oppure imposta il segreto LH_IMAGE."
+  while true; do
+    state="$(build_state "$sha")"
+    case "$state" in
+      in_corso) echo "immagine build-$short in costruzione su GitHub Actions, attendo… (${waited}/${limit} s)" >&2 ;;
+      non_verificabile) echo "immagine build-$short non scaricabile e stato della build non verificabile (gh, token o API): attendo con un limite di ${limit} s (${waited}/${limit} s)" >&2 ;;
+      assente)
+        echo "Errore: l'immagine build-$short non esiste su ghcr.io e nessuna esecuzione di image.yml la sta costruendo, e nessun tag v* è allineato a HEAD. Non uso un'immagine più vecchia. ${PULL_CAUSE:+Causa dello scaricamento: $PULL_CAUSE. }$rilancio" >&2
+        return 1 ;;
+      fallita)
+        echo "Errore: l'ultima esecuzione di image.yml per il commit ${short} è fallita o annullata: build-$short non esiste e nessun tag v* è allineato a HEAD. Guarda l'esecuzione nella scheda Actions. $rilancio" >&2
+        return 1 ;;
+    esac
+    if [ "$waited" -ge "$limit" ]; then
+      echo "Errore: l'immagine build-$short non è comparsa su ghcr.io dopo ${limit} s e nessun tag v* è allineato a HEAD. Non uso un'immagine più vecchia. ${PULL_CAUSE:+Ultima causa dello scaricamento: $PULL_CAUSE. }$rilancio" >&2
+      return 1
+    fi
+    sleep "$step"
+    waited=$((waited + step))
+    if pull_image "$ref"; then echo "immagine build-$short scaricata" >&2; echo "$ref"; return 0; fi
+  done
+}
+
+cmd_immagine() {
+  case "${1:-}" in
+    --scegli) choose_image; return ;;
+    --risolvi) resolve_image; return ;;
+    '') ;;
+    *) usage_error "uso: $0 immagine [--scegli|--risolvi]" ;;
+  esac
+  local image="${LH_IMAGE:-}"
+  [ -n "$image" ] || usage_error "LH_IMAGE assente: serve l'immagine da controllare"
+  # safe.directory: il comando gira come root (sudo) su un clone di un altro utente.
+  local -a git=(git -c "safe.directory=$REPO_ROOT" -C "$REPO_ROOT")
+  local head rev="" label="" tag="" last="${image##*/}"
+  head="$("${git[@]}" rev-parse HEAD 2>/dev/null)" || { echo "Avviso: freschezza dell'immagine non verificabile: $REPO_ROOT non è un clone git" >&2; return 0; }
+
+  label="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image" 2>/dev/null || true)"
+  [[ "$label" =~ ^[0-9a-f]{7,40}$ ]] && rev="$label"
+  if [ -z "$rev" ] && [[ "$last" == *:* ]] && [[ "${last##*:}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    tag="${last##*:}"
+    rev="$("${git[@]}" rev-list -n1 "refs/tags/$tag" 2>/dev/null || true)"
+  fi
+  if [ -z "$rev" ]; then
+    echo "Avviso: revisione dell'immagine $image non verificabile (nessuna etichetta org.opencontainers.image.revision né tag di rilascio noto): si continua senza controllo" >&2
+    return 0
+  fi
+  # Il commit dell'immagine può mancare nel clone locale (commit e tag li scarica avvio.sh come utente, mai root).
+  if ! "${git[@]}" cat-file -e "$rev^{commit}" 2>/dev/null; then
+    echo "Avviso: revisione dell'immagine $image (${rev:0:7}) non verificabile: commit assente dal clone locale: si continua senza controllo" >&2
+    return 0
+  fi
+  rev="$("${git[@]}" rev-parse "$rev^{commit}")"
+  if [ "$rev" = "$head" ] || "${git[@]}" diff --quiet "$rev" HEAD -- "${IMAGE_FRESHNESS_PATHS[@]}" 2>/dev/null; then
+    info "immagine aggiornata rispetto al repository: $image (${rev:0:7}, HEAD ${head:0:7})"
+    return 0
+  fi
+  local msg
+  if "${git[@]}" merge-base --is-ancestor "$rev" HEAD 2>/dev/null; then
+    msg="immagine $image costruita dal commit ${rev:0:7}, HEAD del repository ${head:0:7}: l'immagine è più vecchia degli script del repo: imposta il segreto del codespace LH_IMAGE su un'immagine costruita da questo commit, oppure crea un nuovo tag di rilascio${LH_IMMAGINE_ESPLICITA:+ (o togli il segreto LH_IMAGE per seguire main)}"
+  else
+    # Non antenato: l'immagine è più nuova del clone o di un altro ramo, "più vecchia" sarebbe falso.
+    msg="l'immagine $image (${rev:0:7}) non è un antenato di HEAD (${head:0:7}): è più nuova del clone o di un altro ramo: aggiorna il clone del codespace (git pull) oppure scegli un'immagine costruita da questo commit"
+  fi
+  if [ "${LH_VETRINA_ALLOW_STALE_IMAGE:-}" = true ]; then
+    echo "AVVISO FORTE: $msg. Si continua perché LH_VETRINA_ALLOW_STALE_IMAGE=true (solo per diagnosi): il comportamento può essere incoerente." >&2
+    return 0
+  fi
+  echo "Errore: $msg. (Solo per diagnosi: LH_VETRINA_ALLOW_STALE_IMAGE=true)" >&2
+  exit 2
 }
 
 # Utenti di test (ADR-051 decisione 1, Q-676): solo dentro un GitHub Codespace, lo stesso criterio che passa a hub e web
@@ -581,7 +744,7 @@ cmd_programma() {
 
 main() {
   local cmd="${1:-}"
-  [ -n "$cmd" ] || usage_error "uso: $0 codespace|provision|preflight [--offline]|up|down|reset|idp-reset|operators|membri|programma|compose <argomenti>"
+  [ -n "$cmd" ] || usage_error "uso: $0 codespace|provision|preflight [--offline]|up|down|reset|idp-reset|operators|membri|immagine [--scegli|--risolvi]|programma|compose <argomenti>"
   shift
   case "$cmd" in
     codespace) cmd_codespace ;;
@@ -593,6 +756,7 @@ main() {
     operators) load_config; cmd_operators ;;
     idp-reset) load_config; cmd_idp_reset ;;
     membri) load_config; cmd_membri ;;
+    immagine) cmd_immagine "$@" ;;
     programma) load_config; cmd_programma "$@" ;;
     compose) load_config; compose "$@" ;;
     *) usage_error "comando sconosciuto: $cmd" ;;
