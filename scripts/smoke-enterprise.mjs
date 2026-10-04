@@ -444,11 +444,14 @@ export async function checkPublic(ctx, opts) {
   ctx.ok(`pagina di login del realm raggiungibile${opts.registration === 'closed' ? ', registrazione chiusa (Q-619)' : ''}`);
 
   // Superfici che il proxy non espone (docs/18 §3.15 punto 2): console e realm master.
-  for (const path of ['/admin/', '/realms/master/.well-known/openid-configuration']) {
-    const res = await http(ctx, `${idp}${path}`);
-    expect(res.status === 404, `IdP: ${path} risponde ${res.status}, atteso 404 (non esposto dal proxy)`);
-  }
-  ctx.ok('IdP: console /admin e realm master non esposti (404)');
+  const adminRoot = await http(ctx, `${idp}/admin/`);
+  expect(adminRoot.status === 404, `IdP: /admin/ risponde ${adminRoot.status}, atteso 404 (non esposto dal proxy)`);
+  // Realm master: chiuso (404) nel compose di CI e nella vetrina senza il segreto del proprietario; nella vetrina con il
+  // segreto la sua console e' aperta (ADR-055, Q-727) e la discovery risponde 200 (nessuna credenziale in questa prova).
+  const masterDiscovery = await http(ctx, `${idp}/realms/master/.well-known/openid-configuration`);
+  const masterOpenAllowed = opts.mode === 'vetrina' && masterDiscovery.status === 200;
+  expect(masterDiscovery.status === 404 || masterOpenAllowed, `IdP: /realms/master/.well-known/openid-configuration risponde ${masterDiscovery.status}, atteso 404 (non esposto dal proxy)`);
+  ctx.ok(masterOpenAllowed ? 'IdP: /admin/ non esposto (404); console del realm master aperta dal proprietario (ADR-055)' : 'IdP: console /admin e realm master non esposti (404)');
 
   // API del backoffice dal BFF senza sessione.
   const anon = await http(ctx, `${web}/api/lh/reward/v1/reward-categories`);

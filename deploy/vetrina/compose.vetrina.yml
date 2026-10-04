@@ -69,7 +69,7 @@ services:
   # ---------- Reverse proxy della vetrina (ADR-050): unico componente nuovo, unico esposto ----------
   # Nel codespace il TLS lo termina l'inoltro delle porte di GitHub: il proxy resta in HTTP su due porte di loopback,
   # 8000 (web) e 8001 (Keycloak), rese pubbliche nel codespace. Apre solo i due realm di vetrina e le loro console
-  # (404 su `master`) e aggiunge le intestazioni di sicurezza (caddy/Caddyfile.codespace). NET_BIND_SERVICE resta
+  # (`master` chiuso con 404, aperto solo con il segreto del proprietario: ADR-055) e aggiunge le intestazioni di sicurezza (caddy/Caddyfile.codespace). NET_BIND_SERVICE resta
   # nell'insieme limite: il binario caddy ha la file capability cap_net_bind_service e senza il kernel ne rifiuta
   # l'esecuzione ("exec /usr/bin/caddy: operation not permitted", visto nello smoke enterprise in CI).
   # Niente alias di rete: i nomi pubblici puntano a GitHub, non al proxy. Web e hub raggiungono l'emittente con lo
@@ -94,6 +94,9 @@ services:
       LH_VETRINA_IDP_HOST: "${LH_VETRINA_IDP_HOST:?LH_VETRINA_IDP_HOST obbligatoria}"
     volumes:
       - ../vetrina/caddy/Caddyfile.codespace:/etc/caddy/Caddyfile:ro
+      # Cartella, non un file singolo: vetrina.sh sostituisce master-console.caddy con un rename e un file singolo
+      # resterebbe legato al vecchio inode. Contiene il solo permesso (o il vuoto) per la console master (ADR-055, Q-727).
+      - "${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/caddy:/etc/caddy/vetrina:ro"
       - lh-vetrina-caddy-data:/data
       - lh-vetrina-caddy-config:/config
     mem_limit: 128m
@@ -232,8 +235,9 @@ services:
       - lh_portal_client_secret
       - lh_web_session_key
 
-  # Keycloak: database con TLS verificato, console del realm `master` solo da 127.0.0.1:8180 (inoltro
-  # privato del codespace, il proxy non la espone), realm reimportato a ogni azzeramento e a ogni avvio.
+  # Keycloak: database con TLS verificato, porta di amministrazione 127.0.0.1:8180 solo per gli script dell'host
+  # (nel codespace non e' inoltrata); la console del realm `master` sta sull'indirizzo pubblico e la apre il proxy solo
+  # con il segreto del proprietario (ADR-055); realm reimportato a ogni azzeramento e a ogni avvio.
   idp:
     entrypoint: *lh-vetrina-env
     environment:

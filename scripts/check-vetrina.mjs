@@ -45,9 +45,10 @@ const EXAMPLE_ENV = {
   LH_VETRINA_DIR: '/etc/loyaltyhub-vetrina',
   LH_VETRINA_WEB_HOST: 'prova-vetrina-8000.app.github.dev',
   LH_VETRINA_IDP_HOST: 'prova-vetrina-8001.app.github.dev',
-  LH_VETRINA_ADMIN_HOST: 'prova-vetrina-8180.app.github.dev',
 };
 const CODESPACE_ENV = EXAMPLE_ENV;
+/** Password di prova del proprietario (solo per i test: mai un valore vero). */
+const PROVA_MASTER_PW = 'prova-master-password-12345';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Statiche
@@ -542,9 +543,14 @@ const IDP_ALLOWED = [
   '/admin/serverinfo',
 ];
 const IDP_MASTER_BLOCKED = ['/admin/master*', '/admin/realms/master*', '/realms/master*', '/resources/master', '/resources/master/*'];
+const MASTER_IMPORT = 'import /etc/caddy/vetrina/master-console.caddy';
+const MASTER_OPEN = path.join(DIR, 'caddy/master-aperta.caddy');
+const MASTER_CLOSED = path.join(DIR, 'caddy/master-chiusa.caddy');
+/** Percorsi che il permesso del proprietario apre (ADR-055, Q-727): esatti, in questo ordine. */
+const MASTER_OPEN_PATHS = ['/admin/master', '/admin/master/*', '/realms/master', '/realms/master/*', '/resources/master', '/resources/master/*', '/admin/realms', '/admin/realms/*'];
 const noComments = (t) => t.replace(/^\s*#.*$/gm, '');
 
-test('Caddyfile del codespace: niente ACME, instradamento per porta; Keycloak con master 404 PRIMA di ogni permesso, trucchi di percorso 404, elenco esatto dei permessi, tutto il resto 404 (Q-661, Q-670, ADR-051)', () => {
+test('Caddyfile del codespace: niente ACME, instradamento per porta; Keycloak con trucchi di percorso 404 PRIMA di tutto, master chiuso salvo il permesso importato, elenco esatto dei permessi, tutto il resto 404 (Q-661, Q-670, Q-727, ADR-051, ADR-055)', () => {
   const c = read(CADDYFILE_CODESPACE);
   assert.match(c, /^\s*admin off$/m);
   assert.match(c, /^\s*auto_https off$/m);
@@ -552,13 +558,16 @@ test('Caddyfile del codespace: niente ACME, instradamento per porta; Keycloak co
   const idp = c.split(/^:8001 \{/m)[1];
   assert.ok(idp, 'blocco della porta 8001');
   const code = noComments(idp);
-  // Ordine: master, trucchi, permessi, resto. Il 404 per master viene prima di qualunque percorso che lo lascerebbe passare.
-  const at = ['@master path', 'handle @master', '@trucchi path_regexp', 'handle @trucchi', '@permessi {', 'handle @permessi', 'reverse_proxy idp:8080', '\thandle {']
+  // Ordine: trucchi, (permesso di master importato), 404 di master, permessi, resto. I trucchi vengono prima di tutto,
+  // anche del permesso di master; il 404 di master viene prima dei permessi dei due realm.
+  const at = ['@trucchi path_regexp', 'handle @trucchi', MASTER_IMPORT, '@master path', 'handle @master', '@permessi {', 'handle @permessi', 'reverse_proxy idp:8080', '\thandle {']
     .map((m) => code.indexOf(m));
   assert.ok(at.every((i) => i >= 0) && at.every((v, i) => i === 0 || v > at[i - 1]), `ordine delle regole di :8001: ${at}`);
+  assert.equal(code.indexOf('import intestazioni') < at[0], true, 'le intestazioni vengono per prime');
   const masterLine = code.match(/@master path (.+)/)[1].trim().split(/\s+/);
   assert.deepEqual(masterLine, IDP_MASTER_BLOCKED, 'tutto cio\' che riguarda master -> 404');
   assert.match(code, /handle @master \{\s*respond 404\s*\}/);
+  assert.equal((c.match(/^\s*import /gm) ?? []).length, 3, 'tre import: intestazioni nei due blocchi e il permesso di master');
   assert.match(code, /@trucchi path_regexp trucchi \(\\\\\|;\|%\)/, 'barra rovesciata, ;, % residuo (i segmenti .. li pulisce Caddy: caso coperto dalla prova con Caddy)');
   assert.match(code, /handle @trucchi \{\s*respond 404\s*\}/);
   const permessi = code.match(/@permessi \{([\s\S]*?)\n\t\}/)[1].split('\n').map((l) => l.trim()).filter(Boolean);
@@ -567,65 +576,116 @@ test('Caddyfile del codespace: niente ACME, instradamento per porta; Keycloak co
   assert.match(code, /handle @permessi \{\s*reverse_proxy idp:8080/);
   assert.match(code, /handle \{\s*respond 404\s*\}\s*\}\s*$/, 'il resto -> 404');
   assert.equal((c.match(/reverse_proxy/g) ?? []).length, 2, 'solo web e idp dietro il proxy');
-  assert.equal((code.match(/reverse_proxy/g) ?? []).length, 1, 'un solo inoltro verso idp, solo nel permesso');
-  // Nessun permesso per master, per la radice di /admin o per l'elenco dei realm, e nessun prefisso senza barra che
-  // lasci passare altri realm (`/realms/loyaltyhub*`).
+  assert.equal((code.match(/reverse_proxy/g) ?? []).length, 1, 'un solo inoltro verso idp nel Caddyfile: quello di master sta nel file importato');
+  // Nessun permesso per master nel Caddyfile (sta solo nel file importato), per la radice di /admin o per l'elenco dei
+  // realm, e nessun prefisso senza barra che lasci passare altri realm (`/realms/loyaltyhub*`).
   const allowed = permessi.flatMap((l) => l.split(/\s+/).slice(1));
   assert.ok(allowed.every((x) => !/master/.test(x) && x !== '/admin' && x !== '/admin/*' && x !== '/admin/realms' && x !== '/admin/realms/*' && !/[^/]\*$/.test(x)), allowed.join(' '));
-  assert.deepEqual(code.split('\n').filter((l) => /master/.test(l)).map((l) => l.trim().split(' ')[0]), ['@master', 'handle'], 'master compare solo nella regola 404');
+  assert.deepEqual(code.split('\n').filter((l) => /master/.test(l)).map((l) => l.trim().split(' ')[0]), ['import', '@master', 'handle'], 'master compare solo nell\'import e nella regola 404');
   // Le intestazioni di sicurezza valgono anche per i 404 (import nel blocco).
   assert.match(code, /^\s*import intestazioni$/m);
 });
 
+test('console master (ADR-055, Q-727): il permesso e\' un file a parte, chiuso = vuoto, aperto = elenco esatto verso idp; mai segreti; il file di default e\' chiuso', () => {
+  const closed = read(MASTER_CLOSED);
+  assert.equal(noComments(closed).trim(), '', 'master-chiusa.caddy non contiene direttive');
+  const open = noComments(read(MASTER_OPEN));
+  const named = open.match(/@master_aperto \{([\s\S]*?)\n\}/)[1].split('\n').map((l) => l.trim()).filter(Boolean);
+  assert.ok(named.every((l) => l.startsWith('path ')), 'solo `path`');
+  assert.deepEqual(named.flatMap((l) => l.split(/\s+/).slice(1)), MASTER_OPEN_PATHS, 'percorsi esatti della console master');
+  assert.match(open, /handle @master_aperto \{\s*reverse_proxy idp:8080 \{\s*header_up X-Forwarded-Proto https\s*\}\s*\}\s*$/);
+  assert.equal((open.match(/reverse_proxy/g) ?? []).length, 1);
+  for (const f of [MASTER_OPEN, MASTER_CLOSED]) {
+    assert.doesNotMatch(noComments(read(f)), /password|secret|token|-----/i, `${path.basename(f)} senza segreti`);
+  }
+  // Il proxy legge la CARTELLA (un file singolo resterebbe legato all'inode sostituito dal rename), in sola lettura.
+  assert.ok(overlay.services.proxy.volumes.includes('${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/caddy:/etc/caddy/vetrina:ro'));
+});
+
+/** Caddyfile del codespace pronto per una prova locale: porte libere, upstream finto e permesso di master scelto (ADR-055, Q-727). */
+function caddyfileForTest(dir, { upPort, webPort, idpPort, master }) {
+  const snippet = path.join(dir, 'master-console.caddy');
+  fs.writeFileSync(snippet, read(master === 'aperta' ? MASTER_OPEN : MASTER_CLOSED).replace('idp:8080', `127.0.0.1:${upPort}`));
+  const cfg = path.join(dir, 'Caddyfile');
+  const text = read(CADDYFILE_CODESPACE);
+  assert.ok(text.includes(MASTER_IMPORT));
+  fs.writeFileSync(cfg, text.replace(MASTER_IMPORT, `import ${snippet}`).replace('idp:8080', `127.0.0.1:${upPort}`).replace('web:3000', `127.0.0.1:${upPort}`)
+    .replace(/^:8001 \{/m, `:${idpPort} {`).replace(/^:8000 \{/m, `:${webPort} {`));
+  return cfg;
+}
+
 // Prova vera con Caddy (se c'e' un binario `caddy` nel PATH, come nell'immagine del proxy): il Caddyfile del codespace con
 // gli upstream puntati a un server finto che risponde "UP" e registra il percorso ricevuto. Casi di Q-670: maiuscole, codifiche,
-// doppie barre, `..`, `;`, doppia codifica.
-test('Caddyfile del codespace con Caddy: master e trucchi di percorso 404, solo i percorsi permessi arrivano a Keycloak (Q-670)', { skip: !has('caddy') && 'caddy assente (provato a mano con Caddy 2.11.4, vedi runbook)' }, async () => {
-  const net = await import('node:net');
-  const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); }); });
-  const [upPort, webPort, idpPort] = [await freePort(), await freePort(), await freePort()];
-  const received = [];
-  const upstream = http.createServer((req, res) => { received.push(req.url); res.end('UP'); });
-  await new Promise((r) => upstream.listen(upPort, '127.0.0.1', r));
-  const d = tmp();
-  const cfg = path.join(d, 'Caddyfile');
-  fs.writeFileSync(cfg, read(CADDYFILE_CODESPACE).replace('idp:8080', `127.0.0.1:${upPort}`).replace('web:3000', `127.0.0.1:${upPort}`)
-    .replace(/^:8001 \{/m, `:${idpPort} {`).replace(/^:8000 \{/m, `:${webPort} {`).replace(/^\s*admin off$/m, '\tadmin off'));
-  const caddy = spawn('caddy', ['run', '--config', cfg, '--adapter', 'caddyfile'], { stdio: 'ignore', env: { PATH: process.env.PATH, HOME: d, XDG_DATA_HOME: d, XDG_CONFIG_HOME: d } });
-  const get = (p) => new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port: idpPort, path: p, method: 'GET' }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
-    req.on('error', reject);
-    req.end();
-  });
-  try {
-    for (let i = 0; ; i++) {
-      try { await get('/'); break; } catch (e) { if (i > 50) throw e; await new Promise((r) => setTimeout(r, 100)); }
+// doppie barre, `..`, `;`, doppia codifica. Due stati della console master (ADR-055, Q-727): chiusa (404 su tutto cio' che
+// la riguarda) e aperta (solo i suoi percorsi esatti; i trucchi di percorso restano 404 e i realm di vetrina non cambiano).
+const IDP_OK_PATHS = [
+  '/realms/loyaltyhub/protocol/openid-connect/auth', '/realms/loyaltyhub-members/.well-known/openid-configuration', '/resources/abc/admin/keycloak.v2/x.js',
+  '/admin/loyaltyhub/console', '/admin/loyaltyhub/console/', '/admin/loyaltyhub/console/whoami?currentRealm=loyaltyhub', '/admin/loyaltyhub-members/console/',
+  '/admin/realms/loyaltyhub', '/admin/realms/loyaltyhub/ui-ext/realms/names', '/admin/realms/loyaltyhub-members/users', '/admin/realms/loyaltyhub/roles/my%20role',
+  '/admin/serverinfo', '/resources/loyaltyhub/admin/it',
+];
+// Sempre 404, a console chiusa o aperta: trucchi di normalizzazione, radice di /admin, pagine e realm che non esistono da qui.
+const IDP_ALWAYS_404 = [
+  '/realms/loyaltyhub;a=b/x', '/realms/loyaltyhub%5c..%5cmaster', '/realms/loyaltyhub/%252e%252e/master', '/resources/x/..;/..;/realms/master',
+  '/admin/master%5Cconsole', '/admin', '/admin/', '/js/keycloak.js', '/', '/health', '/metrics', '/realms/loyaltyhubx', '/realms/masterx', '/admin/serverinfo/x',
+];
+// 404 solo a console chiusa: tutto cio' che riguarda master, anche con maiuscole, codifiche, doppie barre e `..` che portano a master.
+const IDP_MASTER_404_WHEN_CLOSED = [
+  '/realms/master', '/realms/master/', '/realms/MASTER/protocol/openid-connect/token', '/Realms/Master/x', '/admin/master/console/', '/admin/Master/console/',
+  '/admin/realms/master', '/admin/realms/MASTER/users', '/admin/realms/%4DASTER/users', '/realms/%6Daster/x', '/admin/realms/master%2Fusers', '/resources/master/admin/en',
+  '//realms/master', '/realms//master', '//admin//realms//master', '/admin/realms//master/users', '/realms/./master',
+  '/realms/loyaltyhub/../master/x', '/realms/loyaltyhub%2f..%2fmaster', '/realms/loyaltyhub/%2e%2e/master/x', '/realms/loyaltyhub/%2E%2E%2Fmaster', '/resources/../realms/master/x',
+  '/admin/realms',
+];
+// 200 solo a console aperta: console, login e token di master, testi, API di amministrazione di tutti i realm.
+const IDP_MASTER_200_WHEN_OPEN = [
+  '/admin/master/console/', '/admin/master/console/whoami?currentRealm=master', '/admin/master', '/realms/master', '/realms/master/protocol/openid-connect/auth',
+  '/realms/master/.well-known/openid-configuration', '/resources/master/admin/it', '/admin/realms', '/admin/realms/master', '/admin/realms/master/users',
+  '/admin/realms/loyaltyhub/users?first=0', '/admin/realms/loyaltyhub-members',
+];
+
+for (const master of ['chiusa', 'aperta']) {
+  test(`Caddyfile del codespace con Caddy, console master ${master}: percorsi dei realm di vetrina, master e trucchi di percorso (Q-670, Q-727, ADR-055)`, { skip: !has('caddy') && 'caddy assente (provato a mano con Caddy 2.11.4, vedi runbook)' }, async () => {
+    const net = await import('node:net');
+    const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); }); });
+    const [upPort, webPort, idpPort] = [await freePort(), await freePort(), await freePort()];
+    const received = [];
+    const upstream = http.createServer((req, res) => { received.push(req.url); res.end('UP'); });
+    await new Promise((r) => upstream.listen(upPort, '127.0.0.1', r));
+    const d = tmp();
+    const cfg = caddyfileForTest(d, { upPort, webPort, idpPort, master });
+    // `caddy validate` prima di avviarlo: un errore di sintassi nel Caddyfile o nel file importato si vede qui.
+    const v = spawnSync('caddy', ['validate', '--config', cfg, '--adapter', 'caddyfile'], { env: { PATH: process.env.PATH, HOME: d, XDG_DATA_HOME: d, XDG_CONFIG_HOME: d }, encoding: 'utf8' });
+    assert.equal(v.status, 0, v.stderr);
+    const caddy = spawn('caddy', ['run', '--config', cfg, '--adapter', 'caddyfile'], { stdio: 'ignore', env: { PATH: process.env.PATH, HOME: d, XDG_DATA_HOME: d, XDG_CONFIG_HOME: d } });
+    const get = (p) => new Promise((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port: idpPort, path: p, method: 'GET' }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+      req.on('error', reject);
+      req.end();
+    });
+    try {
+      for (let i = 0; ; i++) {
+        try { await get('/'); break; } catch (e) { if (i > 50) throw e; await new Promise((r) => setTimeout(r, 100)); }
+      }
+      received.length = 0;
+      for (const p of IDP_OK_PATHS) assert.equal(await get(p), 200, `permesso: ${p}`);
+      assert.deepEqual(received, IDP_OK_PATHS, 'Keycloak riceve il percorso originale, senza riscritture');
+      received.length = 0;
+      for (const p of IDP_ALWAYS_404) assert.equal(await get(p), 404, `404 atteso: ${p}`);
+      if (master === 'chiusa') {
+        for (const p of IDP_MASTER_404_WHEN_CLOSED) assert.equal(await get(p), 404, `404 atteso a console chiusa: ${p}`);
+        assert.deepEqual(received, [], 'nessuna richiesta bloccata arriva a Keycloak');
+      } else {
+        assert.deepEqual(received, [], 'i trucchi e il resto non arrivano a Keycloak neanche a console aperta');
+        for (const p of IDP_MASTER_200_WHEN_OPEN) assert.equal(await get(p), 200, `console master aperta: ${p}`);
+        assert.deepEqual(received, IDP_MASTER_200_WHEN_OPEN, 'la console master arriva a Keycloak senza riscritture');
+      }
+    } finally {
+      caddy.kill();
+      upstream.close();
     }
-    const ok = [
-      '/realms/loyaltyhub/protocol/openid-connect/auth', '/realms/loyaltyhub-members/.well-known/openid-configuration', '/resources/abc/admin/keycloak.v2/x.js',
-      '/admin/loyaltyhub/console', '/admin/loyaltyhub/console/', '/admin/loyaltyhub/console/whoami?currentRealm=loyaltyhub', '/admin/loyaltyhub-members/console/',
-      '/admin/realms/loyaltyhub', '/admin/realms/loyaltyhub/ui-ext/realms/names', '/admin/realms/loyaltyhub-members/users', '/admin/realms/loyaltyhub/roles/my%20role',
-      '/admin/serverinfo', '/resources/loyaltyhub/admin/it',
-    ];
-    const blocked = [
-      '/realms/master', '/realms/master/', '/realms/MASTER/protocol/openid-connect/token', '/Realms/Master/x', '/admin/master/console/', '/admin/Master/console/',
-      '/admin/realms/master', '/admin/realms/MASTER/users', '/admin/realms/%4DASTER/users', '/realms/%6Daster/x', '/admin/realms/master%2Fusers', '/resources/master/admin/en',
-      '//realms/master', '/realms//master', '//admin//realms//master', '/admin/realms//master/users', '/realms/./master',
-      '/realms/loyaltyhub/../master/x', '/realms/loyaltyhub/%2e%2e/master/x', '/realms/loyaltyhub/%2E%2E%2Fmaster', '/resources/../realms/master/x', '/resources/x/..;/..;/realms/master',
-      '/realms/loyaltyhub;a=b/x', '/realms/loyaltyhub%2f..%2fmaster', '/realms/loyaltyhub%5c..%5cmaster', '/realms/loyaltyhub/%252e%252e/master',
-      '/admin', '/admin/', '/admin/realms', '/js/keycloak.js', '/', '/health', '/metrics', '/realms/loyaltyhubx', '/realms/masterx', '/admin/serverinfo/x',
-    ];
-    received.length = 0;
-    for (const p of ok) assert.equal(await get(p), 200, `permesso: ${p}`);
-    assert.deepEqual(received, ok, 'Keycloak riceve il percorso originale, senza riscritture');
-    received.length = 0;
-    for (const p of blocked) assert.equal(await get(p), 404, `404 atteso: ${p}`);
-    assert.deepEqual(received, [], 'nessuna richiesta bloccata arriva a Keycloak');
-  } finally {
-    caddy.kill();
-    upstream.close();
-  }
-});
+  });
+}
 
 // L'inoltro delle porte di GitHub riscrive `Origin: https://<codespace>-8000.<dominio>` in `http://localhost:8000`
 // (github/community discussione 147513): senza il ripristino nel proxy il BFF rifiuta ogni scrittura con 403 CSRF_REJECTED
@@ -647,9 +707,7 @@ test('Caddyfile del codespace con Caddy: Origin riscritto da GitHub -> origine p
   const upstream = http.createServer((req, res) => { seen = { origin: req.headers.origin ?? null, site: req.headers['sec-fetch-site'] ?? null, csrf: req.headers['x-lh-csrf'] ?? null }; res.end('UP'); });
   await new Promise((r) => upstream.listen(upPort, '127.0.0.1', r));
   const d = tmp();
-  const cfg = path.join(d, 'Caddyfile');
-  fs.writeFileSync(cfg, read(CADDYFILE_CODESPACE).replace('idp:8080', `127.0.0.1:${upPort}`).replace('web:3000', `127.0.0.1:${upPort}`)
-    .replace(/^:8001 \{/m, `:${idpPort} {`).replace(/^:8000 \{/m, `:${webPort} {`));
+  const cfg = caddyfileForTest(d, { upPort, webPort, idpPort, master: 'chiusa' });
   const caddy = spawn('caddy', ['run', '--config', cfg, '--adapter', 'caddyfile'], {
     stdio: 'ignore', env: { PATH: process.env.PATH, HOME: d, XDG_DATA_HOME: d, XDG_CONFIG_HOME: d, LH_VETRINA_WEB_HOST: new URL(PUBLIC).host },
   });
@@ -713,6 +771,7 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
   assert.deepEqual(proxy.cap_drop, ['ALL']);
   assert.deepEqual(proxy.networks.default ?? {}, {}, 'nessun alias: i nomi pubblici puntano all\'inoltro di GitHub');
   assert.ok(proxy.volumes.some((v) => v.source.endsWith('/caddy/Caddyfile.codespace') && v.target === '/etc/caddy/Caddyfile'));
+  assert.ok(proxy.volumes.some((v) => v.source === '/etc/loyaltyhub-vetrina/caddy' && v.target === '/etc/caddy/vetrina' && v.read_only === true), 'cartella del permesso della console master, in sola lettura');
   for (const [name, svc] of Object.entries(cfg.services)) {
     assert.ok(svc.mem_limit, `${name}: limite di memoria`);
     for (const p of svc.ports ?? []) assert.equal(p.host_ip, '127.0.0.1', `${name}: porta ${p.published} solo su loopback`);
@@ -729,7 +788,7 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
   }
   assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://prova-vetrina-8001.app.github.dev');
   // Q-670: nel codespace KC_HOSTNAME_ADMIN non e' impostato (l'overlay di base lo fissa a 127.0.0.1:8180 e qui lo
-  // toglie): la console dei due realm usa l'indirizzo pubblico, quella di master il frontendUrl del suo realm (8180).
+  // toglie): la console dei due realm usa l'indirizzo pubblico, anche quella di master (il realm non ha un frontendUrl proprio, ADR-055).
   assert.ok((cfg.services.idp.environment.KC_HOSTNAME_ADMIN ?? null) === null, `KC_HOSTNAME_ADMIN impostato: ${cfg.services.idp.environment.KC_HOSTNAME_ADMIN}`);
   assert.deepEqual(cfg.services.idp.ports.map((p) => `${p.host_ip}:${p.published}`), ['127.0.0.1:8180']);
   // TLS verso bus e database invariato.
@@ -749,14 +808,18 @@ test('vetrina.sh: configurazione rifiutata se il proxy esce da loopback o i nomi
     [{ ...CODESPACE_ENV, LH_VETRINA_PUBLIC_ADDRESS: '10.0.0.10' }, /LH_VETRINA_PUBLIC_ADDRESS, se presente, deve essere 127\.0\.0\.1/],
     [{ ...CODESPACE_ENV, LH_VETRINA_WEB_HOST: 'web-vetrina.example.org' }, /LH_VETRINA_WEB_HOST nel codespace/],
     [{ ...CODESPACE_ENV, LH_VETRINA_IDP_HOST: 'prova-vetrina-8443.app.github.dev' }, /LH_VETRINA_IDP_HOST nel codespace/],
-    [{ ...CODESPACE_ENV, LH_VETRINA_ADMIN_HOST: '' }, /LH_VETRINA_ADMIN_HOST nel codespace/],
-    [{ ...CODESPACE_ENV, LH_VETRINA_ADMIN_HOST: 'prova-vetrina-8001.app.github.dev' }, /LH_VETRINA_ADMIN_HOST nel codespace/],
     [{ ...CODESPACE_ENV, LH_VETRINA_MODE: 'host' }, /LH_VETRINA_MODE ammette solo codespace/],
   ];
   for (const [env, msg] of cases) {
     const r = vetrina(['provision'], write(env));
     assert.equal(r.status, 2, r.stderr);
     assert.match(r.stderr, msg);
+  }
+  // Un file gia' scritto con LH_VETRINA_ADMIN_HOST (Q-670, superata da ADR-055) resta valido: la chiave e' ignorata, non obbligatoria.
+  for (const extra of [{}, { LH_VETRINA_ADMIN_HOST: 'prova-vetrina-8180.app.github.dev' }]) {
+    const legacy = vetrina(['provision'], write({ ...CODESPACE_ENV, ...extra }));
+    assert.notEqual(legacy.status, 2, `configurazione rifiutata: ${legacy.stderr}`);
+    assert.doesNotMatch(legacy.stderr, /LH_VETRINA_ADMIN_HOST|chiave non ammessa/, legacy.stderr);
   }
   // Fuori da un codespace il comando non parte.
   const outside = vetrina(['codespace'], path.join(d, 'cs.env'), { LH_IMAGE: 'ghcr.io/example/loyaltyhub:ci' });
@@ -778,9 +841,16 @@ test('vetrina.sh codespace: configurazione dall\'ambiente, segreti generati, ele
     GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: 'app.github.dev',
     LH_IMAGE: 'ghcr.io/example/loyaltyhub:v1.2.3',
     LH_VETRINA_OPERATORS: 'anna.admin ADMIN anna.admin@example.org; bruno.legal LEGAL bruno.legal@example.org',
+    LH_VETRINA_MASTER_ADMIN_PASSWORD: PROVA_MASTER_PW,
   });
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stderr, /docker compose config fallito/);
+  assert.ok(!(r.stdout + r.stderr).includes(PROVA_MASTER_PW), 'la password del proprietario non si stampa mai');
+  assert.ok(!read(cfg).includes(PROVA_MASTER_PW), 'la password del proprietario non entra nel file di configurazione');
+  // Console master: dopo il provisioning il file del proxy esiste ed e' CHIUSO (si apre solo dopo aver creato l'utente).
+  const masterFile = path.join(d, 'cs', 'caddy', 'master-console.caddy');
+  assert.equal(read(masterFile), read(MASTER_CLOSED), 'console master chiusa di default');
+  assert.equal(fs.statSync(masterFile).mode & 0o777, 0o644, 'file di soli permessi, leggibile dal proxy');
   assert.doesNotMatch(r.stdout + r.stderr, /example\.org/, 'l\'elenco degli operatori non si stampa');
   const conf = read(cfg);
   assert.equal(fs.statSync(cfg).mode & 0o777, 0o600);
@@ -788,7 +858,7 @@ test('vetrina.sh codespace: configurazione dall\'ambiente, segreti generati, ele
   assert.match(conf, /^LH_IMAGE=ghcr\.io\/example\/loyaltyhub:v1\.2\.3$/m);
   assert.match(conf, /^LH_VETRINA_WEB_HOST=prova-vetrina-x5g7-8000\.app\.github\.dev$/m);
   assert.match(conf, /^LH_VETRINA_IDP_HOST=prova-vetrina-x5g7-8001\.app\.github\.dev$/m);
-  assert.match(conf, /^LH_VETRINA_ADMIN_HOST=prova-vetrina-x5g7-8180\.app\.github\.dev$/m);
+  assert.doesNotMatch(conf, /LH_VETRINA_ADMIN_HOST|8180/, 'la console master non ha piu\' un indirizzo proprio (ADR-055)');
   assert.match(conf, new RegExp(`^LH_VETRINA_DIR=${path.join(d, 'cs').replaceAll('/', '\\/')}$`, 'm'));
   for (const s of SECRET_FILES) assert.equal(fs.statSync(path.join(d, 'cs', 'secrets', s)).mode & 0o777, 0o600, s);
   const list = path.join(d, 'cs', 'operators.list');
@@ -833,7 +903,7 @@ test('vetrina.sh idp-reset: ferma Keycloak e ricrea il solo database idp (non qu
 test('vetrina.sh codespace: a ogni avvio database di Keycloak da zero PRIMA dell\'avvio, poi overlay, operatori e membri di test, senza marcatore (Q-672, Q-673)', () => {
   const sh = read(VETRINA_SH);
   const fn = sh.split('\ncmd_codespace() {')[1]?.split('\n}\n')[0] ?? '';
-  const order = ['cmd_preflight', 'cmd_idp_reset', 'compose up -d --wait --wait-timeout 900', 'apply_realm_overlay', 'cmd_operators', 'cmd_membri --if-reachable'];
+  const order = ['cmd_preflight', 'cmd_idp_reset', 'compose up -d --wait --wait-timeout 900', 'MASTER_OWNER_PASSWORD="$master_pw"', 'apply_realm_overlay', 'cmd_operators', 'cmd_membri --if-reachable'];
   const at = order.map((s) => fn.indexOf(s));
   assert.ok(at.every((i) => i > 0) && at.every((v, i) => i === 0 || v > at[i - 1]), `ordine dei passi in cmd_codespace: ${at}`);
   assert.doesNotMatch(sh, /\.realm-overlay/, 'nessun marcatore del primo avvio: l\'overlay si riapplica a ogni avvio');
@@ -910,26 +980,94 @@ test('vetrina.sh membri: solo nel codespace con CODESPACES=true; lancia vetrina-
 // ---------------------------------------------------------------------------------------------------------------
 // Console di Keycloak (M8.14 V9; ADR-051 decisione 8; Q-670)
 
-test('compose.codespace.yml: KC_HOSTNAME_ADMIN non impostato (valore nullo che toglie quello dell\'overlay di base); la porta 8180 resta privata (Q-670)', () => {
+test('compose.codespace.yml: KC_HOSTNAME_ADMIN non impostato (valore nullo che toglie quello dell\'overlay di base); la porta 8180 non e\' inoltrata ne\' pubblicata dall\'overlay (Q-670, ADR-055)', () => {
   const text = read(CODESPACE_OVERLAY);
   const cs = YAML.parse(text);
   assert.ok('KC_HOSTNAME_ADMIN' in cs.services.idp.environment && cs.services.idp.environment.KC_HOSTNAME_ADMIN === null, 'valore nullo esplicito (toglie quello dell\'overlay di base)');
   assert.doesNotMatch(noComments(text), /KC_HOSTNAME_ADMIN:\s*["'$h]|LH_VETRINA_ADMIN_HOST/, 'nessun valore per KC_HOSTNAME_ADMIN, nessun riferimento a LH_VETRINA_ADMIN_HOST nell\'overlay');
-  assert.equal(cs.services.idp.ports, undefined, 'la porta 8180 la pubblica solo l\'overlay di base su 127.0.0.1, inoltro privato');
+  assert.equal(cs.services.idp.ports, undefined, 'la porta 8180 la pubblica solo l\'overlay di base su 127.0.0.1: serve agli script, il codespace non la inoltra');
   assert.match(read(AVVIO), /gh codespace ports visibility 8000:public 8001:public/);
 });
 
-test('vetrina.sh: KC_HOSTNAME_ADMIN si toglie anche dall\'ambiente; master riceve il frontendUrl della porta privata (Q-670)', () => {
+test('vetrina.sh: KC_HOSTNAME_ADMIN si toglie anche dall\'ambiente; master sull\'indirizzo pubblico, senza frontendUrl ne\' indirizzo proprio (ADR-055, Q-727)', () => {
   const sh = read(VETRINA_SH);
   const fn = sh.split('\ncompose() {')[1]?.split('\n}\n')[0] ?? '';
   assert.match(fn, /local files=\(-f "\$REFERENCE" -f "\$OVERLAY" -f "\$CODESPACE_OVERLAY"\)/);
-  assert.match(fn, /^\s+unset_args\+=\(-u KC_HOSTNAME_ADMIN\)$/m);
-  const ap = sh.split('\napply_realm_overlay() {')[1]?.split('\n}\n')[0] ?? '';
-  assert.match(ap, /MASTER_FRONTEND_URL="https:\/\/\$LH_VETRINA_ADMIN_HOST" KC_BOOTSTRAP_ADMIN_PASSWORD="\$pw"/);
+  assert.match(fn, /^\s+unset_args\+=\(-u KC_HOSTNAME_ADMIN -u LH_VETRINA_MASTER_ADMIN_PASSWORD\)$/m, 'il segreto del proprietario non arriva a docker compose');
+  assert.doesNotMatch(sh, /MASTER_FRONTEND_URL|CODESPACE_ADMIN_PORT/, 'nessun frontendUrl privato per master: vive sull\'indirizzo pubblico');
   assert.doesNotMatch(read(path.join(ROOT, 'deploy/idp/vetrina/master.json')), /frontendUrl":/, 'master.json senza indirizzi (dinamici)');
-  // Il messaggio finale distingue le console pubbliche dei due realm da quella privata di master.
-  assert.match(fn.length ? sh : '', /console dei realm \(pubbliche[^\n]*\/admin\/loyaltyhub\/console\/[^\n]*\/admin\/loyaltyhub-members\/console\//);
-  assert.match(sh, /console del realm master \(Q-670\): https:\/\/\$LH_VETRINA_ADMIN_HOST\/admin\/master\/console\/ \(porta \$CODESPACE_ADMIN_PORT privata/);
+  assert.doesNotMatch(read(path.join(ROOT, 'deploy/idp/vetrina/apply-overlay.sh')), /MASTER_FRONTEND_URL/);
+  // Il messaggio finale distingue le console pubbliche dei due realm da quella di master, con il suo stato.
+  assert.match(sh, /console dei realm \(pubbliche[^\n]*\/admin\/loyaltyhub\/console\/[^\n]*\/admin\/loyaltyhub-members\/console\//);
+  assert.match(sh, /console del realm master \(ADR-055\): https:\/\/\$LH_VETRINA_IDP_HOST\/admin\/master\/console\/ · aperta: [^\n]*segreto LH_VETRINA_MASTER_ADMIN_PASSWORD/);
+  assert.match(sh, /console del realm master \(ADR-055\): https:\/\/\$LH_VETRINA_IDP_HOST\/admin\/master\/console\/ · chiusa: segreto LH_VETRINA_MASTER_ADMIN_PASSWORD assente o non valido/);
+});
+
+test('vetrina.sh: il segreto del proprietario si legge dall\'ambiente, si toglie subito, non si stampa e non va negli argomenti (ADR-055, regola 20)', () => {
+  const sh = read(VETRINA_SH);
+  const cs = sh.split('\ncmd_codespace() {')[1]?.split('\n}\n')[0] ?? '';
+  assert.match(cs, /local master_pw="\$\{LH_VETRINA_MASTER_ADMIN_PASSWORD:-\}"\n\s+unset LH_VETRINA_MASTER_ADMIN_PASSWORD/, 'letto e tolto dall\'ambiente');
+  assert.ok(cs.indexOf('unset LH_VETRINA_MASTER_ADMIN_PASSWORD') < cs.indexOf('cmd_provision'), 'tolto prima di qualunque figlio');
+  assert.match(cs, /MASTER_OWNER_PASSWORD="\$master_pw"\n\s+master_pw=""\n\s+apply_realm_overlay\n\s+MASTER_OWNER_PASSWORD=""/, 'in variabile non esportata solo per apply_realm_overlay');
+  // La variabile non e' mai un argomento, mai in echo/info/printf, mai scritta su file.
+  const uses = sh.split('\n').filter((l) => /MASTER_OWNER_PASSWORD|master_pw|LH_VETRINA_MASTER_ADMIN_PASSWORD/.test(l) && !/^\s*#/.test(l));
+  for (const l of uses) assert.doesNotMatch(l, /\b(echo|info|printf|tee|write_atomic)\b[^\n]*(\$MASTER_OWNER_PASSWORD|\$master_pw|\$\{?LH_VETRINA_MASTER_ADMIN_PASSWORD)/, l);
+  const ap = sh.split('\napply_realm_overlay() {')[1]?.split('\n}\n')[0] ?? '';
+  assert.match(ap, /^\s+LH_VETRINA_MASTER_ADMIN_PASSWORD="\$MASTER_OWNER_PASSWORD" KC_BOOTSTRAP_ADMIN_PASSWORD="\$pw" KEYCLOAK_URL="\$KEYCLOAK_LOCAL" \\\n\s+"\$REPO_ROOT\/deploy\/idp\/vetrina\/apply-overlay\.sh"/m, 'solo ambiente del processo figlio');
+  assert.match(read(AVVIO), /--preserve-env=[^ \n]*LH_VETRINA_MASTER_ADMIN_PASSWORD/, 'sudo lo lascia passare a vetrina.sh');
+  assert.doesNotMatch(read(AVVIO), /echo[^\n]*LH_VETRINA_MASTER_ADMIN_PASSWORD|set -x/);
+  // Nessun altro file del compose o del dev container porta il valore.
+  for (const f of [OVERLAY, CODESPACE_OVERLAY, DEVCONTAINER]) assert.doesNotMatch(noComments(read(f)), /LH_VETRINA_MASTER_ADMIN_PASSWORD/, path.basename(f));
+});
+
+test('vetrina.sh: la console master si apre SOLO con il segreto e dopo aver creato e verificato l\'utente; ogni altro esito la lascia chiusa (ADR-055, Q-727)', () => {
+  const sh = read(VETRINA_SH);
+  const fn = (name) => { const body = sh.split(`\n${name}() {`)[1]; return body ? `${name}() {${body.split('\n}\n')[0]}\n}\n` : ''; };
+  const lib = ['info() { echo "vetrina: $*"; }', 'die() { echo "Errore: $*" >&2; exit 1; }', 'test_users_allowed() { true; }', 'compose() { return 1; }',
+    fn('write_atomic'), fn('master_console'), fn('master_console_is_open'), fn('apply_realm_overlay')].join('\n');
+  assert.ok(lib.includes('master_console() {') && lib.includes('apply_realm_overlay() {') && lib.includes('write_atomic() {'));
+  const SEGRETO = 'segreto-del-proprietario-xyz789';
+  const run = ({ pw, rc, mode = '' }) => {
+    const d = tmp();
+    const repo = path.join(d, 'repo');
+    fs.mkdirSync(path.join(repo, 'deploy/idp/vetrina'), { recursive: true });
+    const log = path.join(d, 'overlay.log');
+    // apply-overlay.sh finto: registra solo se ha ricevuto la password (lunghezza) e gli argomenti, mai il valore.
+    fs.writeFileSync(path.join(repo, 'deploy/idp/vetrina/apply-overlay.sh'), `#!/bin/sh\necho "pw=\${#LH_VETRINA_MASTER_ADMIN_PASSWORD} args=$*" >> "${log}"\nexit ${rc}\n`, { mode: 0o755 });
+    const host = path.join(d, 'host');
+    fs.mkdirSync(path.join(host, 'secrets'), { recursive: true });
+    fs.writeFileSync(path.join(host, 'secrets/idp-admin-password'), 'bootstrap-prova\n');
+    const r = spawnSync('bash', ['-c', `set -euo pipefail\numask 077\n${lib}\nmaster_console chiusa\nMASTER_OWNER_PASSWORD='${pw}'\nrc=0\napply_realm_overlay ${mode} || rc=$?\nunset MASTER_OWNER_PASSWORD\nif master_console_is_open; then echo STATO=aperta; else echo STATO=chiusa; fi\nexit $rc`], {
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH, SCRIPT_DIR: DIR, REPO_ROOT: repo, LH_VETRINA_DIR: host, KEYCLOAK_LOCAL: 'http://127.0.0.1:8180' },
+    });
+    const out = r.stdout + r.stderr;
+    assert.ok(!out.includes(SEGRETO), `la password non compare nell'output: ${out}`);
+    assert.ok(!read(log).includes(SEGRETO), 'la password non e\' un argomento');
+    return { status: r.status, out, state: /STATO=(\w+)/.exec(r.stdout)?.[1], overlay: read(log).trim(), file: read(path.join(host, 'caddy/master-console.caddy')) };
+  };
+  // Segreto presente e utente pronto (uscita 0): console aperta, il processo figlio ha ricevuto la password dall'ambiente.
+  let r = run({ pw: SEGRETO, rc: 0 });
+  assert.deepEqual([r.status, r.state, r.file === read(MASTER_OPEN)], [0, 'aperta', true], r.out);
+  assert.match(r.overlay, /^pw=\d+ args=/);
+  assert.notEqual(r.overlay.match(/pw=(\d+)/)[1], '0');
+  // Segreto assente: chiusa, il figlio non riceve password.
+  r = run({ pw: '', rc: 0 });
+  assert.deepEqual([r.status, r.state, r.file === read(MASTER_CLOSED)], [0, 'chiusa', true], r.out);
+  assert.match(r.overlay, /^pw=0 /);
+  // Utente non pronto (uscita 3: password che viola la politica): resta chiusa, la vetrina NON si ferma (uscita 0) e si dice perche'.
+  r = run({ pw: SEGRETO, rc: 3 });
+  assert.deepEqual([r.status, r.state], [0, 'chiusa'], r.out);
+  assert.match(r.out, /console del realm master chiusa/);
+  // Qualunque altro errore dell'overlay: chiusa e l'errore si propaga.
+  r = run({ pw: SEGRETO, rc: 1 });
+  assert.deepEqual([r.status, r.state], [1, 'chiusa'], r.out);
+  // Le sole verifiche degli operatori non cambiano lo stato.
+  r = run({ pw: SEGRETO, rc: 0, mode: '--check-operators' });
+  assert.deepEqual([r.status, r.state], [0, 'chiusa'], r.out);
+  assert.match(r.overlay, /args=--check-operators/);
+  // cmd_idp_reset richiude la console prima di ricreare il database (l'utente non c'e' piu').
+  assert.match(sh.split('\ncmd_idp_reset() {')[1]?.split('\n}\n')[0] ?? '', /master_console chiusa/);
 });
 
 // ---------------------------------------------------------------------------------------------------------------

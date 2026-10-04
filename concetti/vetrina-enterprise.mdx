@@ -25,12 +25,13 @@ Il pulsante non cambia il profilo della demo. Il profilo si fissa all'avvio, lat
 ```mermaid
 flowchart LR
   accTitle: Vetrina enterprise ospitata
-  accDescr: Il Demo Hub su Vercel collega la vetrina enterprise, che gira in un GitHub Codespace acceso su richiesta. Solo l'inoltro delle porte di GitHub è esposto, in https; porta al web e ai due realm di Keycloak con le loro console, mai al realm master. Hub e Keycloak parlano con Postgres in TLS verificato e l'hub con Kafka in TLS con certificato del client, firmati da una CA locale generata nel codespace.
+  accDescr: Il Demo Hub su Vercel collega la vetrina enterprise, che gira in un GitHub Codespace acceso su richiesta. Solo l'inoltro delle porte di GitHub è esposto, in https; porta al web e ai due realm di Keycloak con le loro console, e al realm master solo se il proprietario ha messo il suo segreto nel codespace. Hub e Keycloak parlano con Postgres in TLS verificato e l'hub con Kafka in TLS con certificato del client, firmati da una CA locale generata nel codespace.
   V[Visitatore] -->|HTTPS| DH[Demo Hub demo<br/>Vercel loyalty-hub-web]
   DH -->|link LH_HUB_ENTERPRISE_URL| RP
   subgraph VM[GitHub Codespace - acceso su richiesta]
     RP[Inoltro porte di GitHub<br/>https app.github.dev] --> W[web LH_ROLE=web<br/>LH_PROFILE=enterprise]
     RP -->|realm loyaltyhub e loyaltyhub-members<br/>e le loro console| K[idp Keycloak 26.7.4]
+    RP -.->|realm master: solo con il segreto<br/>del proprietario, altrimenti 404| K
     W -->|Bearer, rete interna| H[hub LH_ROLE=hub<br/>LH_PROFILE=enterprise]
     H -->|TLS verify-full| PG[(Postgres 17<br/>DB hub + DB idp)]
     K -->|TLS verify-full| PG
@@ -47,7 +48,7 @@ flowchart LR
 | `hub` | container nel codespace, non esposto | Esegue le migrazioni all'avvio. |
 | `idp` | Keycloak con Postgres come database | Un realm da `deploy/idp/realm.json` più un overlay di vetrina: registrazione chiusa, nessuna credenziale pubblicata e un client pubblico `lh-cli` (Device Authorization Grant, con consenso esplicito e ruoli limitati a quelli operatore) per la CLI dell'operatore (Q-626, decisa il 2026-09-30). L'OTP vale per gli account con `MFA_REQUIRED_ROLE` e lo script del realm fallisce per un operatore che non lo ha (Q-618, decisa il 2026-09-30). |
 | Postgres e Kafka | nel codespace, nel compose | Database e broker **propri**, mai condivisi con la demo. Il traffico verso entrambi è in TLS, con certificati di una CA locale generata nel codespace (Q-621): Postgres rifiuta le connessioni in chiaro, Kafka chiede il certificato del client. |
-| Inoltro delle porte | GitHub, due porte pubbliche | Unico ingresso, in https su `*.app.github.dev`: termina il TLS per `web` e `idp` (Q-661). Del Keycloak espone i due realm di vetrina e le loro console; il realm `master` no (Q-670). |
+| Inoltro delle porte | GitHub, due porte pubbliche | Unico ingresso, in https su `*.app.github.dev`: termina il TLS per `web` e `idp` (Q-661). Del Keycloak espone i due realm di vetrina e le loro console; il realm `master` solo se il proprietario ha impostato il suo segreto (ADR-055, Q-727). |
 
 L'hosting è un GitHub Codespace del repository: il proprietario lo accende dal browser prima di una demo e si ferma da solo dopo un periodo di inattività. Resta a costo zero perché l'uso si blocca a fine quota gratuita (ADR-050, Q-660); un host sempre acceso è rimandato (TOBE-012). Il bus è un broker Kafka KRaft sullo stesso host, con gli stessi 5 topic della demo (Q-616).
 
@@ -78,7 +79,7 @@ flowchart LR
 
 Prima di avviare lo stack, lo script rifiuta un'immagine più vecchia degli script del repository: confronta la revisione dell'immagine (etichetta OCI `org.opencontainers.image.revision`, oppure il commit del tag `vX.Y.Z`) con `HEAD` e, se differiscono nelle cartelle che finiscono nell'immagine (`web`, `services`, `libs`, `contracts`, `seed`, `deploy/hub`, `deploy/image`, `pom.xml`, `.mvn` e `mvnw`), si ferma con un messaggio che chiede un'immagine costruita da questo commit o un nuovo tag di rilascio (M8.14, F2-DIST-09).
 
-Nel codespace il proxy resta, ma parla HTTP su due porte locali: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy espone di Keycloak solo i realm `loyaltyhub` e `loyaltyhub-members` con le loro console; il realm `master`, con la sua console, resta su una porta privata, visibile solo al proprietario (Q-661, Q-670). Sulla porta del web il proxy rimette l'origine pubblica nell'intestazione `Origin`, che l'inoltro di GitHub riscrive in `localhost:8000`: senza, il BFF rifiuterebbe ogni scrittura come richiesta di un altro sito (#235). Gli altri controlli contro le richieste di altri siti (`Sec-Fetch-Site`, token CSRF legato alla sessione) restano invariati.
+Nel codespace il proxy resta, ma parla HTTP su due porte locali: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy espone di Keycloak solo i realm `loyaltyhub` e `loyaltyhub-members` con le loro console; il realm `master`, con la sua console, risponde `404` finché il proprietario non imposta il segreto `LH_VETRINA_MASTER_ADMIN_PASSWORD`: solo allora il proxy lo apre, e solo dopo che lo script ha creato e verificato l'utente `proprietario` (Q-661, ADR-055, Q-727). Sulla porta del web il proxy rimette l'origine pubblica nell'intestazione `Origin`, che l'inoltro di GitHub riscrive in `localhost:8000`: senza, il BFF rifiuterebbe ogni scrittura come richiesta di un altro sito (#235). Gli altri controlli contro le richieste di altri siti (`Sec-Fetch-Site`, token CSRF legato alla sessione) restano invariati.
 
 ```mermaid
 sequenceDiagram
@@ -111,11 +112,11 @@ Con ADR-051 Keycloak ospita due realm nella stessa istanza. Così operatori e me
 ```mermaid
 flowchart LR
   accTitle: Due realm di Keycloak nella vetrina enterprise
-  accDescr: Il backoffice usa il realm loyaltyhub, dove stanno operatori, fonti e job con OTP obbligatoria; il portale e i widget usano il realm loyaltyhub-members, dove stanno i membri. Il BFF tiene due sessioni distinte. L'hub accetta i token dei due emittenti e da ciascuno solo i suoi ruoli. Le console dei due realm sono pubbliche con amministratori di test limitati, la console master resta privata. Tra i due realm non c'è alcun collegamento.
+  accDescr: Il backoffice usa il realm loyaltyhub, dove stanno operatori, fonti e job con OTP obbligatoria; il portale e i widget usano il realm loyaltyhub-members, dove stanno i membri. Il BFF tiene due sessioni distinte. L'hub accetta i token dei due emittenti e da ciascuno solo i suoi ruoli. Le console dei due realm sono pubbliche con amministratori di test limitati, la console master si apre solo con la password del proprietario. Tra i due realm non c'è alcun collegamento.
   subgraph KC[Keycloak, una istanza]
     RO[Realm loyaltyhub<br/>operatori, fonti, job<br/>password e OTP]
     RM[Realm loyaltyhub-members<br/>membri e widget]
-    MA[Realm master<br/>solo il proprietario]
+    MA[Realm master<br/>utente proprietario, solo password]
   end
   BO[Backoffice] -->|login operatore| RO
   PT[Portale e widget] -->|login membro| RM
@@ -126,7 +127,7 @@ flowchart LR
   H -.->|solo MEMBER| RM
 ```
 
-Nella vetrina ogni realm ha un amministratore di test che gestisce utenti, ruoli e sessioni dalla console, senza poter cambiare la configurazione del realm. La console del realm `master` non è pubblica: sta solo sulla porta privata del proprietario (Q-670, Q-671).
+Nella vetrina ogni realm ha un amministratore di test che gestisce utenti, ruoli e sessioni dalla console, senza poter cambiare la configurazione del realm. La console del realm `master` è chiusa, a meno che il proprietario non imposti il suo segreto: allora si apre con la sola password e il blocco dei tentativi (ADR-055, Q-727, Q-671).
 
 ## Dal browser: accendi, scegli, entra
 
@@ -135,7 +136,7 @@ ADR-051 vuole che tutto si faccia dal browser, senza terminale. Dopo la configur
 ```mermaid
 flowchart TD
   accTitle: Percorso dal browser verso la vetrina enterprise
-  accDescr: Il visitatore parte dalla demo pubblica, accende la modalità Enterprise con il pulsante nel riquadro, attende l'avvio del codespace e arriva a HUB-02 della vetrina. Lì sceglie la scheda di un utente di test: l'operatore entra nel realm loyaltyhub con password e codice OTP del momento e arriva al backoffice, il membro entra nel realm loyaltyhub-members e arriva al portale, gli amministratori di test aprono la console del proprio realm. La console del realm master resta solo sulla porta privata del proprietario.
+  accDescr: Il visitatore parte dalla demo pubblica, accende la modalità Enterprise con il pulsante nel riquadro, attende l'avvio del codespace e arriva a HUB-02 della vetrina. Lì sceglie la scheda di un utente di test: l'operatore entra nel realm loyaltyhub con password e codice OTP del momento e arriva al backoffice, il membro entra nel realm loyaltyhub-members e arriva al portale, gli amministratori di test aprono la console del proprio realm. La console del realm master si apre dallo stesso indirizzo di Keycloak solo con il segreto del proprietario.
   A[Demo pubblica HUB-01<br/>riquadro Modalità Enterprise] -->|Accendi| B[GitHub avvia il codespace<br/>3–5 minuti]
   B --> C[HUB-02 della vetrina<br/>schede degli utenti di test]
   C --> D{Scheda scelta}
@@ -145,7 +146,7 @@ flowchart TD
   E --> H[Backoffice<br/>per il ruolo dell'operatore]
   F --> I[Portale dei membri<br/>il membro viene dal token]
   G --> J[Utenti, ruoli, sessioni, eventi]
-  P[Console del realm master<br/>porta 8180 privata] -.->|solo il proprietario| K[Configurazione di Keycloak]
+  P[Console del realm master<br/>aperta solo con il segreto<br/>del proprietario] -.->|utente proprietario,<br/>solo password| K[Configurazione di Keycloak]
 ```
 
 1. **Accendi.** Sulla demo, il riquadro **Modalità Enterprise** mostra lo stato della vetrina (*spenta*, *in accensione*, *accesa*). Il pulsante **Accendi la modalità Enterprise** chiede a GitHub di avviare il codespace: l'avvio richiede 3–5 minuti e il pulsante diventa **Apri la vetrina** da solo. Il codespace si spegne dopo circa 30 minuti senza uso del terminale: lo riaccendi dallo stesso pulsante. Il pulsante usa le ore gratuite di Codespaces del proprietario, controlla l'origine della richiesta, ammette al più un avvio ogni 60 secondi e legge lo stato da GitHub al più ogni 5 secondi.
@@ -160,15 +161,30 @@ flowchart TD
 
 ### Console di Keycloak
 
-Le console dei due realm sono pubbliche sull'indirizzo di Keycloak della vetrina (porta 8001). La console del realm `master` non lo è.
+Le console dei due realm sono pubbliche sull'indirizzo di Keycloak della vetrina (porta 8001). La console del realm `master` sta sullo stesso indirizzo, ma si apre solo se il proprietario imposta il suo segreto: senza, risponde `404`.
 
 | Console | Indirizzo | Chi entra |
 |---|---|---|
 | Realm operatori | `https://<codespace>-8001.app.github.dev/admin/loyaltyhub/console/` | `vetrina.admin` |
 | Realm membri | `https://<codespace>-8001.app.github.dev/admin/loyaltyhub-members/console/` | `membri.admin` |
-| Realm `master` | `https://<codespace>-8180.app.github.dev/admin/master/console/` | solo il proprietario: login di GitHub, poi l'utente `admin` di Keycloak |
+| Realm `master` | `https://<codespace>-8001.app.github.dev/admin/master/console/` | solo il proprietario: utente `proprietario` e la password del segreto `LH_VETRINA_MASTER_ADMIN_PASSWORD`; chiusa (`404`) senza segreto |
 
-Il proxy risponde `404` a tutto ciò che riguarda `master`, anche con maiuscole, codifiche o `..` nel percorso. Lascia passare solo i percorsi che la console dei due realm usa: login e token del realm, file statici, la pagina `/admin/<realm>/console`, le API `/admin/realms/<realm>` e `/admin/serverinfo`. Il realm `master` ha l'attributo `frontendUrl` sull'indirizzo privato della porta 8180, quindi il suo login e la sua console vivono solo lì (Q-670). Gli amministratori di test hanno i soli ruoli di gestione utenti (Q-671).
+Il proxy lascia passare solo i percorsi che la console dei due realm usa: login e token del realm, file statici, la pagina `/admin/<realm>/console`, le API `/admin/realms/<realm>` e `/admin/serverinfo`. Gli amministratori di test hanno i soli ruoli di gestione utenti (Q-671). Tutto ciò che riguarda `master` risponde `404`, anche con maiuscole, codifiche o `..` nel percorso, finché la console è chiusa. I percorsi con `\`, `;` o `%` restano `404` anche a console aperta (ADR-055).
+
+**Per il proprietario: aprire la console del realm `master`.** Il segreto lo conosci solo tu: non compare nei log, in HUB-02 o nel repository.
+
+1. Apri `github.com/settings/codespaces` dal browser.
+2. In **Secrets** scegli **New secret**.
+3. Come **Name** scrivi `LH_VETRINA_MASTER_ADMIN_PASSWORD`. Come **Value** scrivi una password lunga e casuale: almeno 12 caratteri e diversa da `proprietario`.
+4. In **Repository access** scegli il repository `Loyalty_Sys` e salva.
+5. Riavvia il codespace (dal pulsante **Accendi la modalità Enterprise** o dal pannello dei codespace): il segreto vale dall'avvio successivo.
+6. Apri `https://<codespace>-8001.app.github.dev/admin/master/console/` e accedi con l'utente `proprietario` e la tua password.
+
+Per cambiare la password, modifica il segreto e riavvia. Per chiudere la console, elimina il segreto e riavvia: torna `404`.
+
+<Warning>
+La console `master` è protetta dalla sola password (ADR-055, opzione B, nessun OTP). Dopo 5 tentativi falliti il realm impone un'attesa che cresce fino a 15 minuti. Se la password nel segreto non rispetta la politica del realm `master` (almeno 12 caratteri, diversa dal nome utente), l'avvio prosegue e la console resta chiusa: lo dice la riga finale di `vetrina.sh`, senza mai mostrare la password. Un amministratore di `master` può configurare posta e provider d'identità: usa una password che non usi altrove.
+</Warning>
 
 <Warning>
 Le modifiche fatte nelle console non arrivano ancora nell'audit del backoffice: restano negli eventi di amministrazione di Keycloak fino al ponte di M8.12 (Q-677). Ogni avvio ripristina Keycloak dal repository, quindi una modifica da conservare va portata nel repository con una pull request.
@@ -334,7 +350,7 @@ sequenceDiagram
 Due prove tengono d'occhio il profilo `enterprise`, una prima del rilascio e una sulla vetrina accesa (M8.14, F2-QA-04).
 
 - **Prima del merge.** Il job `smoke enterprise (compose, OIDC)` di `ci.yml` avvia il compose di riferimento con l'immagine della pull request e l'overlay di test del realm. Un operatore fa un login vero dal backoffice: password temporanea cambiata, OTP configurato e codice inserito, senza scorciatoie sui client di produzione. Poi scrive una configurazione e il job cerca la voce in `GET /v1/audit` con l'attore reale. Prova anche i rifiuti: `401` senza token, `403` senza token CSRF, `404 PERSONA_DISABLED` sul selettore di persona. Segreti e certificati di prova nascono nel job e non compaiono nei log.
-- **Sulla vetrina.** Il workflow `smoke-vetrina.yml` gira ogni sei ore, senza credenziali e solo in lettura. Controlla la health, HUB-02 con le tessere attive, la discovery OIDC del realm `loyaltyhub`, la registrazione chiusa e che la radice di `/admin` e il realm `master` non siano esposti. La health di hub, database e bus arriva dalle tessere di HUB-02, perché il proxy non espone altro (Q-650). Finché la variabile `LH_VETRINA_URL` del repository è vuota, il workflow si ferma con un avviso.
+- **Sulla vetrina.** Il workflow `smoke-vetrina.yml` gira ogni sei ore, senza credenziali e solo in lettura. Controlla la health, HUB-02 con le tessere attive, la discovery OIDC del realm `loyaltyhub`, la registrazione chiusa e che la radice di `/admin` non sia esposta e che il realm `master` sia chiuso (`404`) o, se il proprietario ha aperto la sua console, risponda senza credenziali. La health di hub, database e bus arriva dalle tessere di HUB-02, perché il proxy non espone altro (Q-650). Finché la variabile `LH_VETRINA_URL` del repository è vuota, il workflow si ferma con un avviso.
 
 ```mermaid
 flowchart LR
@@ -350,7 +366,7 @@ flowchart LR
   subgraph SV[Ogni sei ore: smoke-vetrina]
     V[LH_VETRINA_URL] --> H[Health e HUB-02]
     H --> D[Discovery OIDC e JWKS]
-    D --> X[Registrazione chiusa,<br/>console e master in 404]
+    D --> X[Registrazione chiusa, /admin in 404,<br/>master chiuso o aperto dal proprietario]
   end
 ```
 

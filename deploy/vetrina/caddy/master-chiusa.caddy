@@ -1,0 +1,3 @@
+# Console del realm `master` CHIUSA (F2-DIST-09, ADR-055, Q-727): nessun permesso. Ci pensa il 404 su `master` di
+# Caddyfile.codespace. vetrina.sh copia questo file in $LH_VETRINA_DIR/master-console.caddy quando il segreto
+# LH_VETRINA_MASTER_ADMIN_PASSWORD manca o l'utente del proprietario non e' stato creato e verificato.

@@ -862,7 +862,7 @@ test('master.json (Q-672): solo impostazioni del realm master, nessun utente né
   assert.equal(m.sslRequired, 'external');
   assert.match(m.passwordPolicy, /length\(\d+\)/);
   for (const k of ['users', 'clients', 'roles', 'groups', 'frontendUrl', 'attributes', 'smtpServer', 'browserFlow', 'identityProviders', 'components']) {
-    assert.ok(!(k in m), `master.json non deve contenere ${k} (il frontendUrl è dinamico: lo imposta apply-overlay.sh da MASTER_FRONTEND_URL, Q-670)`);
+    assert.ok(!(k in m), `master.json non deve contenere ${k} (niente indirizzi né utenti: l'utente del proprietario lo crea apply-overlay.sh dal segreto, ADR-055)`);
   }
   assert.ok(!/credentials|secret/i.test(fs.readFileSync(VETRINA_MASTER_PATH, 'utf8')), 'nessuna credenziale');
 });
@@ -949,10 +949,11 @@ test('apply-overlay.sh di vetrina: ruoli operatore e MFA_REQUIRED_ROLE coerenti 
 // senza un server reale. Regola 20: la password di amministrazione di prova e' un valore inventato del test.
 // Simula la semantica di Keycloak che serve allo script: PUT dei realm, partialImport OVERWRITE di client, ruoli e
 // utenti (con gli id dichiarati), ruoli di realm-management assegnati con l'API, elenco degli utenti per ruolo.
-// Con `staleTokenOnFrontendUrl` simula Keycloak 26 (hostname v2): cambiato il frontendUrl di un realm, i token emessi prima
-// non valgono piu' (l'emittente atteso cambia); `refuseFrontendUrl` risponde 400 al PUT che lo contiene e
-// `ignoreFrontendUrl` lo scarta in silenzio (Q-670: lo script deve fallire in entrambi i casi).
-function mockKeycloak({ operators, bootstrapping = 0, wrongPassword = false, dropOtp = false, renumberIds = false, staleTokenOnFrontendUrl = true, refuseFrontendUrl = false, ignoreFrontendUrl = false }) {
+// Utente del proprietario nel realm master (ADR-055, Q-727): creazione, reset-password, ruolo `admin`, rilettura e login con
+// la password (valido solo se la password non e' temporanea e l'utente e' abilitato e senza azioni richieste).
+// `rejectOwnerPassword` risponde 400 al reset-password con il solo motivo (come Keycloak, mai il valore);
+// `ownerLoginFails` rifiuta il login di prova dell'utente.
+function mockKeycloak({ operators, bootstrapping = 0, wrongPassword = false, dropOtp = false, renumberIds = false, rejectOwnerPassword = false, ownerLoginFails = false }) {
   const base = (name, extra = {}) => ({ realm: name, registrationAllowed: true, browserFlow: 'browser', bruteForceProtected: true, sslRequired: 'external',
     adminEventsEnabled: true, adminEventsDetailsEnabled: false, ...extra });
   const state = {
@@ -961,9 +962,9 @@ function mockKeycloak({ operators, bootstrapping = 0, wrongPassword = false, dro
       loyaltyhub: base('loyaltyhub', { browserFlow: 'browser-mfa', otpPolicyType: 'totp', verifyEmail: false, passwordPolicy: 'length(12)' }),
       'loyaltyhub-members': base('loyaltyhub-members'),
     },
-    users: { loyaltyhub: new Map(), 'loyaltyhub-members': new Map() },
+    users: { loyaltyhub: new Map(), 'loyaltyhub-members': new Map(), master: new Map() },
     roles: { loyaltyhub: [], 'loyaltyhub-members': [] },
-    clients: [], scope: [], puts: 0, loginBody: '', imports: [], issued: 0, minValid: 1, logins: 0,
+    clients: [], scope: [], puts: 0, loginBody: '', imports: [], issued: 0, minValid: 1, logins: 0, ownerLogins: 0, paths: [],
   };
   const imported = (realm) => [...state.users[realm].values()];
   const roleUsers = (role) => operators.filter(u => (u.realmRoles ?? []).includes(role)).map(u => ({ id: `id-${u.username}`, username: u.username }))
@@ -977,6 +978,13 @@ function mockKeycloak({ operators, bootstrapping = 0, wrongPassword = false, dro
       const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(obj === undefined ? '' : JSON.stringify(obj)); };
       const p = url.pathname;
       if (p === '/realms/master/protocol/openid-connect/token') {
+        const form = new URLSearchParams(body);
+        if (form.get('username') === 'proprietario') {
+          state.ownerLogins++;
+          const o = [...state.users.master.values()].find(x => x.username === 'proprietario');
+          const valid = o && o.enabled && !(o.requiredActions ?? []).length && o.password !== undefined && !o.temporary && form.get('password') === o.password;
+          return valid && !ownerLoginFails ? json(200, { access_token: `owner-token-${state.ownerLogins}` }) : json(401, { error: 'invalid_grant' });
+        }
         state.loginBody = body; state.logins++;
         // Keycloak 26 a fine avvio: /health/ready gia' verde, ma le richieste ricevono 503 in testo finche' il bootstrap
         // (import dei realm, amministratore temporaneo) non termina.
@@ -989,14 +997,38 @@ function mockKeycloak({ operators, bootstrapping = 0, wrongPassword = false, dro
       const m = p.match(/^\/admin\/realms\/([a-z-]+)(?:\/(.*))?$/);
       if (!m || !state.realms[m[1]]) return json(404, { path: p });
       const [, realm, rest] = m;
+      state.paths.push(`${req.method} ${req.url}`);
+      let o;
+      if (realm === 'master' && rest === 'users' && req.method === 'GET') {
+        const name = url.searchParams.get('username');
+        return json(200, [...state.users.master.values()].filter(u => u.username === name).map(({ id, username, enabled }) => ({ id, username, enabled })));
+      }
+      if (realm === 'master' && rest === 'users' && req.method === 'POST') {
+        const id = `owner-${state.users.master.size + 1}`;
+        state.users.master.set(id, { id, requiredActions: [], realmRoles: [], creds: [], ...JSON.parse(body) });
+        res.writeHead(201, { Location: `/admin/realms/master/users/${id}` });
+        return res.end();
+      }
+      if (realm === 'master' && rest === 'roles/admin') return json(200, { id: 'role-admin', name: 'admin' });
+      if (realm === 'master' && (o = rest?.match(/^users\/([^/]+)(?:\/(reset-password|role-mappings\/realm|role-mappings|credentials))?$/))) {
+        const u = state.users.master.get(o[1]);
+        if (!u) return json(404, {});
+        if (!o[2] && req.method === 'GET') return json(200, { id: u.id, username: u.username, enabled: u.enabled, emailVerified: u.emailVerified, requiredActions: u.requiredActions });
+        if (!o[2] && req.method === 'PUT') { Object.assign(u, JSON.parse(body)); return json(204); }
+        if (o[2] === 'reset-password') {
+          if (rejectOwnerPassword) return json(400, { error: 'invalidPasswordMinLengthMessage', error_description: 'Invalid password: minimum length 12.' });
+          const b = JSON.parse(body);
+          Object.assign(u, { password: b.value, temporary: b.temporary, creds: [{ type: b.type }] });
+          return json(204);
+        }
+        if (o[2] === 'role-mappings/realm') { u.realmRoles = [...new Set([...u.realmRoles, ...JSON.parse(body).map(x => x.name)])]; return json(204); }
+        if (o[2] === 'role-mappings') return json(200, { realmMappings: u.realmRoles.map(name => ({ name })) });
+        if (o[2] === 'credentials') return json(200, u.creds);
+      }
       if (rest === undefined) {
         if (req.method === 'GET') return json(200, state.realms[realm]);
         if (req.method === 'PUT') {
           const rep = JSON.parse(body);
-          const oldFe = state.realms[realm].attributes?.frontendUrl, newFe = rep.attributes?.frontendUrl;
-          if (newFe !== oldFe && refuseFrontendUrl) return json(400, { errorMessage: 'frontendUrl non valido' });
-          if (newFe !== oldFe && ignoreFrontendUrl) delete rep.attributes.frontendUrl;
-          else if (newFe !== oldFe && staleTokenOnFrontendUrl) state.minValid = state.issued + 1;
           state.puts++; state.realms[realm] = rep; return json(204);
         }
       }
@@ -1192,51 +1224,98 @@ test('apply-overlay.sh di vetrina: fallisce se l\'OTP degli operatori non viene 
   } finally { renumbered.server.close(); }
 });
 
-test('apply-overlay.sh di vetrina con MASTER_FRONTEND_URL (Q-670): frontendUrl sul solo realm master come ultima scrittura, token nuovo per la verifica, attributi esistenti conservati', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
-  const FE = 'https://prova-vetrina-8180.app.github.dev';
-  const kc = await mockKeycloak({ operators: [] });
-  kc.state.realms.master.attributes = { displayNameHtml: 'x' };
-  try {
-    const before = structuredClone(kc.state.realms);
-    const r = await runApply(kc.url, [], 'admin', { MASTER_FRONTEND_URL: FE });
-    assert.equal(r.code, 0, `apply-overlay.sh è fallito: ${r.err}${r.out}`);
-    assert.deepEqual(kc.state.realms.master.attributes, { displayNameHtml: 'x', frontendUrl: FE }, 'unione con gli attributi esistenti');
-    for (const realm of ['loyaltyhub', 'loyaltyhub-members']) {
-      assert.equal(kc.state.realms[realm].attributes?.frontendUrl, undefined, `${realm}: nessun frontendUrl (usa l'indirizzo pubblico)`);
+// Utente del proprietario nel realm master (ADR-055, Q-727): password dal segreto del codespace, solo da ambiente.
+const OWNER_PW = 'Proprietario-di-prova-2026';
+const ownerUsers = (kc) => [...kc.state.users.master.values()];
+const noOwnerSecret = (kc, r, ...secrets) => {
+  for (const sec of secrets) {
+    for (const [what, text] of [['stdout', r.out], ['stderr', r.err], ['richieste a Keycloak', kc.state.paths.join('\n')]]) {
+      assert.ok(!text.includes(sec) && !text.includes(encodeURIComponent(sec)), `la password del proprietario compare in: ${what}`);
     }
-    assert.equal(kc.state.logins, 2, 'un login per le scritture e uno nuovo, dopo il frontendUrl, per la verifica');
-    assert.match(r.out, new RegExp(`verifica: frontendUrl del realm master = ${FE.replaceAll('.', '\\.')}`));
-    const { _comment, realm: _r, ...settings } = masterVetrina();
-    const { attributes: _a, ...rest } = kc.state.realms.master;
-    const { attributes: _b, ...restBefore } = before.master;
-    assert.deepEqual(rest, { ...restBefore, ...settings }, "nessun'altra impostazione cambia");
-    // Idempotente: una seconda esecuzione col frontendUrl gia' impostato (token con l'emittente nuovo) riesce ancora.
-    assert.equal((await runApply(kc.url, [], 'admin', { MASTER_FRONTEND_URL: FE })).code, 0);
-    assert.equal(kc.state.realms.master.attributes.frontendUrl, FE);
+  }
+};
+
+test('apply-overlay.sh di vetrina con LH_VETRINA_MASTER_ADMIN_PASSWORD (ADR-055, Q-727): utente permanente `proprietario` nel realm master, ruolo admin, password non temporanea verificata con un login, nessuna credenziale in uscita, idempotente e password aggiornabile', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
+  const kc = await mockKeycloak({ operators: [] });
+  try {
+    const r = await runApply(kc.url, [], 'admin', { LH_VETRINA_MASTER_ADMIN_PASSWORD: OWNER_PW });
+    assert.equal(r.code, 0, `apply-overlay.sh è fallito: ${r.err}${r.out}`);
+    const [u, ...others] = ownerUsers(kc);
+    assert.deepEqual(others, [], 'un solo utente');
+    assert.equal(u.username, 'proprietario');
+    assert.equal(u.enabled, true);
+    assert.deepEqual(u.requiredActions, [], 'nessuna azione richiesta (bloccherebbe il login)');
+    assert.deepEqual(u.realmRoles, ['admin'], 'ruolo admin del realm master');
+    assert.equal(u.password, OWNER_PW);
+    assert.equal(u.temporary, false, 'password NON temporanea');
+    assert.equal(kc.state.ownerLogins, 1, 'un login di prova con la password');
+    assert.match(r.out, /utente proprietario nel realm master con ruolo admin e password non temporanea \(login di prova riuscito\)/);
+    // Il resto dell'overlay e' applicato come sempre.
+    assert.equal(kc.state.realms.loyaltyhub.registrationAllowed, false);
+    assert.equal(kc.state.realms.master.bruteForceProtected, true, 'blocco dei tentativi di master.json');
+    assert.equal(kc.state.realms.master.failureFactor, 5);
+    noOwnerSecret(kc, r, OWNER_PW, 'Test&Pass');
+    // Idempotente, e una password nuova nel segreto sostituisce la vecchia (riavvio con segreto cambiato).
+    const NEW_PW = 'Un-altra-password-2027';
+    const r2 = await runApply(kc.url, [], 'admin', { LH_VETRINA_MASTER_ADMIN_PASSWORD: NEW_PW });
+    assert.equal(r2.code, 0, r2.err);
+    assert.equal(ownerUsers(kc).length, 1);
+    assert.equal(ownerUsers(kc)[0].password, NEW_PW);
+    assert.deepEqual(ownerUsers(kc)[0].realmRoles, ['admin']);
+    noOwnerSecret(kc, r2, NEW_PW, OWNER_PW);
+    // Le sole verifiche (--check, --check-operators) non creano niente.
+    const before = JSON.stringify(ownerUsers(kc));
+    assert.equal((await runApply(kc.url, ['--check-operators'], 'admin', { LH_VETRINA_MASTER_ADMIN_PASSWORD: 'Altra-ancora-2028x' })).code, 0);
+    assert.equal(JSON.stringify(ownerUsers(kc)), before);
   } finally { kc.server.close(); }
 });
 
-test('apply-overlay.sh di vetrina con MASTER_FRONTEND_URL: fallisce se Keycloak rifiuta o scarta il frontendUrl, o se il valore non e\' un indirizzo https senza percorso (Q-670)', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
-  const FE = 'https://prova-vetrina-8180.app.github.dev';
-  const refuses = await mockKeycloak({ operators: [], refuseFrontendUrl: true });
-  try {
-    const r = await runApply(refuses.url, [], 'admin', { MASTER_FRONTEND_URL: FE });
-    assert.notEqual(r.code, 0);
-    assert.match(r.err, /ha rifiutato il frontendUrl del realm master \(400\)/);
-    assert.match(r.err, /Q-670/);
-  } finally { refuses.server.close(); }
-  const ignores = await mockKeycloak({ operators: [], ignoreFrontendUrl: true });
-  try {
-    const r = await runApply(ignores.url, [], 'admin', { MASTER_FRONTEND_URL: FE });
-    assert.notEqual(r.code, 0);
-    assert.match(r.err, /frontendUrl del realm master e' None, atteso/);
-  } finally { ignores.server.close(); }
-  // Valore non ammesso: errore prima di ogni chiamata di rete (nessun server in ascolto).
-  for (const bad of ['http://prova-8180.app.github.dev', 'https://prova-8180.app.github.dev/admin', 'prova-8180.app.github.dev', 'https://Prova.example.org', 'https://']) {
-    const r = await runApply('http://127.0.0.1:9', [], 'admin', { MASTER_FRONTEND_URL: bad });
-    assert.notEqual(r.code, 0, bad);
-    assert.match(r.err, /MASTER_FRONTEND_URL deve essere https/, bad);
+test('apply-overlay.sh di vetrina senza LH_VETRINA_MASTER_ADMIN_PASSWORD (assente o vuota): nessun utente nel realm master, il resto applicato, uscita 0 (ADR-055)', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
+  for (const env of [{}, { LH_VETRINA_MASTER_ADMIN_PASSWORD: '' }]) {
+    const kc = await mockKeycloak({ operators: [] });
+    try {
+      const r = await runApply(kc.url, [], 'admin', env);
+      assert.equal(r.code, 0, r.err);
+      assert.equal(ownerUsers(kc).length, 0, 'nessun utente del proprietario');
+      assert.equal(kc.state.ownerLogins, 0);
+      assert.match(r.out, /utente del proprietario saltato \(segreto LH_VETRINA_MASTER_ADMIN_PASSWORD assente\): console master chiusa/);
+      assert.equal(kc.state.realms.loyaltyhub.registrationAllowed, false, 'il resto e\' applicato');
+      assert.ok(!kc.state.paths.some(p => /\/admin\/realms\/master\/users/.test(p)), 'nessuna chiamata sugli utenti di master');
+    } finally { kc.server.close(); }
   }
+});
+
+test('apply-overlay.sh di vetrina: password del proprietario non valida (politica del realm master, rifiuto di Keycloak, login di prova) -> uscita 3 DOPO aver applicato il resto, messaggio chiaro, mai il valore (ADR-055)', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
+  const cases = [
+    ['troppo corta', 'corta', {}, /non rispetta la politica del realm master \(almeno 12 caratteri e diversa dal nome utente proprietario\)\. Console master chiusa/, 0],
+    ['uguale al nome utente', 'PROPRIETARIO', {}, /non rispetta la politica del realm master/, 0],
+    ['rifiutata da Keycloak', 'Rifiutata-da-Keycloak-1', { rejectOwnerPassword: true }, /Keycloak ha rifiutato la password del proprietario \(HTTP 400\): Invalid password: minimum length 12\.\s+Console master chiusa/, 1],
+    ['login di prova fallito', 'Login-di-prova-fallisce-1', { ownerLoginFails: true }, /login di prova dell'utente proprietario sul realm master non e' riuscito \(HTTP 401\)\. Console master chiusa/, 1],
+  ];
+  for (const [what, pw, mockOpts, msg, usersCreated] of cases) {
+    const kc = await mockKeycloak({ operators: [], ...mockOpts });
+    try {
+      const r = await runApply(kc.url, [], 'admin', { LH_VETRINA_MASTER_ADMIN_PASSWORD: pw });
+      assert.equal(r.code, 3, `${what}: uscita 3, non ${r.code}: ${r.err}`);
+      assert.match(r.err, msg, what);
+      assert.match(r.err, /il resto e' applicato, la console master resta chiusa/, what);
+      assert.match(r.out, /Overlay di vetrina applicato ai realm master/, `${what}: il resto e' applicato`);
+      assert.equal(kc.state.realms.loyaltyhub.registrationAllowed, false, `${what}: il resto e' applicato`);
+      assert.equal(ownerUsers(kc).length, usersCreated, `${what}: utenti creati`);
+      noOwnerSecret(kc, r, pw);
+    } finally { kc.server.close(); }
+  }
+});
+
+test('apply-overlay.sh di vetrina: MASTER_FRONTEND_URL non esiste piu\' (Q-670 superata da ADR-055): il realm master non riceve mai frontendUrl ne\' attributi', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
+  const kc = await mockKeycloak({ operators: [] });
+  try {
+    const r = await runApply(kc.url, [], 'admin', { MASTER_FRONTEND_URL: 'https://prova-vetrina-8180.app.github.dev' });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(kc.state.realms.master.frontendUrl, undefined);
+    assert.equal(kc.state.realms.master.attributes, undefined, 'nessun frontendUrl in attributes');
+    assert.equal(kc.state.logins, 1, 'un solo login di amministrazione: nessuna scrittura invalida il token');
+  } finally { kc.server.close(); }
 });
 
 test('apply-overlay.sh di vetrina --check: valida i tre file senza rete e rifiuta un overlay con utenti non ammessi', { skip: !haveTools && 'servono bash e python3' }, () => {
