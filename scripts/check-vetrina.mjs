@@ -967,3 +967,37 @@ test('deploy/vetrina/ e smoke-vetrina.yml: nessun residuo dell\'host fisso (Orac
   // Il compose di riferimento non pubblica porte 80 e 443: il proxy ascolta su 8000 e 8001.
   assert.ok(!JSON.stringify(overlay).includes(':443'), 'nessuna porta 443');
 });
+
+// Riquadro Enterprise della demo pubblica (HUB-01, ADR-051): le variabili di Vercel valgono solo per un deploy nuovo.
+// Un «Redeploy» dello stesso commit (VERCEL_GIT_PREVIOUS_SHA uguale a VERCEL_GIT_COMMIT_SHA) deve fare la build, non
+// essere saltato dall'ignoreCommand di web/vercel.json: è il modo di far leggere al web variabili appena impostate.
+test('web/vercel.json: l\'ignoreCommand salta solo un commit nuovo senza modifiche al web; il Redeploy dello stesso commit fa la build', { skip: !has('git') && 'git assente' }, () => {
+  const { ignoreCommand } = JSON.parse(read(path.join(ROOT, 'web/vercel.json')));
+  const repo = tmp();
+  const git = (...args) => {
+    const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.org', ...args], { cwd: repo, encoding: 'utf8' });
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  git('init', '-q');
+  for (const d of ['web', 'seed', 'docs']) fs.mkdirSync(path.join(repo, d));
+  fs.writeFileSync(path.join(repo, 'web/a.ts'), '1');
+  fs.writeFileSync(path.join(repo, 'docs/a.md'), '1');
+  git('add', '.');
+  git('commit', '-qm', 'a');
+  const a = git('rev-parse', 'HEAD');
+  fs.writeFileSync(path.join(repo, 'docs/a.md'), '2');
+  git('commit', '-qam', 'b');
+  const b = git('rev-parse', 'HEAD');
+  const run = (prev, commit) => spawnSync('sh', ['-c', ignoreCommand], {
+    cwd: path.join(repo, 'web'), env: { ...process.env, VERCEL_GIT_PREVIOUS_SHA: prev, VERCEL_GIT_COMMIT_SHA: commit },
+  }).status;
+  assert.equal(run(a, b), 0, 'commit nuovo che tocca solo docs/: build saltata');
+  assert.equal(run(b, b), 1, 'Redeploy dello stesso commit (variabili cambiate): build');
+  assert.equal(run('', b), 1, 'nessun deploy precedente: build');
+  assert.equal(run('0'.repeat(40), b), 1, 'commit del deploy precedente assente dal clone: build');
+  fs.writeFileSync(path.join(repo, 'web/a.ts'), '2');
+  git('commit', '-qam', 'c');
+  assert.equal(run(b, git('rev-parse', 'HEAD')), 1, 'commit che tocca web/: build');
+  fs.rmSync(repo, { recursive: true, force: true });
+});
