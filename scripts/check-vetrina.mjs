@@ -971,6 +971,22 @@ test('deploy/vetrina/ e smoke-vetrina.yml: nessun residuo dell\'host fisso (Orac
 // Riquadro Enterprise della demo pubblica (HUB-01, ADR-051): le variabili di Vercel valgono solo per un deploy nuovo.
 // Un «Redeploy» dello stesso commit (VERCEL_GIT_PREVIOUS_SHA uguale a VERCEL_GIT_COMMIT_SHA) deve fare la build, non
 // essere saltato dall'ignoreCommand di web/vercel.json: è il modo di far leggere al web variabili appena impostate.
+// Lo schema di vercel.json (https://openapi.vercel.sh/vercel.json) ammette un ignoreCommand di al massimo 256 caratteri:
+// oltre, Vercel rifiuta ogni deploy prima della build (successo con #233). La logica sta quindi in web/vercel-ignore.sh.
+test('web/vercel.json: chiavi ammesse e ignoreCommand entro i 256 caratteri dello schema, con la logica in web/vercel-ignore.sh', () => {
+  const config = JSON.parse(read(path.join(ROOT, 'web/vercel.json')));
+  assert.deepEqual(Object.keys(config).sort(), ['$schema', 'git', 'ignoreCommand'], 'chiavi di web/vercel.json');
+  assert.equal(config.$schema, 'https://openapi.vercel.sh/vercel.json');
+  assert.equal(typeof config.ignoreCommand, 'string');
+  assert.ok(config.ignoreCommand.length <= 256, `ignoreCommand di ${config.ignoreCommand.length} caratteri: lo schema di Vercel ne ammette al massimo 256`);
+  assert.equal(config.ignoreCommand, 'sh vercel-ignore.sh', 'la logica sta nello script versionato');
+  assert.ok(fs.existsSync(path.join(ROOT, 'web/vercel-ignore.sh')), 'web/vercel-ignore.sh presente');
+  const dep = config.git?.deploymentEnabled;
+  assert.ok(dep && typeof dep === 'object', 'git.deploymentEnabled presente');
+  for (const [branch, enabled] of Object.entries(dep)) assert.equal(typeof enabled, 'boolean', `git.deploymentEnabled[${branch}] booleano`);
+  assert.equal(dep.main, true, 'deploy di main acceso');
+});
+
 test('web/vercel.json: l\'ignoreCommand salta solo un commit nuovo senza modifiche al web; il Redeploy dello stesso commit fa la build', { skip: !has('git') && 'git assente' }, () => {
   const { ignoreCommand } = JSON.parse(read(path.join(ROOT, 'web/vercel.json')));
   const repo = tmp();
@@ -982,6 +998,7 @@ test('web/vercel.json: l\'ignoreCommand salta solo un commit nuovo senza modific
   git('init', '-q');
   for (const d of ['web', 'seed', 'docs']) fs.mkdirSync(path.join(repo, d));
   fs.writeFileSync(path.join(repo, 'web/a.ts'), '1');
+  fs.copyFileSync(path.join(ROOT, 'web/vercel-ignore.sh'), path.join(repo, 'web/vercel-ignore.sh'));
   fs.writeFileSync(path.join(repo, 'docs/a.md'), '1');
   git('add', '.');
   git('commit', '-qm', 'a');
