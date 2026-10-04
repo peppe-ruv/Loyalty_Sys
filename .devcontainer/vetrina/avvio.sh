@@ -12,6 +12,7 @@
 #    Q-672), avvio, overlay dei realm con gli utenti di test, operatori;
 # 4. rende pubbliche le porte 8000 e 8001 (Q-661) e verifica che la discovery OIDC risponda dall'URL pubblico;
 # 5. registra i membri di test dal portale (`vetrina.sh membri`, Q-673): serve l'indirizzo pubblico, quindi dopo il passo 4.
+#    A registrazione riuscita scrive il marcatore `stato/membri-di-test` che HUB-01 aspetta (Q-728); a inizio avvio lo toglie.
 # Non stampa segreti: vetrina.sh mostra solo nomi e percorsi, il token del codespace passa solo da stdin.
 set -euo pipefail
 
@@ -27,6 +28,11 @@ else
   exec > >(sudo tee -a "$LOG") 2>&1
   echo "== avvio della vetrina $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 fi
+
+# Q-728: ogni avvio riparte senza il marcatore dei membri di test registrati (lo scrive `vetrina.sh membri` a registrazione
+# riuscita, in fondo a questo script). HUB-01 aspetta quel marcatore prima di mostrare «Apri la vetrina»: un marcatore
+# rimasto dall'avvio precedente (i container possono ripartire da soli con il codespace) lo farebbe comparire troppo presto.
+sudo rm -f "$DIR/stato/membri-di-test"
 
 # La vetrina segue main (M8.14, Q-726), con o senza il segreto LH_IMAGE: il clone si porta a origin/main (solo
 # fast-forward, ramo main pulito, sempre come utente del codespace, mai come root) perche' gli script che girano sono

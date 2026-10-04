@@ -17,6 +17,8 @@ export interface DemoStatus {
   readyCount: number;
   totalCount: number;
   checkedAt: string;
+  /** Solo nell'ambiente di test della vetrina (Q-728): marcatore dei membri di test registrati. Altrove assente. */
+  vetrina?: { testMembers: "ready" | "pending" };
 }
 
 /** Ingressi attivi quando ingestion, member, campaign e wallet sono UP (docs/07 §8). */

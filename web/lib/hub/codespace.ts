@@ -1,11 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isEnterprise } from "@/lib/auth/config";
 import { problem } from "@/lib/auth/bff";
+import type { Checks } from "@/lib/hub/readiness";
+import { forwardDomain, forwardedHosts, probeVetrina } from "@/lib/hub/vetrinaProbe";
 
 // HUB-01 — accensione della vetrina dal browser (Q-674, ADR-051 decisione 9). SOLO LATO SERVER.
 // Route del BFF nel profilo `demo` (Vercel) che legge e avvia il codespace della vetrina tramite l'API di GitHub.
 // - Esiste solo con `LH_VETRINA_CODESPACE` e `LH_VETRINA_GITHUB_TOKEN` entrambe impostate (altrimenti 404).
-// - Unica destinazione in uscita: `https://api.github.com` (Q-674). Nessun dato dal browser oltre all'azione.
+// - Destinazioni in uscita: `https://api.github.com` (Q-674) e, solo a codespace `available`, i due indirizzi inoltrati
+//   del codespace stesso (`<nome>-8000.<dominio>` e `<nome>-8001.<dominio>`, Q-728): vedi lib/hub/vetrinaProbe.ts.
+//   Nessun dato dal browser oltre all'azione.
 // - Il token (fine-grained, solo il repository Loyalty_Sys, «Codespaces» in lettura per leggere lo stato e «Codespaces
 //   lifecycle admin» in scrittura per avviare, nient'altro, scadenza al massimo un anno; Q-674, Q-720) non lascia mai il
 //   processo: né nelle risposte né nei log (regola 20); neppure il corpo grezzo di GitHub, solo `{state, url}`.
@@ -13,6 +17,8 @@ import { problem } from "@/lib/auth/bff";
 //   ancora dice «spento», si risponde «in accensione» (l'avvio è partito, GitHub lo registra con qualche secondo di ritardo).
 // - Lo stato letto da GitHub sta in una cache di processo di 5 s (`{state, url}`): più visitatori e il polling del client
 //   non esauriscono il limite di richieste del token. Si svuota dopo un avvio riuscito.
+// - Con il codespace `available` il `GET` aggiunge `checks`: le nove risorse della vetrina (`ok`/`pending`, Q-728) lette
+//   dalla sonda di lib/hub/vetrinaProbe.ts, anch'esse in cache 5 s. Mai corpi grezzi, indirizzi o intestazioni.
 
 export const GITHUB_API = "https://api.github.com";
 export const GITHUB_TIMEOUT_MS = 10_000;
@@ -25,6 +31,11 @@ export interface CodespaceView {
   state: CodespaceState;
   /** Indirizzo web del codespace (`*.github.dev`) se GitHub lo dà e passa la validazione, altrimenti `null`. */
   url: string | null;
+}
+
+/** Risposta del `GET`: lo stato di GitHub più, a codespace `available`, le risorse della vetrina (Q-728). */
+export interface CodespaceReading extends CodespaceView {
+  checks?: Checks;
 }
 
 export type Env = Readonly<Record<string, string | undefined>>;
@@ -127,10 +138,25 @@ export interface HandlerDeps {
 let lastStartAt: number | null = null;
 let cache: { name: string; at: number; view: CodespaceView } | null = null;
 
-/** Solo per i test: azzera la finestra dei 60 s e la cache dello stato. */
+let checksCache: { key: string; at: number; checks: Checks } | null = null;
+
+/** Solo per i test: azzera la finestra dei 60 s e le cache dello stato e delle risorse. */
 export function resetStartWindow(): void {
   lastStartAt = null;
   cache = null;
+  checksCache = null;
+}
+
+/** Risorse della vetrina, dalla cache se ha meno di 5 s (stesso criterio dello stato di GitHub). Non lancia mai. */
+async function readChecks(fetchImpl: typeof fetch, cfg: { name: string }, env: Env, now: number): Promise<Checks> {
+  const hosts = forwardedHosts(cfg.name, forwardDomain(env));
+  const key = hosts === null ? `${cfg.name}|-` : `${hosts.web}|${hosts.idp}`;
+  if (checksCache !== null && checksCache.key === key && now >= checksCache.at && now - checksCache.at < CACHE_MS) {
+    return checksCache.checks;
+  }
+  const checks = await probeVetrina(fetchImpl, hosts);
+  checksCache = { key, at: now, checks };
+  return checks;
 }
 
 /** Stato di GitHub, dalla cache se ha meno di 5 s (mai una risposta d'errore in cache). */
@@ -158,19 +184,23 @@ function upstream(err: unknown): NextResponse {
   return problem(502, "CODESPACE_UNAVAILABLE", "GitHub non risponde", "Non è stato possibile leggere o avviare la vetrina. Riprova tra poco.");
 }
 
-function ok(view: CodespaceView): NextResponse {
+function ok(view: CodespaceReading): NextResponse {
   const res = NextResponse.json(view);
   res.headers.set("cache-control", "no-store");
   return res;
 }
 
-/** `GET /api/vetrina/codespace`: stato del codespace, `{state, url}`. */
+/** `GET /api/vetrina/codespace`: stato del codespace, `{state, url}`, più `checks` a codespace `available` (Q-728). */
 export async function handleCodespaceGet(_req: NextRequest, deps: HandlerDeps = {}): Promise<NextResponse> {
-  const cfg = codespaceConfig(deps.env ?? process.env);
+  const env = deps.env ?? process.env;
+  const cfg = codespaceConfig(env);
   if (!cfg) return unavailable();
+  const fetchImpl = deps.fetchImpl ?? fetch;
   const now = (deps.now ?? Date.now)();
   try {
-    return ok(effective(await readView(deps.fetchImpl ?? fetch, cfg, now), now));
+    const view = effective(await readView(fetchImpl, cfg, now), now);
+    if (view.state !== "available") return ok(view);
+    return ok({ ...view, checks: await readChecks(fetchImpl, cfg, env, now) });
   } catch (err) {
     return upstream(err);
   }

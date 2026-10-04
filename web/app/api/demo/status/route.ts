@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { SERVICES, serviceBaseUrl, type ServiceCode } from "@/lib/api/services";
+import { readVetrinaFlags } from "@/lib/hub/vetrinaMarkers";
 import {
   infraFromHealth,
   infraOnProbeFailure,
@@ -10,6 +11,8 @@ import {
 } from "@/lib/api/status";
 
 // Stato aggregato dei servizi (docs/07 §8). Cache 2 s per non martellare gli health.
+// Nell'ambiente di test della vetrina (Q-728) aggiunge `vetrina.testMembers` (marcatore su file, mai dati personali):
+// lo legge la sonda di prontezza di HUB-01 (lib/hub/vetrinaProbe.ts). Il marcatore non sta nella cache di 2 s.
 
 export const dynamic = "force-dynamic";
 
@@ -64,8 +67,10 @@ async function kafkaAndDb(): Promise<{ kafka: ServiceState; db: ServiceState } |
 }
 
 export async function GET() {
+  const flags = await readVetrinaFlags();
+  const withFlags = (v: DemoStatus): DemoStatus => (flags ? { ...v, vetrina: flags } : v);
   if (cache && Date.now() - cache.at < CACHE_MS) {
-    return NextResponse.json(cache.value);
+    return NextResponse.json(withFlags(cache.value));
   }
 
   const [services, probed] = await Promise.all([
@@ -88,5 +93,5 @@ export async function GET() {
   };
 
   cache = { at: Date.now(), value };
-  return NextResponse.json(value);
+  return NextResponse.json(withFlags(value));
 }

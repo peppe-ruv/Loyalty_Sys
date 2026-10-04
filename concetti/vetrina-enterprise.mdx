@@ -137,7 +137,7 @@ ADR-051 vuole che tutto si faccia dal browser, senza terminale. Dopo la configur
 flowchart TD
   accTitle: Percorso dal browser verso la vetrina enterprise
   accDescr: Il visitatore parte dalla demo pubblica, accende la modalità Enterprise con il pulsante nel riquadro, attende l'avvio del codespace e arriva a HUB-02 della vetrina. Lì sceglie la scheda di un utente di test: l'operatore entra nel realm loyaltyhub con password e codice OTP del momento e arriva al backoffice, il membro entra nel realm loyaltyhub-members e arriva al portale, gli amministratori di test aprono la console del proprio realm. La console del realm master si apre dallo stesso indirizzo di Keycloak solo con il segreto del proprietario.
-  A[Demo pubblica HUB-01<br/>riquadro Modalità Enterprise] -->|Accendi| B[GitHub avvia il codespace<br/>3–5 minuti]
+  A[Demo pubblica HUB-01<br/>riquadro Modalità Enterprise] -->|Accendi| B[GitHub avvia il codespace<br/>4–6 minuti, poi tutte le risorse pronte]
   B --> C[HUB-02 della vetrina<br/>schede degli utenti di test]
   C --> D{Scheda scelta}
   D -->|Operatore| E[Login nel realm loyaltyhub<br/>password e codice OTP del momento]
@@ -149,14 +149,46 @@ flowchart TD
   P[Console del realm master<br/>aperta solo con il segreto<br/>del proprietario] -.->|utente proprietario,<br/>solo password| K[Configurazione di Keycloak]
 ```
 
-1. **Accendi.** Sulla demo, il riquadro **Modalità Enterprise** mostra lo stato della vetrina (*spenta*, *in accensione*, *accesa*). Il pulsante **Accendi la modalità Enterprise** chiede a GitHub di avviare il codespace: l'avvio richiede 3–5 minuti e il pulsante diventa **Apri la vetrina** da solo. Il codespace si spegne dopo circa 30 minuti senza uso del terminale: lo riaccendi dallo stesso pulsante. Il pulsante usa le ore gratuite di Codespaces del proprietario, controlla l'origine della richiesta, ammette al più un avvio ogni 60 secondi e legge lo stato da GitHub al più ogni 5 secondi.
+1. **Accendi.** Sulla demo, il riquadro **Modalità Enterprise** mostra lo stato della vetrina: *spenta*, *in accensione*, *pronta*, *non pronta*. Il pulsante **Accendi la modalità Enterprise** chiede a GitHub di avviare il codespace: l'avvio richiede di solito 4–6 minuti. Il riquadro mostra uno spinner e l'elenco delle nove risorse (codespace acceso, porte pubbliche 8000 e 8001, web, servizi, Postgres, Kafka, accesso dei due realm, membri di test registrati) e **Apri la vetrina** compare solo quando sono tutte pronte, membri di test compresi (Q-728). Se dopo 15 minuti ne manca qualcuna, il riquadro dice quale e offre **Controlla di nuovo**: rilegge lo stato, non riaccende niente. Il codespace si spegne dopo circa 30 minuti senza uso del terminale: lo riaccendi dallo stesso pulsante. Il pulsante usa le ore gratuite di Codespaces del proprietario, controlla l'origine della richiesta, ammette al più un avvio ogni 60 secondi e legge lo stato da GitHub al più ogni 5 secondi.
 2. **Scegli un utente di test.** HUB-02 mostra una scheda per ogni utente di test: cinque operatori per il backoffice e quattro membri per il portale. Ogni scheda ha nome utente e password da copiare. **Entra come…** apre il login del realm giusto con `login_hint`: il nome utente arriva già compilato e resta da scrivere la password.
 3. **Inserisci il codice OTP.** Gli operatori hanno la MFA. La scheda mostra il **codice OTP del momento**, calcolato dal seme documentato in «Utenti di test», con il conto alla rovescia dei 30 secondi. Il codice compare solo in questo ambiente di test dichiarato (Q-676).
 4. **Entra.** L'operatore apre il backoffice con il ruolo della scheda. Il membro apre il portale: il membro viene solo dal token, senza scegliere un `memberId`. Se hai già una sessione da membro, la scheda del tuo utente dice «Sei dentro come…» con **Apri il portale** e le altre offrono **Esci per entrare come…** (chiude la sola sessione del membro). **Laura** non è registrata: dopo il login il portale la porta alla registrazione, con nome ed e-mail dell'account già compilati e in sola lettura; resta da accettare il regolamento (il codice amico e il marketing sono facoltativi).
 5. **Gestisci gli utenti membri.** Nel backoffice, `ADMIN` e `CARE` hanno la voce **Utenti membri**, che apre la console del realm `loyaltyhub-members`.
 
+Il riquadro conosce la vetrina solo attraverso il server della demo, perché il browser non può interrogarla (CORS). Quando GitHub dice che il codespace è acceso, il server controlla le altre otto risorse e il riquadro le mostra:
+
+```mermaid
+flowchart TD
+  accTitle: Attesa della vetrina pronta nel riquadro Modalità Enterprise
+  accDescr: Dal clic su Accendi il riquadro legge ogni 10 secondi lo stato del codespace da GitHub. Quando il codespace è acceso, il server della demo controlla le due porte inoltrate della vetrina, lo stato del web con servizi, Postgres, Kafka e membri di test, e la discovery dei due realm. Il pulsante Apri la vetrina compare solo con tutte e nove le risorse pronte. Dopo 15 minuti senza che lo siano, il riquadro dice quale risorsa manca e offre Controlla di nuovo.
+  A[Spenta<br/>Accendi la modalità Enterprise] -->|POST al server della demo| B[In accensione: codespace]
+  B -->|ogni 10 s: stato da api.github.com| C{Codespace acceso?}
+  C -- no --> B
+  C -- sì --> D[In accensione: risorse]
+  D -->|ogni 10 s: il server sonda le due porte inoltrate| E{Tutte e 9 le risorse pronte?}
+  E -- no, entro 15 minuti --> D
+  E -- sì --> F[Pronta: Apri la vetrina]
+  E -- no, dopo 15 minuti --> G[Non pronta: risorsa bloccata]
+  G -->|Controlla di nuovo| D
+```
+
+Le nove risorse e come si rilevano (il server sonda solo i due indirizzi inoltrati del codespace, senza seguire reindirizzamenti: una porta privata risponde con un 3xx verso il login di GitHub e vale «non ancora pubblica»):
+
+| Risorsa | Come si rileva |
+|---|---|
+| Codespace acceso | Stato `available` da GitHub |
+| Porte pubbliche 8000 e 8001 | Entrambi gli indirizzi rispondono con un'applicazione, non con un reindirizzamento al login |
+| Web | `GET /api/demo/status` sulla porta 8000 risponde con `checkedAt` |
+| Servizi (hub) | Nello stesso stato, tutti i servizi risultano `UP` |
+| Postgres e Kafka | Nello stesso stato, `db` e `kafka` sono `UP` |
+| Accesso: realm operatori | Discovery OIDC di `loyaltyhub` sulla porta 8001 |
+| Accesso: realm membri | Discovery OIDC di `loyaltyhub-members` sulla porta 8001 |
+| Membri di test registrati | `vetrina.testMembers` è `ready` nello stato del web |
+
+`vetrina.testMembers` esiste solo nell'ambiente di test. Lo legge dal file `stato/membri-di-test`, che `vetrina.sh membri` scrive a registrazione riuscita (contiene solo `ready`, nessun dato personale) e che `avvio.sh` toglie a ogni avvio; il compose lo monta in sola lettura nel web. Una vetrina con un'immagine più vecchia di questa modifica non ha il campo e il riquadro resta fermo su «Membri di test registrati»: riavvia il codespace per prendere l'immagine di `main` (Q-726).
+
 <Note>
-**Per il proprietario: accendere il pulsante.** Il riquadro compare solo se nel progetto Vercel della demo sono impostate `LH_HUB_ENTERPRISE_URL` e due variabili segrete: `LH_VETRINA_CODESPACE` (il nome del codespace) e `LH_VETRINA_GITHUB_TOKEN`. Il token è *fine-grained*, limitato al repository Loyalty_Sys, con i soli permessi «Codespaces» in lettura (per leggere lo stato) e «Codespaces lifecycle admin» in scrittura (per avviare) e una scadenza di al massimo un anno (Q-674, Q-720). Lo imposta il proprietario; non va mai nel browser né nei log, e il server della demo lo usa solo verso `api.github.com`. Senza le variabili il riquadro mostra «Disponibile su richiesta». I passi sono nel runbook `deploy/vetrina/README.md`.
+**Per il proprietario: accendere il pulsante.** Il riquadro compare solo se nel progetto Vercel della demo sono impostate `LH_HUB_ENTERPRISE_URL` e due variabili segrete: `LH_VETRINA_CODESPACE` (il nome del codespace) e `LH_VETRINA_GITHUB_TOKEN`. Il token è *fine-grained*, limitato al repository Loyalty_Sys, con i soli permessi «Codespaces» in lettura (per leggere lo stato) e «Codespaces lifecycle admin» in scrittura (per avviare) e una scadenza di al massimo un anno (Q-674, Q-720). Lo imposta il proprietario; non va mai nel browser né nei log, e il server della demo lo usa solo verso `api.github.com`. Per rilevare la prontezza della vetrina il server sonda in più solo i due indirizzi inoltrati del codespace stesso (`<nome>-8000.app.github.dev` e `<nome>-8001.app.github.dev`; `LH_VETRINA_FORWARD_DOMAIN` cambia il dominio, ammesso solo un sottodominio di `github.dev`), senza token. Senza le variabili il riquadro mostra «Disponibile su richiesta». I passi sono nel runbook `deploy/vetrina/README.md`.
 </Note>
 
 ### Console di Keycloak
