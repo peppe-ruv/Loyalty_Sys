@@ -7,21 +7,21 @@
 # Cosa fa (ADR-050), oltre al proxy HTTP su 8000 e 8001 dichiarato in compose.vetrina.yml (il TLS lo termina l'inoltro
 # delle porte di GitHub su https://<codespace>-<porta>.<dominio di inoltro>):
 # - le console di Keycloak dei realm `loyaltyhub` e `loyaltyhub-members` stanno sull'indirizzo pubblico della porta 8001
-#   (Q-670); quella del realm `master` solo sulla porta 8180 privata (solo il proprietario del codespace);
+#   (Q-670); quella del realm `master` sullo stesso indirizzo, ma chiusa dal proxy finche' il proprietario non mette il
+#   segreto LH_VETRINA_MASTER_ADMIN_PASSWORD nel codespace (ADR-055, Q-727);
 # - utenti di test e healthcheck con Node per hub e web (sotto);
 # - tutto il resto (TLS verso bus e database con la CA locale, segreti da file, profilo fisso) sta nel compose base.
 services:
-  # Console di Keycloak (ADR-051 decisione 8, Q-670, opzione A). KC_HOSTNAME_ADMIN NON si imposta: il compose base
-  # (compose.vetrina.yml) lo fissa a http://127.0.0.1:8180 e qui `KC_HOSTNAME_ADMIN: null` lo sovrascrive con un
-  # valore nullo, cosi' Compose non lo passa al contenitore; vetrina.sh toglie la variabile anche dalla shell
-  # (`env -u`), quindi non si puo' riempire dall'ambiente. Cosi' la console dei realm `loyaltyhub` e
-  # `loyaltyhub-members` usa l'indirizzo pubblico KC_HOSTNAME (porta 8001, filtrata dal proxy: deploy/vetrina/caddy/
-  # Caddyfile.codespace). Con hostname v2 senza KC_HOSTNAME_ADMIN l'URL di amministrazione e' quello di frontend, e
-  # l'attributo `frontendUrl` del realm, se presente, ha la precedenza (HostnameV2Provider.getFrontUriBuilder): il realm
-  # `master` lo riceve da apply-overlay.sh (MASTER_FRONTEND_URL = https://<codespace>-8180.<dominio>), quindi la sua
-  # console e il suo login vivono solo sull'inoltro PRIVATO della porta 8180 (solo il proprietario, autenticato da
-  # GitHub). Il proxy pubblico risponde 404 a tutto cio' che riguarda `master`. La porta 8180 resta privata: avvio.sh
-  # rende pubbliche solo 8000 e 8001.
+  # Console di Keycloak (ADR-051 decisione 8, Q-670; per `master` ADR-055, Q-727). KC_HOSTNAME_ADMIN NON si imposta: il
+  # compose base (compose.vetrina.yml) lo fissa a http://127.0.0.1:8180 e qui `KC_HOSTNAME_ADMIN: null` lo sovrascrive con
+  # un valore nullo, cosi' Compose non lo passa al contenitore; vetrina.sh toglie la variabile anche dalla shell
+  # (`env -u`), quindi non si puo' riempire dall'ambiente. Con hostname v2 senza KC_HOSTNAME_ADMIN l'URL di
+  # amministrazione e' quello di frontend, cioe' l'indirizzo pubblico KC_HOSTNAME (porta 8001, filtrata dal proxy:
+  # deploy/vetrina/caddy/Caddyfile.codespace) per TUTTI i realm, `master` compreso: il realm non ha piu' un
+  # `frontendUrl` proprio. Gli script dell'host continuano a parlare con 127.0.0.1:8180 (porta pubblicata dal compose
+  # base solo su loopback, mai inoltrata dal codespace): con KC_HOSTNAME fisso l'emittente dei token non dipende
+  # dall'indirizzo con cui li si chiede, quindi token e API di amministrazione restano coerenti.
+  # Il proxy pubblico apre `master` solo con il segreto del proprietario (master-aperta.caddy).
   idp:
     environment:
       KC_HOSTNAME_ADMIN: null

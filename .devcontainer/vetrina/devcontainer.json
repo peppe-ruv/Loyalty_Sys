@@ -39,12 +39,12 @@
       "onAutoForward": "silent"
     },
     "8001": {
-      "label": "Vetrina: Keycloak, realm loyaltyhub e loyaltyhub-members con le loro console (pubblica)",
+      "label": "Vetrina: Keycloak, realm loyaltyhub e loyaltyhub-members con le loro console; console master solo con il segreto del proprietario (pubblica)",
       "onAutoForward": "silent"
     },
     "8180": {
-      "label": "Console del realm master di Keycloak (resta privata)",
-      "onAutoForward": "silent"
+      "label": "Amministrazione di Keycloak per gli script dell'host (non si usa dal browser)",
+      "onAutoForward": "ignore"
     },
     "8080": {
       "label": "Hub (resta privata, solo vetrina.sh programma)",

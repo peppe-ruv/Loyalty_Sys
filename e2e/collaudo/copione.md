@@ -481,7 +481,7 @@ Le console di `loyaltyhub` e `loyaltyhub-members` sono pubbliche ma limitate; il
   1. Apri `<IDP>/realms/master/` e `<IDP>/realms/master/.well-known/openid-configuration`.
   2. Apri `<IDP>/admin/master/console/` e `<IDP>/admin/`.
   3. Apri `<IDP>/realms/loyaltyhub/.well-known/openid-configuration` e `<IDP>/realms/loyaltyhub-members/.well-known/openid-configuration`.
-- **Esito atteso**: le prime quattro rispondono `404`; le due discovery dei realm di vetrina rispondono `200` con JSON. Non esiste nessun pulsante o collegamento a `master` nella vetrina. La console privata del proprietario (porta 8180) non si verifica da qui: segna `N/A` per quella parte.
+- **Esito atteso**: le prime quattro rispondono `404`; le due discovery dei realm di vetrina rispondono `200` con JSON. Non esiste nessun pulsante o collegamento a `master` nella vetrina. La console del realm `master` (ADR-055) la apre solo il segreto del proprietario: se risulta aperta (`200` sulle pagine di `master`), non provare ad accedere, non hai le credenziali: segna `N/A` per quella parte.
 - **Evidenze**: stato HTTP di ogni indirizzo.
 - **Specifiche**: `ADR-051`, `Q-670`.
 

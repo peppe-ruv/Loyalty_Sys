@@ -1,0 +1,18 @@
+# Console del realm `master` APERTA (F2-DIST-09, ADR-055, Q-727). vetrina.sh copia questo file in
+# $LH_VETRINA_DIR/master-console.caddy SOLO dopo aver creato e verificato l'utente del proprietario (password dal
+# segreto del codespace LH_VETRINA_MASTER_ADMIN_PASSWORD). Il Caddyfile lo importa dopo i trucchi di percorso e prima del
+# 404 su `master`, quindi vale solo per percorsi gia' normalizzati. Nessun segreto qui dentro: il file e' leggibile da tutti.
+# Elenco esatto: console, login e token di `master`, i suoi testi e le API di amministrazione di tutti i realm
+# (un amministratore di `master` li gestisce tutti, elenco dei realm compreso). /admin e /admin/ restano 404: l'indirizzo
+# della console e' /admin/master/console/.
+@master_aperto {
+	path /admin/master /admin/master/*
+	path /realms/master /realms/master/*
+	path /resources/master /resources/master/*
+	path /admin/realms /admin/realms/*
+}
+handle @master_aperto {
+	reverse_proxy idp:8080 {
+		header_up X-Forwarded-Proto https
+	}
+}
