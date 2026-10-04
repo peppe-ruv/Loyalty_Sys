@@ -78,9 +78,28 @@ echo "immagine: $LH_IMAGE"
 # Solo diagnosi: LH_VETRINA_ALLOW_STALE_IMAGE=true la trasforma in un avviso forte.
 sudo --preserve-env=LH_IMAGE,LH_VETRINA_ALLOW_STALE_IMAGE,LH_IMMAGINE_ESPLICITA env "PATH=$PATH" bash deploy/vetrina/vetrina.sh immagine
 
+# Diagnosi senza terminale: se l'avvio si ferma, il registro riporta da solo lo stato dei container della vetrina e le
+# ultime righe di Keycloak, del proxy e di ogni container fermo o non sano. Solo docker, nessuna configurazione: funziona
+# anche se vetrina.sh si e' fermato prima di scriverla. I log dei container non contengono segreti (arrivano da file).
+diagnosi() {
+  echo "== diagnosi dei container della vetrina $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local filtro="label=com.docker.compose.project=loyaltyhub-vetrina" nomi nome
+  sudo docker ps -a --filter "$filtro" --format '{{.Names}}\t{{.Status}}' 2>&1 || true
+  nomi="$(sudo docker ps -a --filter "$filtro" --format '{{.Names}} {{.Label "com.docker.compose.service"}} {{.Status}}' 2>/dev/null \
+    | awk '$2 == "idp" || $2 == "proxy" || $0 !~ /Up/ || $0 ~ /unhealthy|starting/ { print $1 }' | sort -u || true)"
+  for nome in $nomi; do
+    echo "-- ultime righe di $nome"
+    sudo docker logs --tail 80 "$nome" 2>&1 || true
+  done
+  echo "== fine della diagnosi"
+}
+
 # PATH esplicito: Node.js (membri di test) non e' nel secure_path di sudo.
-sudo --preserve-env=CODESPACES,CODESPACE_NAME,GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN,LH_VETRINA_CONFIG,LH_IMAGE,LH_HUB_DEMO_URL,LH_VETRINA_OPERATORS \
-  env "PATH=$PATH" bash deploy/vetrina/vetrina.sh codespace
+if ! sudo --preserve-env=CODESPACES,CODESPACE_NAME,GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN,LH_VETRINA_CONFIG,LH_IMAGE,LH_HUB_DEMO_URL,LH_VETRINA_OPERATORS \
+  env "PATH=$PATH" bash deploy/vetrina/vetrina.sh codespace; then
+  diagnosi
+  exit 1
+fi
 
 # Q-661: porte pubbliche senza clic. Il token del codespace può non avere il permesso: allora lo dice e indica il clic.
 if gh codespace ports visibility 8000:public 8001:public -c "$CODESPACE_NAME" >/dev/null 2>&1; then
