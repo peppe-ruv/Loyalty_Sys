@@ -627,6 +627,57 @@ test('Caddyfile del codespace con Caddy: master e trucchi di percorso 404, solo 
   }
 });
 
+// L'inoltro delle porte di GitHub riscrive `Origin: https://<codespace>-8000.<dominio>` in `http://localhost:8000`
+// (github/community discussione 147513): senza il ripristino nel proxy il BFF rifiuta ogni scrittura con 403 CSRF_REJECTED
+// (registrazione dei membri di test, PT-16 dal browser, backoffice, logout). Il ripristino vale SOLO per i due valori esatti.
+test('Caddyfile del codespace: la porta 8000 rimette l\'origine pubblica al posto di quella riscritta dall\'inoltro di GitHub, e solo quella', () => {
+  const web = noComments(read(CADDYFILE_CODESPACE).split(/^:8001 \{/m)[0].split(/^:8000 \{/m)[1]);
+  assert.match(web, /^\s*@origine_riscritta header_regexp Origin \^https\?:\/\/localhost:8000\$$/m, 'solo http(s)://localhost:8000, ancorato');
+  assert.match(web, /^\s*request_header @origine_riscritta Origin "https:\/\/\{\$LH_VETRINA_WEB_HOST\}"$/m, 'origine pubblica da LH_VETRINA_WEB_HOST');
+  assert.equal((web.match(/Origin/g) ?? []).length, 2, 'nessun\'altra manipolazione di Origin');
+  assert.doesNotMatch(web, /Sec-Fetch|X-LH-CSRF|-Origin/i, 'gli altri controlli CSRF non si toccano');
+});
+
+test('Caddyfile del codespace con Caddy: Origin riscritto da GitHub -> origine pubblica; ogni altro Origin arriva al web com\'è', { skip: !has('caddy') && 'caddy assente' }, async () => {
+  const net = await import('node:net');
+  const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); }); });
+  const [upPort, webPort, idpPort] = [await freePort(), await freePort(), await freePort()];
+  const PUBLIC = 'https://shiny-meme-x-8000.app.github.dev';
+  let seen;
+  const upstream = http.createServer((req, res) => { seen = { origin: req.headers.origin ?? null, site: req.headers['sec-fetch-site'] ?? null, csrf: req.headers['x-lh-csrf'] ?? null }; res.end('UP'); });
+  await new Promise((r) => upstream.listen(upPort, '127.0.0.1', r));
+  const d = tmp();
+  const cfg = path.join(d, 'Caddyfile');
+  fs.writeFileSync(cfg, read(CADDYFILE_CODESPACE).replace('idp:8080', `127.0.0.1:${upPort}`).replace('web:3000', `127.0.0.1:${upPort}`)
+    .replace(/^:8001 \{/m, `:${idpPort} {`).replace(/^:8000 \{/m, `:${webPort} {`));
+  const caddy = spawn('caddy', ['run', '--config', cfg, '--adapter', 'caddyfile'], {
+    stdio: 'ignore', env: { PATH: process.env.PATH, HOME: d, XDG_DATA_HOME: d, XDG_CONFIG_HOME: d, LH_VETRINA_WEB_HOST: new URL(PUBLIC).host },
+  });
+  const post = (headers) => new Promise((resolve, reject) => {
+    seen = undefined;
+    const req = http.request({ host: '127.0.0.1', port: webPort, path: '/api/lh/member/v1/portal/members', method: 'POST', headers }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+    req.on('error', reject);
+    req.end('{}');
+  });
+  try {
+    for (let i = 0; ; i++) {
+      try { await post({}); break; } catch (e) { if (i > 50) throw e; await new Promise((r) => setTimeout(r, 100)); }
+    }
+    const cases = [
+      ['http://localhost:8000', PUBLIC], ['https://localhost:8000', PUBLIC], [PUBLIC, PUBLIC],
+      ['http://localhost:8001', 'http://localhost:8001'], ['http://localhost:80000', 'http://localhost:80000'], ['http://localhost:8000.evil.test', 'http://localhost:8000.evil.test'],
+      ['http://127.0.0.1:8000', 'http://127.0.0.1:8000'], ['https://evil.test', 'https://evil.test'], ['null', 'null'], [null, null],
+    ];
+    for (const [sent, expected] of cases) {
+      assert.equal(await post({ 'content-type': 'application/json', 'sec-fetch-site': 'same-origin', 'x-lh-csrf': 'tok', ...(sent === null ? {} : { origin: sent }) }), 200);
+      assert.deepEqual(seen, { origin: expected, site: 'same-origin', csrf: 'tok' }, `Origin ${sent}`);
+    }
+  } finally {
+    caddy.kill();
+    upstream.close();
+  }
+});
+
 test('dev container della vetrina: macchina di Q-660, avvio automatico, configurazione fuori dal repository', () => {
   const dc = JSON.parse(read(DEVCONTAINER).replace(/^\s*\/\/.*$/gm, ''));
   assert.deepEqual(dc.hostRequirements, { cpus: 4, memory: '16gb', storage: '32gb' });
@@ -790,6 +841,46 @@ test('vetrina.sh codespace: a ogni avvio database di Keycloak da zero PRIMA dell
   assert.doesNotMatch(sh, /DROP DATABASE[^\n]*loyaltyhub\b/);
   // Anche l'azzeramento a mano ricrea i membri di test (il database dell'hub riparte vuoto).
   assert.match(sh.split('\ncmd_reset() {')[1]?.split('\n}\n')[0] ?? '', /cmd_membri --if-reachable/);
+});
+
+// Errore 1 del collaudo v0.8.0: con le porte ancora private l'inoltro di GitHub risponde 302 verso il suo login e `curl -f`
+// lo considera riuscito; la prova «raggiungibile» passava e vetrina-membri.mjs falliva dopo 120 s («HTTP 302, atteso 303»).
+test('vetrina.sh membri --if-reachable: porte private (302 di GitHub) -> salta senza errore; registra solo con discovery 200 e login 303', () => {
+  const sh = read(VETRINA_SH);
+  const fn = (name) => { const body = sh.split(`\n${name}() {`)[1]; return body ? `${name}() {${body.split('\n}\n')[0]}\n}\n` : ''; };
+  const lib = ['info() { echo "vetrina: $*"; }', 'die() { echo "Errore: $*" >&2; exit 1; }', 'test_users_allowed() { true; }',
+    sh.match(/^http_code\(\) .*$/m)?.[0] ?? '', fn('public_ports_ready'), fn('cmd_membri')].join('\n');
+  const d = tmp();
+  const bin = path.join(d, 'bin');
+  fs.mkdirSync(bin);
+  // curl finto: codice per host (8000 web, 8001 Keycloak) da FAKE_WEB e FAKE_IDP; stampa come `-w '%{http_code}'`.
+  fs.writeFileSync(path.join(bin, 'curl'), `#!/bin/bash
+url="\${@: -1}"; code=000
+case "$url" in *-8000.*) code=$FAKE_WEB ;; *-8001.*) code=$FAKE_IDP ;; esac
+echo "$*" >> "${d}/curl.log"
+for a in "$@"; do [ "$a" = -f ] || [ "$a" = -fsS ] && [ "\${code:0:1}" != 2 ] && [ "\${code:0:1}" != 3 ] && exit 22; done
+printf '%s' "$code"
+`, { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'node'), `#!/bin/sh\necho "node $*" >> "${d}/node.log"\n`, { mode: 0o755 });
+  const run = (web, idp) => {
+    fs.rmSync(path.join(d, 'node.log'), { force: true });
+    const r = spawnSync('bash', ['-c', `set -euo pipefail\n${lib}\ncmd_membri --if-reachable`], {
+      encoding: 'utf8',
+      env: { PATH: `${bin}:${process.env.PATH}`, FAKE_WEB: web, FAKE_IDP: idp, REPO_ROOT: ROOT, CODESPACE_WEB_PORT: '8000', CODESPACE_IDP_PORT: '8001',
+        LH_VETRINA_WEB_HOST: 'cs-8000.app.github.dev', LH_VETRINA_IDP_HOST: 'cs-8001.app.github.dev' },
+    });
+    return { status: r.status, out: r.stdout + r.stderr, node: fs.existsSync(path.join(d, 'node.log')) };
+  };
+  for (const [web, idp] of [['302', '302'], ['302', '200'], ['000', '200'], ['303', '302'], ['303', '000']]) {
+    const r = run(web, idp);
+    assert.equal(r.status, 0, `web ${web}, Keycloak ${idp}: ${r.out}`);
+    assert.equal(r.node, false, `web ${web}, Keycloak ${idp}: vetrina-membri.mjs non deve partire`);
+    assert.match(r.out, /non rispondono ancora dall'indirizzo pubblico/);
+  }
+  const ok = run('303', '200');
+  assert.equal(ok.status, 0, ok.out);
+  assert.equal(ok.node, true, 'porte pubbliche: registra i membri');
+  assert.match(read(path.join(d, 'curl.log')), /--max-redirs 0/);
 });
 
 test('vetrina.sh: gli utenti di test negli overlay solo con CODESPACES=true, altrimenti --no-test-users (ADR-051 decisione 1, Q-676)', () => {

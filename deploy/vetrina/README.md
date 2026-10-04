@@ -115,7 +115,7 @@ flowchart TD
 
 ### Ingresso e rete
 
-- **Ingresso.** Nessun certificato da gestire: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy Caddy resta, in HTTP su `127.0.0.1:8000` (web) e `127.0.0.1:8001` (Keycloak), per tenere fuori il realm `master`, aprire solo le console dei due realm di vetrina e aggiungere le intestazioni di sicurezza.
+- **Ingresso.** Nessun certificato da gestire: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy Caddy resta, in HTTP su `127.0.0.1:8000` (web) e `127.0.0.1:8001` (Keycloak), per tenere fuori il realm `master`, aprire solo le console dei due realm di vetrina e aggiungere le intestazioni di sicurezza. Sulla porta 8000 rimette anche l'origine pubblica: l'inoltro di GitHub riscrive l'intestazione `Origin` in `http(s)://localhost:8000` (discussione GitHub community 147513) e senza questa correzione il BFF rifiuterebbe ogni scrittura con `403 CSRF_REJECTED` (#235). Si corregge solo quel valore esatto; `Sec-Fetch-Site` e il token CSRF restano verificati.
 - **Emittente OIDC.** Web e hub chiamano Keycloak con lo stesso indirizzo pubblico del browser, passando dall'inoltro di GitHub (Q-420): per questo la porta 8001 deve essere pubblica.
 - **Console di Keycloak.** Quelle dei realm `loyaltyhub` e `loyaltyhub-members` sono pubbliche sulla porta 8001; quella del realm `master` è solo sulla porta 8180 privata. Indirizzi, accessi e limiti sono nella sezione «Console di Keycloak».
 - **Azzeramento.** Nessuna pianificazione (non girerebbe a codespace fermo): un codespace nuovo parte vuoto e quello attuale si azzera a mano con `vetrina.sh reset` (Q-663).
@@ -184,12 +184,12 @@ Se la registrazione risponde `409 EMAIL_TAKEN`, lo script lo dice in chiaro e ri
 ```bash
 # Dal terminale del codespace: stato dei container (tutti healthy, il proxy running)
 sudo --preserve-env=LH_VETRINA_CONFIG bash deploy/vetrina/vetrina.sh compose ps
-# Discovery OIDC raggiungibile dall'indirizzo pubblico della porta 8001
-curl -fsS "https://<nome>-8001.<dominio di inoltro>/realms/loyaltyhub/.well-known/openid-configuration" >/dev/null && echo ok
+# Discovery OIDC raggiungibile dall'indirizzo pubblico della porta 8001: atteso 200 (302 = porta ancora privata)
+curl -s -o /dev/null -w '%{http_code}\n' "https://<nome>-8001.<dominio di inoltro>/realms/loyaltyhub/.well-known/openid-configuration"
 # Il realm master non è esposto: atteso 404
 curl -s -o /dev/null -w '%{http_code}\n' "https://<nome>-8001.<dominio di inoltro>/realms/master/"
-# HUB-02 della vetrina
-curl -fsS -o /dev/null -w '%{http_code}\n' "https://<nome>-8000.<dominio di inoltro>/"
+# HUB-02 della vetrina: atteso 200 (302 = porta ancora privata)
+curl -s -o /dev/null -w '%{http_code}\n' "https://<nome>-8000.<dominio di inoltro>/"
 ```
 
 ### Smoke pianificato

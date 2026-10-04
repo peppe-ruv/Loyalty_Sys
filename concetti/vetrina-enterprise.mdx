@@ -78,7 +78,7 @@ flowchart LR
 
 Prima di avviare lo stack, lo script rifiuta un'immagine più vecchia degli script del repository: confronta la revisione dell'immagine (etichetta OCI `org.opencontainers.image.revision`, oppure il commit del tag `vX.Y.Z`) con `HEAD` e, se differiscono nelle cartelle che finiscono nell'immagine (`web`, `services`, `libs`, `contracts`, `seed`, `deploy/hub`, `deploy/image`, `pom.xml`, `.mvn` e `mvnw`), si ferma con un messaggio che chiede un'immagine costruita da questo commit o un nuovo tag di rilascio (M8.14, F2-DIST-09).
 
-Nel codespace il proxy resta, ma parla HTTP su due porte locali: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy espone di Keycloak solo i realm `loyaltyhub` e `loyaltyhub-members` con le loro console; il realm `master`, con la sua console, resta su una porta privata, visibile solo al proprietario (Q-661, Q-670).
+Nel codespace il proxy resta, ma parla HTTP su due porte locali: il TLS lo termina l'inoltro delle porte di GitHub. Il proxy espone di Keycloak solo i realm `loyaltyhub` e `loyaltyhub-members` con le loro console; il realm `master`, con la sua console, resta su una porta privata, visibile solo al proprietario (Q-661, Q-670). Sulla porta del web il proxy rimette l'origine pubblica nell'intestazione `Origin`, che l'inoltro di GitHub riscrive in `localhost:8000`: senza, il BFF rifiuterebbe ogni scrittura come richiesta di un altro sito (#235). Gli altri controlli contro le richieste di altri siti (`Sec-Fetch-Site`, token CSRF legato alla sessione) restano invariati.
 
 ```mermaid
 sequenceDiagram
