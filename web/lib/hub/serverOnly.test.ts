@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 // test fa lo stesso lavoro e fallisce se un file `"use client"` importa (non `import type`) uno di quei moduli.
 
 const ROOT = join(__dirname, "..", "..");
-const SERVER_ONLY = ["hub/testUsers", "hub/totp", "hub/codespace", "hub/testMode", "vetrina/programma", "vetrina/azione"];
+const SERVER_ONLY = ["hub/testUsers", "hub/totp", "hub/codespace", "hub/vetrinaProbe", "hub/vetrinaMarkers", "hub/testMode", "vetrina/programma", "vetrina/azione"];
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

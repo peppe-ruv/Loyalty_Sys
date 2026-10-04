@@ -917,6 +917,7 @@ Fette (una fetta = un ramo = una PR con auto-merge, regola 16; nessuna tocca `do
 - HUB-02 dichiara nel banner che la vetrina non è HA, usa solo dati fittizi e si azzera periodicamente (Q-624); dal 2026-10-02 la vetrina è un ambiente di test (ADR-051): gli utenti di test hanno credenziali fisse documentate, gli operatori entrano con password e OTP a seme fisso, i membri di test nel realm `loyaltyhub-members`; il realm di base e il chart restano senza credenziali (`check-realm`).
 - La demo, il seed e lo smoke della demo restano invariati; nessun nuovo `type`, topic, servizio o endpoint pubblico.
 - Tutto dal browser (ADR-051): dalla demo su Vercel si accende la vetrina, si sceglie un utente di test, si entra nel backoffice o nel portale, si carica il programma di esempio, si inviano azioni dalla fonte di test e si apre la console di Keycloak dei due realm; la console `master` non è raggiungibile dal proxy pubblico.
+- HUB-01 mostra «Apri la vetrina» solo quando tutte e nove le risorse della vetrina sono pronte (codespace, porte pubbliche, web, servizi, Postgres, Kafka, accesso dei due realm, membri di test registrati; Q-728, che chiude Q-721): spinner e elenco durante l'attesa, «Non pronta» con la risorsa bloccata e «Controlla di nuovo» dopo 15 minuti, sonda lato server limitata ai due indirizzi inoltrati del codespace e `vetrina.testMembers` solo nell'ambiente di test (`docs/07 §8`).
 - Pagina Mintlify «Vetrina enterprise» con il diagramma dell'istanza e job `docs` verde.
 
 ### M9 — Qualità

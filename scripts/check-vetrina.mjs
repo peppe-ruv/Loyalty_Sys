@@ -787,6 +787,10 @@ test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun a
     assert.equal(cfg.services[svc].environment.LH_ENVIRONMENT, 'test', svc);
   }
   assert.equal(cfg.services.idp.environment.KC_HOSTNAME, 'https://prova-vetrina-8001.app.github.dev');
+  // Q-728: il web legge il marcatore dei membri di test da una cartella dell'host montata in sola lettura.
+  assert.equal(cfg.services.web.environment.LH_VETRINA_STATE_DIR, '/run/lh-vetrina');
+  const stato = cfg.services.web.volumes.find((v) => v.target === '/run/lh-vetrina');
+  assert.ok(stato?.type === 'bind' && stato.read_only === true && stato.source.endsWith('/stato'), `montaggio del marcatore: ${JSON.stringify(stato)}`);
   // Q-670: nel codespace KC_HOSTNAME_ADMIN non e' impostato (l'overlay di base lo fissa a 127.0.0.1:8180 e qui lo
   // toglie): la console dei due realm usa l'indirizzo pubblico, anche quella di master (il realm non ha un frontendUrl proprio, ADR-055).
   assert.ok((cfg.services.idp.environment.KC_HOSTNAME_ADMIN ?? null) === null, `KC_HOSTNAME_ADMIN impostato: ${cfg.services.idp.environment.KC_HOSTNAME_ADMIN}`);
@@ -874,6 +878,13 @@ test('vetrina.sh codespace: configurazione dall\'ambiente, segreti generati, ele
 // Keycloak da zero a ogni avvio e membri di test (M8.14 V8; ADR-051 decisioni 1 e 10; Q-672, Q-673, Q-676)
 
 /** Configurazione del codespace in una cartella temporanea, con un `docker` e un `node` finti che registrano gli argomenti. */
+/** Il blocco del marcatore dei membri (Q-728) di vetrina.sh, dalle costanti a `set_owner`, per provare le funzioni da sole. */
+function markerBlock(sh) {
+  const block = sh.split('MARKER_MEMBRI=')[1]?.split('\nset_owner() {')[0];
+  assert.ok(block, 'blocco del marcatore in vetrina.sh');
+  return `MARKER_MEMBRI=${block}`;
+}
+
 function fakeCodespace() {
   const d = tmp();
   const bin = path.join(d, 'bin');
@@ -919,8 +930,9 @@ test('vetrina.sh membri --if-reachable: porte private (302 di GitHub) -> salta s
   const sh = read(VETRINA_SH);
   const fn = (name) => { const body = sh.split(`\n${name}() {`)[1]; return body ? `${name}() {${body.split('\n}\n')[0]}\n}\n` : ''; };
   const lib = ['info() { echo "vetrina: $*"; }', 'die() { echo "Errore: $*" >&2; exit 1; }', 'test_users_allowed() { true; }',
-    sh.match(/^http_code\(\) .*$/m)?.[0] ?? '', fn('public_ports_ready'), fn('cmd_membri')].join('\n');
+    sh.match(/^http_code\(\) .*$/m)?.[0] ?? '', fn('public_ports_ready'), fn('write_atomic'), markerBlock(sh), fn('cmd_membri')].join('\n');
   const d = tmp();
+  const marker = path.join(d, 'host', 'stato', 'membri-di-test');
   const bin = path.join(d, 'bin');
   fs.mkdirSync(bin);
   // curl finto: codice per host (8000 web, 8001 Keycloak) da FAKE_WEB e FAKE_IDP; stampa come `-w '%{http_code}'`.
@@ -937,7 +949,7 @@ printf '%s' "$code"
     const r = spawnSync('bash', ['-c', `set -euo pipefail\n${lib}\ncmd_membri --if-reachable`], {
       encoding: 'utf8',
       env: { PATH: `${bin}:${process.env.PATH}`, FAKE_WEB: web, FAKE_IDP: idp, REPO_ROOT: ROOT, CODESPACE_WEB_PORT: '8000', CODESPACE_IDP_PORT: '8001',
-        LH_VETRINA_WEB_HOST: 'cs-8000.app.github.dev', LH_VETRINA_IDP_HOST: 'cs-8001.app.github.dev' },
+        LH_VETRINA_WEB_HOST: 'cs-8000.app.github.dev', LH_VETRINA_IDP_HOST: 'cs-8001.app.github.dev', LH_VETRINA_DIR: path.join(d, 'host') },
     });
     return { status: r.status, out: r.stdout + r.stderr, node: fs.existsSync(path.join(d, 'node.log')) };
   };
@@ -946,11 +958,57 @@ printf '%s' "$code"
     assert.equal(r.status, 0, `web ${web}, Keycloak ${idp}: ${r.out}`);
     assert.equal(r.node, false, `web ${web}, Keycloak ${idp}: vetrina-membri.mjs non deve partire`);
     assert.match(r.out, /non rispondono ancora dall'indirizzo pubblico/);
+    assert.ok(!fs.existsSync(marker), `web ${web}, Keycloak ${idp}: nessun marcatore dei membri (Q-728)`);
   }
   const ok = run('303', '200');
   assert.equal(ok.status, 0, ok.out);
   assert.equal(ok.node, true, 'porte pubbliche: registra i membri');
   assert.match(read(path.join(d, 'curl.log')), /--max-redirs 0/);
+  // Q-728: a registrazione riuscita il marcatore c'e' (solo `ready`, leggibile dai container), e un nuovo giro che salta lo toglie.
+  assert.equal(read(marker), 'ready\n');
+  assert.equal((fs.statSync(marker).mode & 0o777).toString(8), '644');
+  assert.equal((fs.statSync(path.dirname(marker)).mode & 0o777).toString(8), '755');
+  const skipped = run('302', '302');
+  assert.equal(skipped.status, 0, skipped.out);
+  assert.ok(!fs.existsSync(marker), 'una registrazione saltata toglie il marcatore');
+});
+
+// Q-728: HUB-01 aspetta il marcatore dei membri di test; una registrazione fallita non deve lasciarlo (ne' crearlo).
+test('vetrina.sh membri: il marcatore si scrive solo a registrazione riuscita, anche dentro `|| echo` (set -e spento)', () => {
+  const sh = read(VETRINA_SH);
+  const fn = (name) => { const body = sh.split(`\n${name}() {`)[1]; return body ? `${name}() {${body.split('\n}\n')[0]}\n}\n` : ''; };
+  const lib = ['info() { echo "vetrina: $*"; }', 'die() { echo "Errore: $*" >&2; exit 1; }', 'test_users_allowed() { true; }',
+    fn('write_atomic'), markerBlock(sh), fn('cmd_membri')].join('\n');
+  const d = tmp();
+  const bin = path.join(d, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'node'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const marker = path.join(d, 'host', 'stato', 'membri-di-test');
+  fs.mkdirSync(path.dirname(marker), { recursive: true });
+  fs.writeFileSync(marker, 'ready\n'); // rimasto da un giro precedente
+  const r = spawnSync('bash', ['-c', `set -euo pipefail\n${lib}\ncmd_membri || echo "caduto: $?"`], {
+    encoding: 'utf8',
+    env: { PATH: `${bin}:${process.env.PATH}`, REPO_ROOT: ROOT, LH_VETRINA_WEB_HOST: 'cs-8000.app.github.dev', LH_VETRINA_DIR: path.join(d, 'host') },
+  });
+  assert.match(r.stdout, /caduto: 1/, r.stdout + r.stderr);
+  assert.ok(!fs.existsSync(marker), 'node fallito: nessun marcatore (quello vecchio e\' stato tolto)');
+  assert.doesNotMatch(r.stdout, /marcatore .* scritto/);
+});
+
+test('marcatore dei membri di test: cartella montata in sola lettura nel web, tolto a ogni avvio e a ogni azzeramento (Q-728)', () => {
+  const cs = YAML.parse(read(CODESPACE_OVERLAY));
+  const web = cs.services.web;
+  assert.equal(web.environment.LH_VETRINA_STATE_DIR, '/run/lh-vetrina');
+  assert.deepEqual(web.volumes, [{ type: 'bind', source: '${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/stato', target: '/run/lh-vetrina', read_only: true }]);
+  assert.equal(cs.services.hub.volumes, undefined, 'il marcatore lo legge solo il web');
+  const sh = read(VETRINA_SH);
+  const body = (name) => sh.split(`\n${name}() {`)[1]?.split('\n}\n')[0] ?? '';
+  assert.match(body('cmd_provision'), /marker_prepare/, 'la cartella esiste prima di compose up');
+  assert.match(body('cmd_codespace'), /cmd_provision\n[^\n]*\n\s*marker_clear/, 'ogni avvio la svuota, subito dopo provision');
+  assert.match(body('cmd_reset'), /marker_clear/);
+  assert.match(body('cmd_membri'), /marker_clear[\s\S]*vetrina-membri\.mjs[^\n]*\|\| return 1\n[^\n]*\n\s*marker_set/);
+  assert.match(read(AVVIO), /^sudo rm -f "\$DIR\/stato\/membri-di-test"$/m, 'avvio.sh toglie il marcatore a inizio avvio');
+  assert.doesNotMatch(sh.split('MARKER_MEMBRI=')[1]?.split('\nset_owner() {')[0] ?? '', /printf '(?!ready)/, 'solo `ready`, nessun dato personale');
 });
 
 test('vetrina.sh: gli utenti di test negli overlay solo con CODESPACES=true, altrimenti --no-test-users (ADR-051 decisione 1, Q-676)', () => {
