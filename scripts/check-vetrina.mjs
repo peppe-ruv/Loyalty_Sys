@@ -1001,3 +1001,455 @@ test('web/vercel.json: l\'ignoreCommand salta solo un commit nuovo senza modific
   assert.equal(run(b, git('rev-parse', 'HEAD')), 1, 'commit che tocca web/: build');
   fs.rmSync(repo, { recursive: true, force: true });
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// Immagine più vecchia del repository (issue #232, F2-DIST-09, ADR-051, ADR-050, M8.14)
+
+const IMAGE_YML = path.join(ROOT, '.github/workflows/image.yml');
+
+test('image.yml: la build della PR e quella di rilascio scrivono l\'etichetta OCI di revisione (issue #232)', () => {
+  const wf = YAML.parse(read(IMAGE_YML));
+  let builds = 0;
+  for (const job of Object.values(wf.jobs)) {
+    for (const step of job.steps ?? []) {
+      if (!String(step.uses ?? '').startsWith('docker/build-push-action')) continue;
+      builds += 1;
+      assert.match(String(step.with.labels ?? ''), /org\.opencontainers\.image\.revision=\$\{\{ (github\.sha|env\.IMG_SHA) \}\}/, `${step.name}: etichetta di revisione assente`);
+    }
+  }
+  assert.equal(builds, 2, 'attese la build della PR e quella di rilascio');
+});
+
+/** Repository temporaneo con una copia di vetrina.sh (REPO_ROOT si ricava dalla posizione dello script) e un docker finto. */
+function fakeImageRepo() {
+  const d = tmp();
+  const repo = path.join(d, 'repo');
+  const bin = path.join(d, 'bin');
+  fs.mkdirSync(path.join(repo, 'deploy/vetrina'), { recursive: true });
+  fs.mkdirSync(bin);
+  fs.copyFileSync(VETRINA_SH, path.join(repo, 'deploy/vetrina/vetrina.sh'));
+  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\n# docker image inspect --format ... <immagine>: stampa l\'etichetta scelta dal test\n[ -n "$FAKE_LABEL" ] && printf "%s\\n" "$FAKE_LABEL"\nexit 0\n', { mode: 0o755 });
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.org', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.org', PATH: `${bin}:${process.env.PATH}` };
+  delete env.LH_VETRINA_ALLOW_STALE_IMAGE;
+  const git = (...a) => {
+    const r = spawnSync('git', ['-C', repo, ...a], { encoding: 'utf8', env });
+    assert.equal(r.status, 0, `git ${a.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  git('init', '-q');
+  const commit = (file, content, msg) => {
+    fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+    fs.writeFileSync(path.join(repo, file), content);
+    git('add', '-A');
+    git('commit', '-q', '-m', msg);
+    return git('rev-parse', 'HEAD');
+  };
+  const run = (image, extra = {}) => spawnSync('bash', [path.join(repo, 'deploy/vetrina/vetrina.sh'), 'immagine'], {
+    encoding: 'utf8', env: { ...env, LH_IMAGE: image, ...extra },
+  });
+  const sh = (args, extra = {}) => spawnSync("bash", [path.join(repo, "deploy/vetrina/vetrina.sh"), "immagine", ...args], { encoding: "utf8", env: { ...env, ...extra } });
+  return { git, commit, run, sh, bin, d };
+}
+
+test('vetrina.sh immagine: etichetta uguale a HEAD, o differenze solo in docs/, passa; differenze in web/ no (uscita 2, messaggio chiaro)', () => {
+  const r = fakeImageRepo();
+  const base = r.commit('web/app.ts', 'v1\n', 'base');
+  const docsOnly = r.commit('docs/nota.md', 'x\n', 'solo documenti');
+  const img = 'ghcr.io/example/loyaltyhub:build-prova';
+  // Etichetta uguale a HEAD.
+  let out = r.run(img, { FAKE_LABEL: docsOnly });
+  assert.equal(out.status, 0, out.stderr);
+  // Commit più vecchio, differenze solo in docs/.
+  out = r.run(img, { FAKE_LABEL: base });
+  assert.equal(out.status, 0, out.stderr);
+  // Differenze in web/.
+  const head = r.commit('web/app.ts', 'v2\n', 'cambia il web');
+  out = r.run(img, { FAKE_LABEL: base });
+  assert.equal(out.status, 2, out.stdout + out.stderr);
+  assert.match(out.stderr, /^Errore: immagine ghcr\.io\/example\/loyaltyhub:build-prova costruita dal commit /m);
+  assert.ok(out.stderr.includes(base.slice(0, 7)) && out.stderr.includes(head.slice(0, 7)), 'revisione e HEAD in forma breve');
+  assert.match(out.stderr, /l'immagine è più vecchia degli script del repo: .*imposta il segreto del codespace LH_IMAGE su un'immagine costruita da questo commit, oppure crea un nuovo tag di rilascio/);
+  assert.ok(!out.stderr.includes(base), 'nessuna sha intera');
+});
+
+test('vetrina.sh immagine: differenze solo in scripts/ o deploy/vetrina/ non invecchiano l\'immagine', () => {
+  const r = fakeImageRepo();
+  const base = r.commit('web/app.ts', 'v1\n', 'base');
+  r.commit('scripts/x.sh', 'x\n', 'script');
+  r.commit('deploy/vetrina/y.sh', 'y\n', 'vetrina');
+  const out = r.run('ghcr.io/example/loyaltyhub:build-x', { FAKE_LABEL: base });
+  assert.equal(out.status, 0, out.stderr);
+});
+
+test('vetrina.sh immagine: revisione non antenato di HEAD (immagine più nuova o di un altro ramo): rifiutata senza dire «più vecchia»', () => {
+  const r = fakeImageRepo();
+  const base = r.commit('web/app.ts', 'v1\n', 'base');
+  r.git('checkout', '-q', '-b', 'altro');
+  const other = r.commit('web/app.ts', 'v2\n', 'altro ramo');
+  r.git('checkout', '-q', '-b', 'lato', base);
+  const head = r.commit('web/app.ts', 'v3\n', 'lato');
+  const out = r.run('ghcr.io/example/loyaltyhub:build-x', { FAKE_LABEL: other });
+  assert.equal(out.status, 2, out.stdout + out.stderr);
+  assert.match(out.stderr, new RegExp(`l'immagine ghcr\\.io/example/loyaltyhub:build-x \\(${other.slice(0, 7)}\\) non è un antenato di HEAD \\(${head.slice(0, 7)}\\): è più nuova del clone o di un altro ramo: aggiorna il clone del codespace \\(git pull\\) oppure scegli un'immagine costruita da questo commit`));
+  assert.doesNotMatch(out.stderr, /più vecchia/);
+  const ok = r.run('ghcr.io/example/loyaltyhub:build-x', { FAKE_LABEL: other, LH_VETRINA_ALLOW_STALE_IMAGE: 'true' });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stderr, /AVVISO FORTE/);
+});
+
+test('vetrina.sh immagine: senza etichetta usa il commit del tag :vX.Y.Z noto al repository', () => {
+  const r = fakeImageRepo();
+  const base = r.commit('web/app.ts', 'v1\n', 'base');
+  r.git('tag', 'v0.7.0');
+  r.commit('web/app.ts', 'v2\n', 'cambia il web');
+  const stale = r.run('ghcr.io/example/loyaltyhub:v0.7.0');
+  assert.equal(stale.status, 2, stale.stdout + stale.stderr);
+  assert.ok(stale.stderr.includes(base.slice(0, 7)), 'usa il commit del tag');
+  // Tag all'ultimo commit: aggiornata.
+  r.git('tag', 'v0.8.0');
+  const fresh = r.run('ghcr.io/example/loyaltyhub:v0.8.0');
+  assert.equal(fresh.status, 0, fresh.stderr);
+});
+
+test('vetrina.sh immagine: revisione ignota o commit assente dal clone: avviso «non verificabile» e si prosegue', () => {
+  const r = fakeImageRepo();
+  r.commit('web/app.ts', 'v1\n', 'base');
+  // Né etichetta né tag noto.
+  let out = r.run('ghcr.io/example/loyaltyhub:latest');
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stderr, /Avviso: .*non verificabile/);
+  out = r.run('ghcr.io/example/loyaltyhub:v9.9.9');
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stderr, /non verificabile/);
+  // Etichetta con un commit che il clone non ha (nemmeno dopo il fetch: nessun remoto).
+  out = r.run('ghcr.io/example/loyaltyhub:build-x', { FAKE_LABEL: 'deadbeef'.repeat(5) });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stderr, /non verificabile: commit assente dal clone locale/);
+});
+
+test('vetrina.sh immagine: LH_VETRINA_ALLOW_STALE_IMAGE=true trasforma l\'errore in un avviso forte (solo diagnosi)', () => {
+  const r = fakeImageRepo();
+  const base = r.commit('web/app.ts', 'v1\n', 'base');
+  r.commit('web/app.ts', 'v2\n', 'cambia il web');
+  const out = r.run('ghcr.io/example/loyaltyhub:build-x', { FAKE_LABEL: base, LH_VETRINA_ALLOW_STALE_IMAGE: 'true' });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stderr, /AVVISO FORTE: .*più vecchia degli script del repo.*solo per diagnosi/);
+  // Altri valori non valgono come consenso.
+  const no = r.run('ghcr.io/example/loyaltyhub:build-x', { FAKE_LABEL: base, LH_VETRINA_ALLOW_STALE_IMAGE: '1' });
+  assert.equal(no.status, 2);
+});
+
+test('avvio.sh: un\'immagine esplicita più vecchia del repo ferma l\'avvio prima di `codespace` (uscita 2); il consenso di diagnosi la lascia passare e passa il suggerimento di togliere il segreto', () => {
+  // docker finto: `image inspect` risponde con l'etichetta FAKE_LABEL; il resto riesce.
+  const w = avvioWorld('#!/bin/sh\n[ "$1" = image ] && [ -n "$FAKE_LABEL" ] && printf "%s\\n" "$FAKE_LABEL"\nexit 0\n');
+  fs.mkdirSync(path.join(w.d, 'origin/web'), { recursive: true });
+  const vecchio = (() => { fs.writeFileSync(path.join(w.d, 'origin/web/a.ts'), '1'); w.g(path.join(w.d, 'origin'), 'add', '-A'); w.g(path.join(w.d, 'origin'), 'commit', '-q', '-m', 'web1'); return w.g(path.join(w.d, 'origin'), 'rev-parse', 'HEAD'); })();
+  fs.writeFileSync(path.join(w.d, 'origin/web/a.ts'), '2');
+  w.g(path.join(w.d, 'origin'), 'add', '-A');
+  w.g(path.join(w.d, 'origin'), 'commit', '-q', '-m', 'web2');
+  const c = w.clone('stale');
+  let out = w.run(c, { LH_IMAGE: 'ghcr.io/o/r:custom', FAKE_LABEL: vecchio });
+  assert.equal(out.status, 2, out.stdout + out.stderr);
+  assert.match(out.stdout + out.stderr, /l'immagine è più vecchia degli script del repo/);
+  assert.match(out.stdout + out.stderr, /togli il segreto LH_IMAGE per seguire main/);
+  assert.doesNotMatch(out.stdout + out.stderr, /il comando codespace vale solo/, 'ferma prima di `codespace`');
+  out = w.run(c, { LH_IMAGE: 'ghcr.io/o/r:custom', FAKE_LABEL: vecchio, LH_VETRINA_ALLOW_STALE_IMAGE: 'true' });
+  assert.match(out.stdout + out.stderr, /AVVISO FORTE/);
+  assert.match(out.stdout + out.stderr, /il comando codespace vale solo/, 'con il consenso arriva a `codespace`');
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// La vetrina segue main (M8.14): image.yml pubblica build-<commit> a ogni merge, il codespace sceglie da solo
+
+test('image.yml: push su main con gli stessi percorsi delle PR, workflow_dispatch, job release anche su main, build-<commit> solo dopo la verifica, latest e versione solo su push di tag', () => {
+  const wf = YAML.parse(read(IMAGE_YML));
+  const on = wf.on ?? wf[true];
+  assert.deepEqual(on.push.branches, ['main']);
+  assert.deepEqual(on.push.tags, ['v*']);
+  assert.deepEqual(on.push.paths, on.pull_request.paths, 'stesso filtro dei percorsi di PR e push su main');
+  assert.ok('workflow_dispatch' in on, 'recupero a mano da main');
+  const rel = wf.jobs.release;
+  assert.match(rel.if, /startsWith\(github\.ref, 'refs\/tags\/v'\)/);
+  assert.match(rel.if, /github\.ref == 'refs\/heads\/main'/);
+  assert.equal(rel.concurrency['cancel-in-progress'], false, 'mai cancellare un tag né una build');
+  assert.equal(rel.steps.find((s) => String(s.uses ?? '').startsWith('actions/checkout')).with['fetch-depth'], 0, 'storia completa per il calcolo di IMG_SHA');
+  const names = rel.steps.map((s) => s.name);
+  const byName = Object.fromEntries(rel.steps.map((s) => [s.name, s]));
+  // Solo i push di tag muovono latest e la versione (un recupero a mano su un tag no).
+  for (const n of ['Tag release (latest e versione)', 'Verify tags and provenance']) {
+    assert.equal(byName[n].if, "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')", `${n}: solo push di tag`);
+  }
+  // Tutti i passi di build, scansione, firma, attestazione e verifica girano anche su main (nessuna condizione sui tag).
+  for (const n of ['Build and Push Multi-arch (tag di lavoro)', 'Sign image (cosign keyless)', 'Attest SBOM (cosign, CycloneDX)', 'Attest build provenance', 'Verify signatures and attestations (prima dei tag)']) {
+    assert.ok(byName[n], `${n} presente`);
+    assert.ok(!String(byName[n].if ?? '').includes('refs/tags'), `${n}: non legato ai tag`);
+  }
+  // L'identità di verifica usa il riferimento reale dell'esecuzione (refs/heads/main su main).
+  assert.match(read(IMAGE_YML), /image\.yml@\$\{GITHUB_REF\}/);
+  // Il filtro copre ciò che sceglie la vetrina: ogni percorso dell'immagine ha un filtro.
+  const paths = shellArray('IMAGE_FRESHNESS_PATHS');
+  for (const p of paths) assert.ok(on.push.paths.some((f) => f === p || f === `${p}/**`), `${p} manca nel filtro di image.yml`);
+  // IMG_SHA: il recupero a mano costruisce l'immagine dell'ultimo commit che ha toccato l'immagine, con la stessa lista di vetrina.sh.
+  const imgStep = byName["Commit dell'immagine (IMG_SHA)"];
+  assert.ok(imgStep, 'passo che calcola IMG_SHA');
+  assert.match(imgStep.run, /workflow_dispatch/);
+  assert.ok(imgStep.run.includes(`git log -1 --format=%H HEAD -- ${paths.join(' ')}`), 'stessa lista di IMAGE_FRESHNESS_PATHS');
+  assert.match(imgStep.run, /sha="\$GITHUB_SHA"/, 'push e tag: il commit stesso');
+  assert.ok(names.indexOf("Commit dell'immagine (IMG_SHA)") < names.indexOf('Build and Push Multi-arch (tag di lavoro)'));
+  // La build usa un tag di lavoro e l'etichetta di IMG_SHA; github.sha non compare più nei nomi dell'immagine.
+  const build = byName['Build and Push Multi-arch (tag di lavoro)'];
+  assert.equal(build.with.tags, '${{ env.IMAGE }}:scan-${{ env.IMG_SHA }}');
+  assert.equal(build.with.labels, 'org.opencontainers.image.revision=${{ env.IMG_SHA }}');
+  assert.ok(!/build-\$\{\{ github\.sha \}\}/.test(read(IMAGE_YML)), 'nessun build-${{ github.sha }}');
+  // build-<commit> nasce solo dopo scansione, firma e verifica, dallo stesso indice, su ogni riferimento.
+  const pub = byName['Pubblica build-<commit> (dopo la verifica)'];
+  assert.ok(pub, 'passo di pubblicazione di build-<commit>');
+  assert.ok(!pub.if, 'su tutti i riferimenti');
+  assert.match(pub.run, /imagetools create --tag "\$\{IMAGE\}:build-\$\{IMG_SHA\}" "\$\{IMAGE\}@\$\{INDEX_DIGEST\}"/);
+  assert.equal(pub.env.INDEX_DIGEST, '${{ steps.build.outputs.digest }}');
+  const iv = names.indexOf('Verify signatures and attestations (prima dei tag)');
+  const ip = names.indexOf('Pubblica build-<commit> (dopo la verifica)');
+  const it = names.indexOf('Tag release (latest e versione)');
+  assert.ok(iv < ip && ip < it, 'verifica, poi build-<commit>, poi i tag di rilascio');
+  const buildTagUses = rel.steps.filter((s) => /build-\$\{(IMG_SHA|\{)/.test(JSON.stringify(s)) && s !== pub);
+  assert.deepEqual(buildTagUses, [], 'nessun altro passo scrive build-<commit>');
+  assert.equal(byName['Tag release (latest e versione)'].env.INDEX_DIGEST, '${{ steps.build.outputs.digest }}', 'i tag di rilascio puntano all\'indice verificato');
+});
+
+/**
+ * docker finto: `pull` riesce solo per l'immagine FAKE_PULL_OK, dopo FAKE_PULL_AFTER tentativi falliti, altrimenti scrive
+ * FAKE_PULL_ERR (default «manifest unknown») su stderr. `sleep` non aspetta e conta le chiamate in $FAKE_DIR/sleeps;
+ * `gh` finto (FAKE_GH_OUT: righe «status:conclusion», FAKE_GH_FAIL=1: errore dell'API) solo con fakeGh().
+ */
+function fakePullDocker(r) {
+  fs.writeFileSync(path.join(r.bin, 'docker'), `#!/bin/sh
+case "$1" in
+  pull)
+    for a; do ref=$a; done
+    if [ -n "$FAKE_PULL_OK" ] && [ "$ref" = "$FAKE_PULL_OK" ]; then
+      n=$(cat "$FAKE_DIR/n" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$FAKE_DIR/n"
+      [ "$n" -gt "\${FAKE_PULL_AFTER:-0}" ] && exit 0
+    fi
+    echo "\${FAKE_PULL_ERR:-Error response from daemon: manifest unknown}" >&2
+    exit 1 ;;
+  login) cat >/dev/null; exit 0 ;;
+  image) exit 0 ;;
+esac
+exit 0
+`, { mode: 0o755 });
+  fs.writeFileSync(path.join(r.bin, 'sleep'), '#!/bin/sh\necho "$1" >> "$FAKE_DIR/sleeps"\nexit 0\n', { mode: 0o755 });
+}
+function fakeGh(r) {
+  fs.writeFileSync(path.join(r.bin, 'gh'), '#!/bin/sh\n[ "$FAKE_GH_FAIL" = 1 ] && exit 1\nprintf "%s" "$FAKE_GH_OUT"\nexit 0\n', { mode: 0o755 });
+}
+const sleeps = (dir) => (fs.existsSync(path.join(dir, 'sleeps')) ? read(path.join(dir, 'sleeps')).trim().split('\n').filter(Boolean).length : 0);
+
+const REPO_ENV = { GITHUB_REPOSITORY: 'Example-Org/loyalty' };
+
+test('vetrina.sh immagine --scegli: build-<commit> dell\'ultimo commit che ha toccato l\'immagine (anche se HEAD tocca solo docs/), con proprietario minuscolo', () => {
+  const r = fakeImageRepo();
+  r.commit('web/app.ts', 'v1\n', 'base');
+  const web = r.commit('web/app.ts', 'v2\n', 'web');
+  let out = r.sh(['--scegli'], REPO_ENV);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout.trim(), `ghcr.io/example-org/loyaltyhub:build-${web}`);
+  const head = r.commit('web/nuovo.ts', 'n\n', 'altro web');
+  out = r.sh(['--scegli'], REPO_ENV);
+  assert.equal(out.stdout.trim(), `ghcr.io/example-org/loyaltyhub:build-${head}`);
+  r.commit('docs/nota.md', 'x\n', 'solo documenti');
+  r.commit('scripts/x.sh', 'x\n', 'solo script');
+  out = r.sh(['--scegli'], REPO_ENV);
+  assert.equal(out.stdout.trim(), `ghcr.io/example-org/loyaltyhub:build-${head}`, 'documenti e script non cambiano l\'immagine');
+  // Senza GITHUB_REPOSITORY: errore di configurazione.
+  out = r.sh(['--scegli'], { GITHUB_REPOSITORY: '' });
+  assert.equal(out.status, 2);
+});
+
+test('vetrina.sh immagine --risolvi: tag allineato con build mancante, nessuna attesa; attesa solo se image.yml ha un\'esecuzione in corso; senza esecuzione o fallita, errore subito; stato non verificabile, attesa con limite (M8.14)', () => {
+  const r = fakeImageRepo();
+  fakePullDocker(r);
+  fakeGh(r);
+  const dir = path.join(r.d, 'fake');
+  fs.mkdirSync(dir);
+  const reset = () => { fs.rmSync(path.join(dir, 'n'), { force: true }); fs.rmSync(path.join(dir, 'sleeps'), { force: true }); };
+  const base = r.commit('web/app.ts', 'v1\n', 'base');
+  const short = base.slice(0, 7);
+  const env = (extra = {}) => ({ ...REPO_ENV, FAKE_DIR: dir, LH_AVVIO_ATTESA_S: '90', LH_AVVIO_INTERVALLO_S: '30', ...extra });
+  const want = `ghcr.io/example-org/loyaltyhub:build-${base}`;
+  // Subito disponibile: nessuna attesa.
+  reset();
+  let out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: want }));
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout.trim(), want);
+  assert.equal(sleeps(dir), 0);
+  // Esecuzione in corso: attende e poi scarica (stdout solo il riferimento, avanzamento su stderr).
+  reset();
+  out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: want, FAKE_PULL_AFTER: '3', FAKE_GH_OUT: 'in_progress:\n' }));
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout.trim(), want);
+  assert.match(out.stderr, new RegExp(`immagine build-${short} in costruzione su GitHub Actions, attendo…`));
+  assert.ok(sleeps(dir) >= 2, 'ha atteso');
+  // In coda: come in corso.
+  reset();
+  out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: want, FAKE_PULL_AFTER: '2', FAKE_GH_OUT: 'queued:\ncompleted:failure\n' }));
+  assert.equal(out.status, 0, out.stderr);
+  // Esecuzione completata con errore: subito, senza attendere.
+  reset();
+  out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: 'ghcr.io/altro/immagine:x', FAKE_GH_OUT: 'completed:failure\n' }));
+  assert.equal(out.status, 1, out.stderr);
+  assert.equal(out.stdout.trim(), '');
+  assert.match(out.stderr, new RegExp(`l'ultima esecuzione di image\\.yml per il commit ${short} è fallita`));
+  assert.equal(sleeps(dir), 0);
+  // Nessuna esecuzione: subito, con il rimedio (workflow_dispatch).
+  reset();
+  out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: 'ghcr.io/altro/immagine:x', FAKE_GH_OUT: '' }));
+  assert.equal(out.status, 1, out.stderr);
+  assert.match(out.stderr, new RegExp(`build-${short} non esiste su ghcr\\.io e nessuna esecuzione di image\\.yml la sta costruendo.*workflow_dispatch`));
+  assert.equal(sleeps(dir), 0);
+  // Stato non verificabile (API in errore): attende con il limite e poi dice che non è comparsa.
+  reset();
+  out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: 'ghcr.io/altro/immagine:x', FAKE_GH_FAIL: '1' }));
+  assert.equal(out.status, 1, out.stderr);
+  assert.match(out.stderr, /stato della build non verificabile/);
+  assert.match(out.stderr, new RegExp(`build-${short} non è comparsa su ghcr\\.io dopo 90 s`));
+  assert.equal(sleeps(dir), 3);
+  // Causa reale del fallimento del pull: errore di rete diverso da «manifest unknown», mostrato e non scambiato per build mancante.
+  reset();
+  out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: 'ghcr.io/altro/immagine:x', FAKE_PULL_ERR: 'Error response from daemon: Get "https://ghcr.io/v2/": dial tcp: lookup ghcr.io: no such host', FAKE_GH_OUT: '' }));
+  assert.equal(out.status, 1);
+  assert.match(out.stderr, /scaricamento di build-[0-9a-f]{7} non riuscito: .*no such host/);
+  assert.match(out.stderr, /Causa dello scaricamento: .*no such host/);
+  // Tag v* allineato a HEAD e build mancante: subito, senza attesa e senza interrogare GitHub.
+  r.git('tag', 'v1.0.0');
+  r.commit('docs/nota.md', 'x\n', 'solo documenti');
+  const tagRef = 'ghcr.io/example-org/loyaltyhub:v1.0.0';
+  reset();
+  out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: tagRef, FAKE_GH_FAIL: '1' }));
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout.trim(), tagRef);
+  assert.match(out.stderr, /uso il tag v1\.0\.0.*equivalente/);
+  assert.equal(sleeps(dir), 0, 'nessuna attesa con un tag allineato');
+  // Tag non allineato (web è cambiato dopo il tag): non si usa.
+  r.commit('web/app.ts', 'v2\n', 'web dopo il tag');
+  reset();
+  out = r.sh(['--risolvi'], env({ FAKE_PULL_OK: tagRef, FAKE_GH_OUT: '' }));
+  assert.equal(out.status, 1, 'tag più vecchio di HEAD: non si usa');
+});
+
+test('vetrina.sh immagine --risolvi: il token del codespace va a docker login solo da stdin, mai negli argomenti né in uscita', () => {
+  const r = fakeImageRepo();
+  fakePullDocker(r);
+  // Registra gli argomenti di ogni chiamata a docker, poi delega al finto.
+  const real = path.join(r.bin, 'docker');
+  fs.renameSync(real, path.join(r.bin, 'docker-reale'));
+  const log = path.join(r.d, 'args.log');
+  fs.writeFileSync(real, `#!/bin/sh\necho "$@" >> "${log}"\nexec "${path.join(r.bin, 'docker-reale')}" "$@"\n`, { mode: 0o755 });
+  const dir = path.join(r.d, 'fake');
+  fs.mkdirSync(dir);
+  const base = r.commit('web/app.ts', 'v1\n', 'base');
+  const want = `ghcr.io/example-org/loyaltyhub:build-${base}`;
+  // Valore finto composto a runtime: un letterale con aspetto di chiave farebbe scattare gitleaks (job `security`).
+  const fakeToken = ['segreto', 'di', 'prova', String(1234)].join('-');
+  const out = r.sh(['--risolvi'], { ...REPO_ENV, FAKE_DIR: dir, FAKE_PULL_OK: want, FAKE_PULL_AFTER: '1', GITHUB_USER: 'utente', GITHUB_TOKEN: fakeToken });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(read(log), /^login ghcr\.io -u utente --password-stdin$/m);
+  assert.ok(!(read(log) + out.stdout + out.stderr).includes(fakeToken));
+});
+
+test('avvio.sh: il clone si allinea a main in entrambe le modalità (fetch e ff-only prima della scelta), solo su main pulito; il rilancio è protetto e il registro non ha righe doppie', () => {
+  const avvio = read(AVVIO);
+  // Il blocco di allineamento non è dentro un `if` sul segreto: vale con e senza LH_IMAGE.
+  assert.match(avvio, /\ngit fetch --quiet --tags origin main \|\|/);
+  assert.match(avvio, /\[ "\$ramo" != main \]/, 'solo sul ramo main');
+  assert.match(avvio, /git status --porcelain/, 'solo con albero pulito');
+  assert.match(avvio, /LH_AVVIO_ALLINEATO:-\}" != 1/, 'rilancio protetto da un solo giro');
+  assert.match(avvio, /LH_AVVIO_ALLINEATO:-\}" = 1 \]; then[\s\S]*?else\s+exec > >\(sudo tee/, 'il registro si apre una sola volta, non dopo il rilancio');
+  assert.doesNotMatch(avvio, /sudo[^\n]*git (fetch|pull)/, 'git fetch mai come root sul clone dell\'utente');
+});
+
+/** Mondo finto per eseguire davvero avvio.sh: origin, cloni, sudo/docker/gh/curl/sleep finti, registro in cfg/avvio.log. */
+function avvioWorld(dockerScript = '#!/bin/sh\nexit 1\n') {
+  const d = tmp();
+  const bin = path.join(d, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'sudo'), '#!/bin/sh\nwhile [ "${1#--}" != "$1" ]; do shift; done\nexec "$@"\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'docker'), dockerScript, { mode: 0o755 });
+  for (const n of ['gh', 'curl']) fs.writeFileSync(path.join(bin, n), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'sleep'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.org', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.org', PATH: `${bin}:${process.env.PATH}`, LH_VETRINA_CONFIG: path.join(d, 'cfg/vetrina.env'), GITHUB_REPOSITORY: 'o/r' };
+  delete env.LH_IMAGE;
+  const g = (cwd, ...a) => {
+    const r = spawnSync('git', ['-C', cwd, ...a], { encoding: 'utf8', env });
+    assert.equal(r.status, 0, `git ${a.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  const origin = path.join(d, 'origin');
+  fs.mkdirSync(origin);
+  g(origin, 'init', '-q', '-b', 'main');
+  fs.mkdirSync(path.join(origin, '.devcontainer/vetrina'), { recursive: true });
+  fs.mkdirSync(path.join(origin, 'deploy/vetrina'), { recursive: true });
+  fs.copyFileSync(AVVIO, path.join(origin, '.devcontainer/vetrina/avvio.sh'));
+  fs.copyFileSync(VETRINA_SH, path.join(origin, 'deploy/vetrina/vetrina.sh'));
+  g(origin, 'add', '-A');
+  g(origin, 'commit', '-q', '-m', 'uno');
+  const clone = (n) => { const c = path.join(d, n); g(d, 'clone', '-q', origin, c); return c; };
+  const avanza = () => { fs.writeFileSync(path.join(origin, 'nota.txt'), String(Math.random())); g(origin, 'add', '-A'); g(origin, 'commit', '-q', '-m', 'due'); return g(origin, 'rev-parse', 'HEAD'); };
+  const run = (c, extra = {}) => spawnSync('bash', [path.join(c, '.devcontainer/vetrina/avvio.sh')], { encoding: 'utf8', env: { ...env, ...extra }, timeout: 60000 });
+  const log = () => (fs.existsSync(path.join(d, 'cfg/avvio.log')) ? read(path.join(d, 'cfg/avvio.log')) : '');
+  return { g, clone, avanza, run, log, d };
+}
+
+test('avvio.sh: aggiornamento del clone provato davvero (main pulito avanza e rilancia una volta, registro senza righe doppie; sporco o altro ramo: avviso e HEAD invariato)', () => {
+  const w = avvioWorld();
+  const c1 = w.clone('pulito');
+  const c2 = w.clone('sporco');
+  const c3 = w.clone('ramo');
+  const nuovo = w.avanza();
+  let out = w.run(c1);
+  assert.equal(w.g(c1, 'rev-parse', 'HEAD'), nuovo, out.stdout + out.stderr);
+  assert.equal((out.stdout.match(/clone aggiornato a origin\/main/g) ?? []).length, 1, 'aggiornamento e rilancio una sola volta');
+  assert.equal((out.stdout.match(/== avvio della vetrina/g) ?? []).length, 1, 'intestazione una sola volta');
+  assert.equal((out.stdout.match(/== rilancio dopo l'aggiornamento/g) ?? []).length, 1, 'rilanciato una sola volta');
+  // Nessuna riga doppia né nell'uscita né nel registro (il rilancio non apre un secondo tee).
+  for (const text of [out.stdout + out.stderr, w.log()]) {
+    const righe = text.split('\n').filter((l) => l.trim());
+    assert.equal(new Set(righe).size, righe.length, `righe doppie:\n${text}`);
+  }
+  fs.writeFileSync(path.join(c2, 'locale.txt'), 'x');
+  fs.writeFileSync(path.join(c2, 'nota.txt'), 'modifica locale');
+  const prima2 = w.g(c2, 'rev-parse', 'HEAD');
+  out = w.run(c2);
+  assert.equal(w.g(c2, 'rev-parse', 'HEAD'), prima2);
+  assert.match(out.stdout + out.stderr, /Avviso: il clone ha modifiche locali/);
+  w.g(c3, 'checkout', '-q', '-b', 'altro');
+  const prima3 = w.g(c3, 'rev-parse', 'HEAD');
+  out = w.run(c3);
+  assert.equal(w.g(c3, 'rev-parse', 'HEAD'), prima3);
+  assert.match(out.stdout + out.stderr, /Avviso: il clone è sul ramo 'altro'/);
+});
+
+test('avvio.sh con LH_IMAGE esplicita, di punta a punta con i finti: il clone si allinea, vince il segreto (nessuna scelta di build-<commit>), pull e controllo di freschezza girano', () => {
+  const w = avvioWorld('#!/bin/sh\nexit 0\n'); // docker risponde, il pull riesce, nessuna etichetta
+  const c = w.clone('esplicita');
+  const nuovo = w.avanza();
+  const out = w.run(c, { LH_IMAGE: 'ghcr.io/o/r:custom' });
+  const tutto = out.stdout + out.stderr;
+  assert.equal(w.g(c, 'rev-parse', 'HEAD'), nuovo, 'allineato anche con LH_IMAGE esplicita');
+  assert.match(out.stdout, /^immagine: ghcr\.io\/o\/r:custom$/m);
+  assert.doesNotMatch(tutto, /build-[0-9a-f]{7}|scaricata|in costruzione/, 'nessuna scelta automatica');
+  assert.match(tutto, /non verificabile/, 'controllo di freschezza eseguito (nessuna etichetta né tag noto)');
+  // Poi `vetrina.sh codespace` rifiuta di girare fuori dal codespace: l'avvio si ferma lì, con il segreto passato.
+  assert.notEqual(out.status, 0);
+  assert.match(tutto, /il comando codespace vale solo dentro un GitHub Codespace/);
+});
+
+test('vetrina.sh immagine: con LH_IMAGE esplicita il messaggio suggerisce di togliere il segreto per seguire main', () => {
+  const r = fakeImageRepo();
+  const base = r.commit('web/app.ts', 'v1\n', 'base');
+  r.commit('web/app.ts', 'v2\n', 'web');
+  const out = r.run('ghcr.io/example/loyaltyhub:custom', { FAKE_LABEL: base, LH_IMMAGINE_ESPLICITA: '1' });
+  assert.equal(out.status, 2);
+  assert.match(out.stderr, /togli il segreto LH_IMAGE per seguire main/);
+  const auto = r.run('ghcr.io/example/loyaltyhub:custom', { FAKE_LABEL: base });
+  assert.doesNotMatch(auto.stderr, /togli il segreto/);
+});

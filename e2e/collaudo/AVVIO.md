@@ -6,14 +6,14 @@ Il collaudo è **consultivo**: produce un rapporto e delle issue, la decisione d
 
 ## Quando
 
-- Prima di ogni tag `vX.0.0`, con l'immagine candidata `build-<sha>` sulla vetrina accesa (Q-681).
+- Prima di ogni tag `vX.0.0`, con l'immagine candidata `build-<sha>` del commit di main sulla vetrina accesa (Q-681); `image.yml` la pubblica da solo al merge (Q-726).
 - A richiesta del proprietario alla chiusura di una milestone di Fase 2.
 
 Non serve per ogni tag `v*`: un collaudo dura decine di minuti e consuma le ore gratuite di Codespaces del proprietario.
 
 ## Prerequisiti
 
-- La candidata è sulla vetrina: il segreto del codespace `LH_IMAGE` punta a `build-<sha>` e il codespace è stato riavviato (runbook `deploy/vetrina/README.md`, «Aggiornare l'immagine»). Se la vetrina è spenta, il copione la accende dal Demo Hub (CL-HUB-002).
+- La candidata è sulla vetrina: è la `build-<sha>` del commit di main, pubblicata in automatico da `image.yml` al merge. La vetrina la sceglie al suo prossimo avvio (pulsante del Demo Hub, CL-HUB-002, o riavvio), quindi `LH_IMAGE` non serve più (runbook `deploy/vetrina/README.md`, «Aggiornare l'immagine»). Se la vetrina è già accesa, va riavviata per allinearsi.
 - Il livello 1 è verde sulla candidata: `e2e-pr` e `e2e-nightly` non sono rossi (ADR-052 decisione 1). Una major release non si tagga con il cancello rosso.
 - La rete dell'ambiente cloud ammette `*.app.github.dev` (Q-682, aggiunta dal proprietario il 2026-10-02) e `*.vercel.app` per la demo.
 

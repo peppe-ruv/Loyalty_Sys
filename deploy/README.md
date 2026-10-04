@@ -649,6 +649,8 @@ export ISSUER=https://token.actions.githubusercontent.com
 export IDENTITY_RE="^https://github\.com/${REPO}/\.github/workflows/image\.yml@refs/tags/v.+$"
 ```
 
+Le immagini `build-<commit>` costruite a ogni merge su `main` (le sceglie la vetrina, Q-726) sono firmate con la stessa pipeline ma con l'identità `.../image.yml@refs/heads/main`: per verificarle sostituisci il riferimento nell'espressione sopra (`refs/heads/main`). Solo i tag `v*` portano `latest` e le versioni, e sono l'unica cosa da installare in produzione.
+
 ### Verifica la firma
 
 Esegui questo comando. Ha successo solo se l'immagine è firmata dal workflow `image.yml` di quel repository su un tag
