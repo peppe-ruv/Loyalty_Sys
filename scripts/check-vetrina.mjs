@@ -1551,6 +1551,33 @@ test('avvio.sh con LH_IMAGE esplicita, di punta a punta con i finti: il clone si
   assert.match(tutto, /il comando codespace vale solo dentro un GitHub Codespace/);
 });
 
+// Avvio fermato (per esempio Keycloak non risponde al token di amministrazione): il registro deve contenere da solo
+// lo stato dei container e le ultime righe di Keycloak, del proxy e dei container non sani, senza chiedere un terminale.
+test('avvio.sh: se `vetrina.sh codespace` fallisce, il registro riporta stato e log di idp, proxy e dei container non sani, e l\'uscita resta un errore', () => {
+  const docker = [
+    '#!/bin/sh',
+    'case "$1" in',
+    '  ps) case "$*" in',
+    '        *Label*) printf "%s\\n" "v-idp-1 idp Exited (1) 1 minute ago" "v-proxy-1 proxy Up 2 minutes" "v-hub-1 hub Up 2 minutes (unhealthy)" "v-web-1 web Up 2 minutes (healthy)" ;;',
+    '        *) printf "%s\\n" "v-idp-1\tExited (1) 1 minute ago" "v-web-1\tUp 2 minutes (healthy)" ;;',
+    '      esac ;;',
+    '  logs) echo "riga di log di $4" ;;',
+    'esac',
+    'exit 0',
+  ].join('\n') + '\n';
+  const w = avvioWorld(docker);
+  const c = w.clone('diagnosi');
+  const out = w.run(c, { LH_IMAGE: 'ghcr.io/o/r:custom' });
+  const tutto = out.stdout + out.stderr;
+  assert.notEqual(out.status, 0, 'l\'avvio resta fallito');
+  assert.match(tutto, /il comando codespace vale solo dentro un GitHub Codespace/);
+  assert.match(tutto, /== diagnosi dei container della vetrina/);
+  assert.match(tutto, /v-idp-1\tExited \(1\)/, 'stato dei container');
+  for (const n of ['v-idp-1', 'v-proxy-1', 'v-hub-1']) assert.match(tutto, new RegExp(`riga di log di ${n}`), `log di ${n}`);
+  assert.doesNotMatch(tutto, /riga di log di v-web-1/, 'nessun log dei container sani');
+  assert.match(w.log(), /== fine della diagnosi/, 'diagnosi anche nel registro avvio.log');
+});
+
 test('vetrina.sh immagine: con LH_IMAGE esplicita il messaggio suggerisce di togliere il segreto per seguire main', () => {
   const r = fakeImageRepo();
   const base = r.commit('web/app.ts', 'v1\n', 'base');
