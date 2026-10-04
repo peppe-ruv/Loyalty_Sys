@@ -293,14 +293,29 @@ printf '&password=' >> "$WORK/login"
 printf '%s' "$ADMIN_PASSWORD" | urlenc >> "$WORK/login"
 chmod 600 "$WORK/login"
 # La password resta solo nel file 0600 $WORK/login (rimosso all'uscita): serve a ripetere il login dopo il frontendUrl.
+# Keycloak puo' risultare pronto (/health/ready) mentre finisce ancora l'avvio: importa i realm e crea l'amministratore
+# temporaneo, e intanto risponde 503 («Request received during bootstrapping»). Si riprova finche' arriva un token, fino
+# a KC_TOKEN_WAIT_S secondi (default 180, un tentativo ogni KC_TOKEN_RETRY_S, default 5); una risposta 401 (credenziali
+# sbagliate) non si riprova.
 fetch_token() {
-  local token
-  token="$(curl -sS -f -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
-    -H 'Content-Type: application/x-www-form-urlencoded' --data-binary "@$WORK/login" \
-    | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')" || {
-    echo "Errore: impossibile ottenere il token di amministrazione da ${KEYCLOAK_URL}." >&2
-    exit 1
-  }
+  local token="" code waited=0 limit="${KC_TOKEN_WAIT_S:-180}" step="${KC_TOKEN_RETRY_S:-5}"
+  while :; do
+    code="$(curl -sS -o "$WORK/token.json" -w '%{http_code}' -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+      -H 'Content-Type: application/x-www-form-urlencoded' --data-binary "@$WORK/login" 2>/dev/null || true)"
+    if [ "$code" = 200 ]; then
+      token="$(python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["access_token"])' "$WORK/token.json" 2>/dev/null || true)"
+    fi
+    rm -f "$WORK/token.json"
+    [ -n "$token" ] && break
+    if [ "$code" = 401 ] || [ "$waited" -ge "$limit" ]; then
+      echo "Errore: impossibile ottenere il token di amministrazione da ${KEYCLOAK_URL} (HTTP ${code:-000} dopo ${waited} s)." >&2
+      exit 1
+    fi
+    [ "$waited" = 0 ] && echo "  Keycloak non e' ancora pronto (HTTP ${code:-000}): riprovo ogni ${step} s per al massimo ${limit} s"
+    sleep "$step"
+    waited=$((waited + step))
+    [ "$step" -gt 0 ] || waited=$((waited + 1))
+  done
   # Il token sta in un file 0600 e si passa con -H @file: non compare negli argomenti dei processi (curl >= 7.55).
   printf 'Authorization: Bearer %s\n' "$token" > "$WORK/auth"
   chmod 600 "$WORK/auth"
