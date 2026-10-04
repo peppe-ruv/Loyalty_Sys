@@ -16,11 +16,12 @@
 #     Giulia, Laura e membri.admin);
 #   - ruoli del client `realm-management` degli amministratori di test (Q-671): il partialImport non li porta in modo
 #     affidabile, quindi si assegnano con l'API e si rileggono;
-#   - SOLO con MASTER_FRONTEND_URL (nel codespace, Q-670): attributo `frontendUrl` del realm master = indirizzo privato
-#     della porta 8180, cosi' la console e il login di `master` vivono solo li' (hostname v2: il `frontendUrl` del realm
-#     ha la precedenza sull'indirizzo di frontend; senza KC_HOSTNAME_ADMIN anche su quello di amministrazione). E'
-#     l'ULTIMA scrittura: da quel momento Keycloak si aspetta token di `master` emessi con il nuovo indirizzo, quindi il
-#     token in uso non e' piu' valido e la verifica rilegge con un token nuovo. Un rifiuto di Keycloak e' un errore.
+#   - SOLO con LH_VETRINA_MASTER_ADMIN_PASSWORD (segreto del codespace del proprietario, ADR-055, Q-727): utente
+#     permanente `proprietario` nel realm master con il ruolo `admin` e quella password, non temporanea, verificata con
+#     un login vero. E' l'ULTIMO passo e, se fallisce (per esempio la password viola la politica del realm master:
+#     almeno 12 caratteri e diversa dal nome utente), lo script termina con codice 3 DOPO aver applicato tutto il resto:
+#     vetrina.sh lascia la console master chiusa ma non ferma la vetrina. Il valore non compare mai in un messaggio.
+#     Il realm master non riceve piu' il `frontendUrl` della porta 8180 (Q-670, superata): vive sull'indirizzo pubblico.
 # `--import-realm` salta un realm gia' esistente, quindi gli overlay non si applicherebbero da soli: vetrina.sh ricrea il
 # database di Keycloak a ogni avvio (Q-672) e poi esegue questo script. Lo script e' idempotente, non tocca flussi di
 # autenticazione e azioni richieste del realm, e non stampa mai una credenziale: le password e il seme TOTP di prova
@@ -37,8 +38,9 @@
 #                                                           solo lettura: fallisce se un account operatore non ha
 #                                                           MFA_REQUIRED_ROLE; da rieseguire dopo ogni account creato
 # Opzionali: KEYCLOAK_URL (default http://localhost:8080), KC_BOOTSTRAP_ADMIN_USERNAME (default admin),
-# MASTER_FRONTEND_URL (https://<codespace>-8180.<dominio di inoltro>, senza percorso: lo passa vetrina.sh nel codespace;
-# vuota = il realm master non riceve il frontendUrl).
+# LH_VETRINA_MASTER_ADMIN_PASSWORD (password del proprietario nel realm master, ADR-055: solo da ambiente, mai da argomenti;
+# vuota o assente = nessun utente del proprietario, console master chiusa).
+# Uscita: 0 ok · 1 errore · 2 uso errato · 3 solo il passo del proprietario e' fallito (il resto e' applicato).
 set -euo pipefail
 
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
@@ -50,7 +52,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OVERLAY="${OVERLAY:-$HERE/realm-vetrina-overlay.json}"
 MEMBERS_OVERLAY="${MEMBERS_OVERLAY:-$HERE/realm-members-vetrina-overlay.json}"
 MASTER_OVERLAY="${MASTER_OVERLAY:-$HERE/master.json}"
-MASTER_FRONTEND_URL="${MASTER_FRONTEND_URL:-}"
+# Utente permanente del proprietario nel realm master (ADR-055, Q-727). La password si legge una volta e si toglie
+# dall'ambiente: i processi figli (curl, python3) non la ereditano. Sta solo in questa variabile e in file 0600 di $WORK.
+OWNER_USER="proprietario"
+OWNER_PASSWORD="${LH_VETRINA_MASTER_ADMIN_PASSWORD:-}"
+unset LH_VETRINA_MASTER_ADMIN_PASSWORD
 
 # Impostazioni dei realm che gli overlay possono contenere (allowlist: una chiave fuori elenco e' un errore).
 # check-realm.mjs verifica che gli elenchi coincidano con le chiavi dei file.
@@ -98,11 +104,6 @@ for arg in "$@"; do
 done
 
 command -v python3 >/dev/null || { echo "Errore: serve python3." >&2; exit 1; }
-# L'indirizzo privato della console master (Q-670): solo https, nome DNS minuscolo, porta facoltativa, nessun percorso.
-if [ -n "$MASTER_FRONTEND_URL" ] && ! [[ "$MASTER_FRONTEND_URL" =~ ^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$ ]]; then
-  echo "Errore: MASTER_FRONTEND_URL deve essere https://<nome DNS>[:porta], senza percorso." >&2
-  exit 1
-fi
 if [ "$MODE" != "check" ]; then
   command -v curl >/dev/null || { echo "Errore: serve curl." >&2; exit 1; }
   if [ -z "${ADMIN_PASSWORD}" ]; then
@@ -272,7 +273,7 @@ write("mem-expected-users.json", mem_expected)
 ms = load(master_file, "master")
 unknown = sorted(set(ms) - master_settings)
 if unknown:
-    sys.exit("Errore: chiavi non ammesse in master.json (niente utenti, client o frontendUrl: quest'ultimo e' dinamico e viene da MASTER_FRONTEND_URL, Q-670): " + ", ".join(unknown))
+    sys.exit("Errore: chiavi non ammesse in master.json (niente utenti, client o frontendUrl: l'utente del proprietario viene da LH_VETRINA_MASTER_ADMIN_PASSWORD, ADR-055): " + ", ".join(unknown))
 if not (ms.get("bruteForceProtected") is True and ms.get("adminEventsEnabled") is True and ms.get("adminEventsDetailsEnabled") is True
         and ms.get("sslRequired") in ("external", "all") and ms.get("passwordPolicy")):
     sys.exit("Errore: master.json deve attivare blocco dei tentativi, eventi di amministrazione con dettagli, sslRequired external e una politica delle password")
@@ -600,41 +601,99 @@ else
   echo "Utenti di test del realm ${MEMBERS_REALM}: saltati (--no-test-users)."
 fi
 
-# 10. frontendUrl del realm master (Q-670, ADR-051 decisione 8), solo nel codespace e SEMPRE per ultimo: dopo la modifica
-#     Keycloak verifica i token di `master` con l'indirizzo nuovo, quindi il token in uso smette di valere. Si unisce
-#     l'attributo a quelli esistenti (nessun altro attributo si perde), si controlla il codice del PUT e si rilegge il
-#     realm con un token nuovo: se il valore non e' quello atteso, errore (nessun ripiego silenzioso).
-if [ -n "$MASTER_FRONTEND_URL" ]; then
-  echo "Realm master: frontendUrl sull'indirizzo privato della console (Q-670)..."
-  kc_get_r master "" "$WORK/master-fe-before.json" || { echo "Errore: realm master non leggibile." >&2; exit 1; }
-  python3 - "$WORK/master-fe-before.json" "$MASTER_FRONTEND_URL" "$WORK/master-fe-put.json" <<'PY'
-import json, sys
-realm = json.load(open(sys.argv[1]))
-attrs = dict(realm.get("attributes") or {})
-attrs["frontendUrl"] = sys.argv[2]
-realm["attributes"] = attrs
-json.dump(realm, open(sys.argv[3], "w"))
-PY
-  chmod 600 "$WORK/master-fe-put.json"
-  code="$(curl -sS -o "$WORK/master-fe-result.json" -w '%{http_code}' -X PUT "${KC_ROOT}/master" \
-    -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/master-fe-put.json")"
-  if [ "$code" != "204" ] && [ "$code" != "200" ]; then
-    echo "Errore: Keycloak ha rifiutato il frontendUrl del realm master (${code}): $(head -c 300 "$WORK/master-fe-result.json"). Ripiego dichiarato in Q-670: console master solo dal terminale del codespace." >&2
-    exit 1
+
+# 10. Utente del proprietario nel realm master (ADR-055, Q-727), solo con LH_VETRINA_MASTER_ADMIN_PASSWORD e SEMPRE per
+#     ultimo: se fallisce, tutto il resto e' gia' applicato e lo script esce con 3 (vetrina.sh lascia la console master
+#     chiusa e non ferma la vetrina). Utente permanente `proprietario` con il ruolo `admin` e la password del segreto,
+#     NON temporanea; la verifica rilegge utente, ruolo e credenziale e fa un login vero con la password. Nessun messaggio
+#     contiene il valore: Keycloak risponde alla violazione della politica con il solo motivo (es. lunghezza minima).
+#     Gira in una sotto-shell dentro un `if`, dove `set -e` non vale: ogni passo controlla l'esito da se'.
+owner_step() {
+  local uid code lower_pw lower_user
+  lower_pw="${OWNER_PASSWORD,,}"
+  lower_user="${OWNER_USER,,}"
+  if [ "${#OWNER_PASSWORD}" -lt 12 ] || [ "$lower_pw" = "$lower_user" ]; then
+    echo "Errore: LH_VETRINA_MASTER_ADMIN_PASSWORD non rispetta la politica del realm master (almeno 12 caratteri e diversa dal nome utente ${OWNER_USER}). Console master chiusa." >&2
+    return 1
   fi
-  fetch_token
-  kc_get_r master "" "$WORK/master-fe-after.json" || { echo "Errore: dopo il frontendUrl il realm master non e' leggibile con un token nuovo." >&2; exit 1; }
-  python3 - "$WORK/master-fe-after.json" "$MASTER_FRONTEND_URL" "$WORK/master-fe-before.json" <<'PY'
+  kc_get_r master users "$WORK/o-find.json" --data-urlencode "username=${OWNER_USER}" --data-urlencode "exact=true" \
+    || { echo "Errore: elenco utenti del realm master non leggibile." >&2; return 1; }
+  uid="$(python3 -c 'import sys,json;u=[x for x in json.load(open(sys.argv[1])) if x.get("username")==sys.argv[2]];print(u[0]["id"] if u else "")' "$WORK/o-find.json" "$OWNER_USER")" || return 1
+  if [ -z "$uid" ]; then
+    python3 -c 'import sys,json;json.dump({"username":sys.argv[1],"enabled":True,"emailVerified":True,"requiredActions":[]},open(sys.argv[2],"w"))' "$OWNER_USER" "$WORK/o-new.json" || return 1
+    chmod 600 "$WORK/o-new.json"
+    kc_send POST master users "$WORK/o-new.json" "201" "la creazione dell'utente ${OWNER_USER} nel realm master" || return 1
+    kc_get_r master users "$WORK/o-find.json" --data-urlencode "username=${OWNER_USER}" --data-urlencode "exact=true" || return 1
+    uid="$(python3 -c 'import sys,json;u=[x for x in json.load(open(sys.argv[1])) if x.get("username")==sys.argv[2]];print(u[0]["id"] if u else "")' "$WORK/o-find.json" "$OWNER_USER")" || return 1
+    [ -n "$uid" ] || { echo "Errore: utente ${OWNER_USER} non trovato dopo la creazione." >&2; return 1; }
+  fi
+  # Utente gia' presente (riavvio): abilitato, senza azioni richieste, conservando il resto della rappresentazione.
+  kc_get_r master "users/${uid}" "$WORK/o-user.json" || return 1
+  python3 - "$WORK/o-user.json" "$WORK/o-user-put.json" <<'PY' || return 1
 import json, sys
-after, want, before = json.load(open(sys.argv[1])), sys.argv[2], json.load(open(sys.argv[3]))
-got = (after.get("attributes") or {}).get("frontendUrl")
-if got != want:
-    sys.exit(f"Errore: frontendUrl del realm master e' {got!r}, atteso {want!r}")
-lost = sorted(set((before.get("attributes") or {})) - set(after.get("attributes") or {}))
-if lost:
-    sys.exit("Errore: attributi del realm master persi dopo il PUT: " + ", ".join(lost))
-print("  verifica: frontendUrl del realm master = " + got)
+u = json.load(open(sys.argv[1]))
+u.update({"enabled": True, "emailVerified": True, "requiredActions": []})
+json.dump(u, open(sys.argv[2], "w"))
 PY
+  chmod 600 "$WORK/o-user-put.json"
+  kc_send PUT master "users/${uid}" "$WORK/o-user-put.json" "204 200" "l'aggiornamento dell'utente ${OWNER_USER}" || return 1
+  # Password non temporanea: il corpo sta in un file 0600, scritto da un builtin (printf) e da python3 via stdin, mai in argv.
+  printf '%s' "$OWNER_PASSWORD" | python3 -c 'import sys,json;json.dump({"type":"password","value":sys.stdin.read(),"temporary":False},open(sys.argv[1],"w"))' "$WORK/o-pw.json" || return 1
+  chmod 600 "$WORK/o-pw.json"
+  code="$(curl -sS -o "$WORK/o-pw-result.json" -w '%{http_code}' -X PUT "${KC_ROOT}/master/users/${uid}/reset-password" \
+    -H "@$WORK/auth" -H 'Content-Type: application/json' --data-binary "@$WORK/o-pw.json")" || code=000
+  rm -f "$WORK/o-pw.json"
+  if [ "$code" != "204" ] && [ "$code" != "200" ]; then
+    # La risposta di Keycloak e' il motivo (codice e descrizione della politica), non contiene la password.
+    echo "Errore: Keycloak ha rifiutato la password del proprietario (HTTP ${code}): $(python3 -c 'import sys,json;d=json.load(open(sys.argv[1]));print((d.get("error_description") or d.get("errorMessage") or d.get("error") or "motivo non indicato").rstrip("."))' "$WORK/o-pw-result.json" 2>/dev/null | head -c 200). Console master chiusa." >&2
+    return 1
+  fi
+  kc_get_r master roles/admin "$WORK/o-role.json" || { echo "Errore: ruolo admin assente nel realm master." >&2; return 1; }
+  python3 -c 'import sys,json;json.dump([json.load(open(sys.argv[1]))],open(sys.argv[2],"w"))' "$WORK/o-role.json" "$WORK/o-role-list.json" || return 1
+  chmod 600 "$WORK/o-role-list.json"
+  kc_send POST master "users/${uid}/role-mappings/realm" "$WORK/o-role-list.json" "204 200" "l'assegnazione del ruolo admin a ${OWNER_USER}" || return 1
+  # Verifica: rilettura di utente, ruoli e credenziali, poi un login vero con la password (se fosse temporanea o
+  # l'utente avesse azioni richieste, il login di prova fallirebbe).
+  kc_get_r master "users/${uid}" "$WORK/o-user-now.json" || return 1
+  kc_get_r master "users/${uid}/role-mappings" "$WORK/o-roles-now.json" || return 1
+  kc_get_r master "users/${uid}/credentials" "$WORK/o-creds-now.json" || return 1
+  python3 - "$WORK/o-user-now.json" "$WORK/o-roles-now.json" "$WORK/o-creds-now.json" <<'PY' || return 1
+import json, sys
+user, roles, creds = (json.load(open(p)) for p in sys.argv[1:4])
+errors = []
+if user.get("enabled") is not True: errors.append("utente non abilitato")
+if user.get("requiredActions"): errors.append("azioni richieste presenti")
+if "admin" not in {r["name"] for r in roles.get("realmMappings") or []}: errors.append("ruolo admin mancante")
+if "password" not in {c.get("type") for c in creds}: errors.append("credenziale password mancante")
+if errors:
+    sys.exit("Errore: verifica dell'utente del proprietario fallita: " + "; ".join(errors) + ". Console master chiusa.")
+PY
+  printf 'client_id=admin-cli&grant_type=password&username=' > "$WORK/o-login"
+  printf '%s' "$OWNER_USER" | urlenc >> "$WORK/o-login"
+  printf '&password=' >> "$WORK/o-login"
+  printf '%s' "$OWNER_PASSWORD" | urlenc >> "$WORK/o-login"
+  chmod 600 "$WORK/o-login"
+  code="$(curl -sS -o "$WORK/o-login-result.json" -w '%{http_code}' -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+    -H 'Content-Type: application/x-www-form-urlencoded' --data-binary "@$WORK/o-login")" || code=000
+  rm -f "$WORK/o-login" "$WORK/o-login-result.json"
+  if [ "$code" != "200" ]; then
+    echo "Errore: il login di prova dell'utente ${OWNER_USER} sul realm master non e' riuscito (HTTP ${code}). Console master chiusa." >&2
+    return 1
+  fi
+  echo "  verifica: utente ${OWNER_USER} nel realm master con ruolo admin e password non temporanea (login di prova riuscito)"
+}
+
+OWNER_STATUS=skipped
+if [ -n "$OWNER_PASSWORD" ]; then
+  echo "Realm master: utente del proprietario ${OWNER_USER} (ADR-055, Q-727)..."
+  if ( owner_step ); then OWNER_STATUS=ok; else OWNER_STATUS=failed; fi
+else
+  echo "Realm master: utente del proprietario saltato (segreto LH_VETRINA_MASTER_ADMIN_PASSWORD assente): console master chiusa."
 fi
+unset OWNER_PASSWORD
 
 echo "Overlay di vetrina applicato ai realm master, ${REALM} e ${MEMBERS_REALM}."
+if [ "$OWNER_STATUS" = failed ]; then
+  echo "Avviso: l'utente del proprietario non e' pronto (messaggio sopra): il resto e' applicato, la console master resta chiusa." >&2
+  exit 3
+fi

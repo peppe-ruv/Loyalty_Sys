@@ -95,7 +95,7 @@ diagnosi() {
 }
 
 # PATH esplicito: Node.js (membri di test) non e' nel secure_path di sudo.
-if ! sudo --preserve-env=CODESPACES,CODESPACE_NAME,GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN,LH_VETRINA_CONFIG,LH_IMAGE,LH_HUB_DEMO_URL,LH_VETRINA_OPERATORS \
+if ! sudo --preserve-env=CODESPACES,CODESPACE_NAME,GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN,LH_VETRINA_CONFIG,LH_IMAGE,LH_HUB_DEMO_URL,LH_VETRINA_OPERATORS,LH_VETRINA_MASTER_ADMIN_PASSWORD \
   env "PATH=$PATH" bash deploy/vetrina/vetrina.sh codespace; then
   diagnosi
   exit 1

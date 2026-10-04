@@ -390,13 +390,20 @@ export async function checkPublic(ctx, opts) {
     expect(res.status === 200, `HUB-02: HTTP ${res.status}`);
     expect(/<h1\b/.test(res.text), 'HUB-02: manca il titolo H1');
     expect(res.text.includes('data-testid="showcase-banner"'), 'HUB-02: manca il banner della vetrina (profilo diverso da enterprise?)');
-    expect(res.text.includes('data-testid="portal-closed"'), 'HUB-02: manca il riquadro del portale chiuso (Q-619)');
+    // Con gli utenti di test (ADR-051 decisione 1) HUB-02 mostra le schede degli utenti al posto dei due ingressi e del
+    // riquadro del portale chiuso (TestUsers.test.tsx): si controlla l'uno o l'altro, mai entrambi.
+    if (opts.testUsers) {
+      expect(res.text.includes('data-testid="test-users"'), 'HUB-02: mancano le schede degli utenti di test (ADR-051)');
+      expect(!res.text.includes('data-testid="portal-closed"'), 'HUB-02: riquadro del portale chiuso insieme alle schede degli utenti di test');
+    } else {
+      expect(res.text.includes('data-testid="portal-closed"'), 'HUB-02: manca il riquadro del portale chiuso (Q-619)');
+    }
     if (https) expect(/max-age=\d+/.test(res.headers.get('strict-transport-security') ?? ''), 'HUB-02: manca Strict-Transport-Security dal proxy');
     const tiles = hubTiles(res.text);
     const wrong = Object.entries(EXPECTED_TILES).filter(([k, v]) => tiles[k] !== v);
     expect(!wrong.length, `HUB-02: tessere non attive: ${wrong.map(([k]) => `${k}=${tiles[k] ?? 'assente'}`).join(', ')}`);
   });
-  ctx.ok('HUB-02: banner, portale chiuso e tessere hub, web, idp, db e kafka attive (cms non installato)');
+  ctx.ok(`HUB-02: banner, ${opts.testUsers ? 'schede degli utenti di test' : 'portale chiuso'} e tessere hub, web, idp, db e kafka attive (cms non installato)`);
 
   // Login avviato dal BFF: redirect verso l'endpoint di autorizzazione del realm, client `web`, PKCE S256.
   const jar = new CookieJar();
@@ -444,11 +451,14 @@ export async function checkPublic(ctx, opts) {
   ctx.ok(`pagina di login del realm raggiungibile${opts.registration === 'closed' ? ', registrazione chiusa (Q-619)' : ''}`);
 
   // Superfici che il proxy non espone (docs/18 §3.15 punto 2): console e realm master.
-  for (const path of ['/admin/', '/realms/master/.well-known/openid-configuration']) {
-    const res = await http(ctx, `${idp}${path}`);
-    expect(res.status === 404, `IdP: ${path} risponde ${res.status}, atteso 404 (non esposto dal proxy)`);
-  }
-  ctx.ok('IdP: console /admin e realm master non esposti (404)');
+  const adminRoot = await http(ctx, `${idp}/admin/`);
+  expect(adminRoot.status === 404, `IdP: /admin/ risponde ${adminRoot.status}, atteso 404 (non esposto dal proxy)`);
+  // Realm master: chiuso (404) nel compose di CI e nella vetrina senza il segreto del proprietario; nella vetrina con il
+  // segreto la sua console e' aperta (ADR-055, Q-727) e la discovery risponde 200 (nessuna credenziale in questa prova).
+  const masterDiscovery = await http(ctx, `${idp}/realms/master/.well-known/openid-configuration`);
+  const masterOpenAllowed = opts.mode === 'vetrina' && masterDiscovery.status === 200;
+  expect(masterDiscovery.status === 404 || masterOpenAllowed, `IdP: /realms/master/.well-known/openid-configuration risponde ${masterDiscovery.status}, atteso 404 (non esposto dal proxy)`);
+  ctx.ok(masterOpenAllowed ? 'IdP: /admin/ non esposto (404); console del realm master aperta dal proprietario (ADR-055)' : 'IdP: console /admin e realm master non esposti (404)');
 
   // API del backoffice dal BFF senza sessione.
   const anon = await http(ctx, `${web}/api/lh/reward/v1/reward-categories`);

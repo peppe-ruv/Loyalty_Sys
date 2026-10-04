@@ -70,10 +70,13 @@ SECRET_ENV=(LH_DB_PASSWORD LH_IDP_DB_PASSWORD LH_IDP_ADMIN_PASSWORD LH_WEB_CLIEN
 # Porte del proxy nel codespace (Q-661): HTTP in chiaro su loopback, l'inoltro di GitHub le pubblica in https.
 CODESPACE_WEB_PORT=8000
 CODESPACE_IDP_PORT=8001
-# Console del realm `master` nel codespace: porta 8180 con inoltro privato (solo il proprietario, accesso con GitHub).
-# Il suo indirizzo e' l'attributo `frontendUrl` del realm master (Q-670, ADR-051 decisione 8); le console dei realm
-# `loyaltyhub` e `loyaltyhub-members` stanno invece sull'indirizzo pubblico della porta 8001.
-CODESPACE_ADMIN_PORT=8180
+# Console del realm `master` (ADR-055, Q-727): sta sull'indirizzo pubblico della porta 8001 come quelle dei realm
+# `loyaltyhub` e `loyaltyhub-members`, ma il proxy la apre SOLO se il proprietario ha messo nel codespace il segreto
+# LH_VETRINA_MASTER_ADMIN_PASSWORD (utente `proprietario`, ruolo admin). La porta 8180 (127.0.0.1) non si inoltra piu':
+# serve solo agli script dell'host (KEYCLOAK_LOCAL). LH_VETRINA_ADMIN_HOST e' una chiave dei file gia' scritti (Q-670,
+# superata): resta ammessa e ignorata, `codespace` non la scrive piu'.
+# Password del proprietario letta da cmd_codespace (mai esportata): la vede solo apply_realm_overlay, per il processo figlio.
+MASTER_OWNER_PASSWORD=""
 # Volumi azzerati dall'azzeramento (Q-624).
 RESET_VOLUMES=(lh-ref-postgres lh-ref-kafka)
 # Validità dei certificati: CA 10 anni, foglie 397 giorni, rinnovo quando ne mancano meno di 30.
@@ -133,8 +136,6 @@ validate_config() {
   # Nel codespace l'inoltro delle porte di GitHub è l'unica via d'ingresso (Q-661).
   [[ "$LH_VETRINA_WEB_HOST" == *"-$CODESPACE_WEB_PORT."* ]] || usage_error "LH_VETRINA_WEB_HOST nel codespace è <nome>-$CODESPACE_WEB_PORT.<dominio di inoltro>"
   [[ "$LH_VETRINA_IDP_HOST" == *"-$CODESPACE_IDP_PORT."* ]] || usage_error "LH_VETRINA_IDP_HOST nel codespace è <nome>-$CODESPACE_IDP_PORT.<dominio di inoltro>"
-  [[ "${LH_VETRINA_ADMIN_HOST:-}" =~ $host_re ]] && [[ "$LH_VETRINA_ADMIN_HOST" == *"-$CODESPACE_ADMIN_PORT."* ]] \
-    || usage_error "LH_VETRINA_ADMIN_HOST nel codespace è <nome>-$CODESPACE_ADMIN_PORT.<dominio di inoltro> (frontendUrl del realm master, Q-670)"
   # Web e Keycloak parlano HTTP in chiaro: solo loopback, davanti c'è il proxy (ADR-049, ADR-050).
   if [ -n "${LH_BIND_ADDRESS:-}" ] && [ "$LH_BIND_ADDRESS" != "127.0.0.1" ]; then
     usage_error "LH_BIND_ADDRESS deve essere 127.0.0.1 nella vetrina (web e idp solo dietro il proxy)"
@@ -163,7 +164,7 @@ compose() {
   # KC_HOSTNAME_ADMIN non si imposta (Q-670, opzione A): l'overlay lo toglie con un valore nullo, che Compose
   # risolverebbe dall'ambiente del processo; lo si toglie anche da li' perche' una variabile esportata a mano non
   # riporti la console dei due realm sull'indirizzo privato.
-  unset_args+=(-u KC_HOSTNAME_ADMIN)
+  unset_args+=(-u KC_HOSTNAME_ADMIN -u LH_VETRINA_MASTER_ADMIN_PASSWORD)
   # Utenti di test (Q-676, ADR-051): hub e web li accettano solo con LH_TEST_USERS_ALLOWED=true e LH_ENVIRONMENT=test,
   # che passano soltanto alla vetrina dentro un GitHub Codespace (CODESPACES=true, impostata da GitHub). Altrove le due
   # variabili sono forzate a vuoto, anche se esportate a mano: un utente con LH_TEST_USER resta rifiutato.
@@ -300,7 +301,38 @@ cmd_provision() {
   set_owner "$CONTAINER_UID" 600 "$TLS/kafka-keystore.pem" "$TLS"/kafka-client-*.b64 "$TLS/kafka.key" "$TLS/hub-kafka-client.key"
   set_owner "$POSTGRES_UID" 600 "$TLS/postgres.key"
   chmod 644 "$TLS/ca.crt" "$TLS"/*.crt
+  # 5. Cartella del permesso per la console master (montata nel proxy): all'inizio e' sempre chiusa (ADR-055).
+  [ -f "$LH_VETRINA_DIR/caddy/master-console.caddy" ] || master_console chiusa
   info "provisioning completato in $LH_VETRINA_DIR (nessun valore stampato)"
+}
+
+# Stato della console del realm `master` sul proxy (ADR-055, Q-727): `aperta` o `chiusa`. Copia il file scelto in
+# $LH_VETRINA_DIR/caddy/master-console.caddy (importato da Caddyfile.codespace; contiene solo permessi, mai segreti, quindi
+# leggibile da tutti) e, se il contenuto cambia e il proxy gira, lo riavvia: l'API di amministrazione di Caddy e' spenta
+# (`admin off`), quindi il Caddyfile si rilegge solo ripartendo. Il file e' in una cartella montata, non un file singolo,
+# perche' la sostituzione con rename lascerebbe un file singolo legato al vecchio inode.
+master_console() {
+  local state="$1" src dir="$LH_VETRINA_DIR/caddy" dest
+  dest="$dir/master-console.caddy"
+  case "$state" in
+    aperta) src="$SCRIPT_DIR/caddy/master-aperta.caddy" ;;
+    chiusa) src="$SCRIPT_DIR/caddy/master-chiusa.caddy" ;;
+    *) die "stato della console master non valido: $state" ;;
+  esac
+  [ -L "$dir" ] && die "$dir è un collegamento simbolico"
+  mkdir -p "$dir"
+  chmod 755 "$dir"
+  if [ -f "$dest" ] && cmp -s "$src" "$dest"; then return 0; fi
+  write_atomic "$dest" < "$src"
+  chmod 644 "$dest"
+  if compose ps --status running --services 2>/dev/null | grep -qx proxy; then
+    compose restart proxy >/dev/null
+    info "proxy riavviato: console del realm master $state"
+  fi
+}
+
+master_console_is_open() {
+  [ -f "$LH_VETRINA_DIR/caddy/master-console.caddy" ] && cmp -s "$SCRIPT_DIR/caddy/master-aperta.caddy" "$LH_VETRINA_DIR/caddy/master-console.caddy"
 }
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -428,6 +460,10 @@ cmd_up() {
 #   LH_IMAGE                immagine unica (segreto del codespace o build-<commit> scelta da avvio.sh se il segreto manca)
 #   LH_HUB_DEMO_URL         facoltativa, collegamento di ritorno alla demo in HUB-02
 #   LH_VETRINA_OPERATORS    facoltativa, elenco degli account operatore (righe o `;`), segreto del codespace (Q-663)
+#   LH_VETRINA_MASTER_ADMIN_PASSWORD
+#                           facoltativa, password dell'utente `proprietario` del realm master: segreto del codespace che
+#                           conosce solo il proprietario (ADR-055, Q-727). Con il segreto la console master e' aperta sul
+#                           proxy; senza resta chiusa (404). Mai stampata, mai negli argomenti, tolta dall'ambiente.
 cmd_codespace() {
   [ "${CODESPACES:-}" = true ] || usage_error "il comando codespace vale solo dentro un GitHub Codespace (CODESPACES=true)"
   local name="${CODESPACE_NAME:-}" domain="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}"
@@ -448,7 +484,6 @@ cmd_codespace() {
     echo "LH_VETRINA_DIR=$dir"
     echo "LH_VETRINA_WEB_HOST=$name-$CODESPACE_WEB_PORT.$domain"
     echo "LH_VETRINA_IDP_HOST=$name-$CODESPACE_IDP_PORT.$domain"
-    echo "LH_VETRINA_ADMIN_HOST=$name-$CODESPACE_ADMIN_PORT.$domain"
     echo "LH_HUB_DEMO_URL=${LH_HUB_DEMO_URL:-}"
     echo "LH_BIND_ADDRESS=127.0.0.1"
   } | write_atomic "$CONFIG"
@@ -456,6 +491,11 @@ cmd_codespace() {
   # Elenco degli operatori dal segreto del codespace: righe o `;`, mai stampato (contiene e-mail).
   local operators="${LH_VETRINA_OPERATORS:-}"
   unset LH_VETRINA_OPERATORS
+  # Password del proprietario per la console del realm master (ADR-055, Q-727): segreto del codespace, mai stampato,
+  # mai negli argomenti; si toglie subito dall'ambiente (compose, curl e gli altri figli non la ereditano) e resta solo in
+  # MASTER_OWNER_PASSWORD fino alla fine dell'overlay dei realm.
+  local master_pw="${LH_VETRINA_MASTER_ADMIN_PASSWORD:-}"
+  unset LH_VETRINA_MASTER_ADMIN_PASSWORD
   # Le variabili di ambiente del codespace non devono sovrascrivere il file appena scritto.
   unset LH_IMAGE LH_HUB_DEMO_URL LH_VETRINA_DIR
   load_config
@@ -472,14 +512,22 @@ cmd_codespace() {
   cmd_idp_reset
   compose up -d --wait --wait-timeout 900
   info "vetrina avviata: https://$LH_VETRINA_WEB_HOST (Keycloak: https://$LH_VETRINA_IDP_HOST)"
+  MASTER_OWNER_PASSWORD="$master_pw"
+  master_pw=""
   apply_realm_overlay
+  MASTER_OWNER_PASSWORD=""
   cmd_operators
   # Membri di test (Q-673): servono le porte pubbliche (il BFF raggiunge Keycloak dall'indirizzo pubblico); se non lo
   # sono ancora li registra avvio.sh dopo averle pubblicate. Un errore qui non ferma l'avvio: avvio.sh lo ripete e lo dice.
   cmd_membri --if-reachable || echo "Avviso: membri di test non registrati (messaggio sopra); li riprova avvio.sh, oppure: vetrina.sh membri" >&2
   info "web: https://$LH_VETRINA_WEB_HOST · Keycloak: https://$LH_VETRINA_IDP_HOST (porte $CODESPACE_WEB_PORT e $CODESPACE_IDP_PORT pubbliche, Q-661)"
   info "console dei realm (pubbliche, ADR-051 decisione 8): https://$LH_VETRINA_IDP_HOST/admin/loyaltyhub/console/ e https://$LH_VETRINA_IDP_HOST/admin/loyaltyhub-members/console/ (utenti vetrina.admin e membri.admin, credenziali nel runbook)"
-  info "console del realm master (Q-670): https://$LH_VETRINA_ADMIN_HOST/admin/master/console/ (porta $CODESPACE_ADMIN_PORT privata: solo il proprietario del codespace; utente admin, password in $LH_VETRINA_DIR/secrets/idp-admin-password)"
+  # Console del realm master (ADR-055, Q-727): mai la password, solo l'indirizzo e lo stato.
+  if master_console_is_open; then
+    info "console del realm master (ADR-055): https://$LH_VETRINA_IDP_HOST/admin/master/console/ · aperta: utente proprietario, credenziali nel segreto LH_VETRINA_MASTER_ADMIN_PASSWORD del codespace (dopo 5 tentativi falliti il realm impone un'attesa crescente fino a 15 minuti)"
+  else
+    info "console del realm master (ADR-055): https://$LH_VETRINA_IDP_HOST/admin/master/console/ · chiusa: segreto LH_VETRINA_MASTER_ADMIN_PASSWORD assente o non valido (si imposta su github.com/settings/codespaces e vale dal prossimo avvio)"
+  fi
   info "se il programma è vuoto: pulsante \"Carica il programma di esempio\" nel backoffice (V10), oppure vetrina.sh programma (Q-630)"
 }
 
@@ -653,11 +701,22 @@ apply_realm_overlay() {
   [ -n "$mode" ] && args+=("$mode")
   test_users_allowed || args+=(--no-test-users)
   IFS= read -r pw < "$LH_VETRINA_DIR/secrets/idp-admin-password" || [ -n "$pw" ]
-  # La password va solo nell'ambiente del processo figlio (mai negli argomenti, mai stampata).
-  # Il realm master riceve come frontendUrl l'indirizzo privato della porta 8180 (Q-670): l'indirizzo e'
-  # dinamico, quindi lo si passa qui e non sta in master.json.
-  MASTER_FRONTEND_URL="https://$LH_VETRINA_ADMIN_HOST" KC_BOOTSTRAP_ADMIN_PASSWORD="$pw" KEYCLOAK_URL="$KEYCLOAK_LOCAL" \
-    "$REPO_ROOT/deploy/idp/vetrina/apply-overlay.sh" ${args[@]+"${args[@]}"}
+  # Le password vanno solo nell'ambiente del processo figlio (mai negli argomenti, mai stampate). Quella del proprietario
+  # (ADR-055) e' vuota se il segreto del codespace manca: allora lo script non crea l'utente.
+  # Uscita 3 di apply-overlay.sh = solo il passo del proprietario e' fallito (password non valida): il resto e' applicato,
+  # la console master resta chiusa e la vetrina non si ferma.
+  local rc=0
+  LH_VETRINA_MASTER_ADMIN_PASSWORD="$MASTER_OWNER_PASSWORD" KC_BOOTSTRAP_ADMIN_PASSWORD="$pw" KEYCLOAK_URL="$KEYCLOAK_LOCAL" \
+    "$REPO_ROOT/deploy/idp/vetrina/apply-overlay.sh" ${args[@]+"${args[@]}"} || rc=$?
+  # Le sole verifiche (--check-operators) non cambiano lo stato della console.
+  if [ -n "$mode" ]; then return "$rc"; fi
+  case "$rc" in
+    0) if [ -n "$MASTER_OWNER_PASSWORD" ]; then master_console aperta; else master_console chiusa; fi ;;
+    3) echo "Avviso: console del realm master chiusa: l'utente del proprietario non e' pronto (motivo sopra, mai il valore della password)." >&2
+       master_console chiusa ;;
+    *) master_console chiusa || true
+       return "$rc" ;;
+  esac
 }
 
 # Database di Keycloak da zero (ADR-051 decisione 10, Q-672): ferma Keycloak e chi dipende dal suo emittente, ricrea
@@ -666,6 +725,9 @@ apply_realm_overlay() {
 cmd_idp_reset() {
   info "database di Keycloak ricreato da zero (l'hub non si tocca)"
   compose stop idp web hub proxy >/dev/null 2>&1 || true
+  # Il database e' nuovo e l'utente del proprietario non c'e' piu': la console master si richiude (il proxy e' fermo, nessun
+  # riavvio); la riapre apply_realm_overlay solo dopo aver ricreato e verificato l'utente (ADR-055).
+  master_console chiusa
   compose up -d --wait --wait-timeout 300 postgres
   compose exec -T postgres psql -v ON_ERROR_STOP=1 -U loyaltyhub -d loyaltyhub \
     -c 'DROP DATABASE IF EXISTS idp WITH (FORCE)' \

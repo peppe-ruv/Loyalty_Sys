@@ -155,7 +155,7 @@ const page = {
  * Istanza finta: BFF (web), Keycloak (idp) e hub. `users` = { nome: { password, roles, mfa, updatePassword } }.
  * `audit` raccoglie le voci; `actorOverride` sostituisce l'attore delle voci (per provare il rifiuto).
  */
-async function fakeInstance({ users, registration = false, actorOverride = null, tiles = {}, memberLogin = 'ok' } = {}) {
+async function fakeInstance({ users, registration = false, actorOverride = null, tiles = {}, memberLogin = 'ok', testUsersHub = false } = {}) {
   const state = { sessions: new Map(), flows: new Map(), codes: new Map(), kcSessions: new Map(), audit: [], categories: [], seen: [] };
   const servers = {};
   servers.hub = await listen((req, res) => {
@@ -238,7 +238,7 @@ async function fakeInstance({ users, registration = false, actorOverride = null,
     if (u.pathname === '/api/demo/status') return send(res, 200, { checkedAt: new Date().toISOString(), services: [] });
     if (u.pathname === '/') {
       const t = { hub: 'UP', web: 'UP', idp: 'UP', cms: 'NOT_INSTALLED', db: 'UP', kafka: 'UP', ...tiles };
-      return send(res, 200, `<h1>Loyalty Hub</h1><p role="note" data-testid="showcase-banner">Vetrina</p><div data-testid="portal-closed"></div>
+      return send(res, 200, `<h1>Loyalty Hub</h1><p role="note" data-testid="showcase-banner">Vetrina</p>${testUsersHub ? '<section data-testid="test-users"></section>' : '<div data-testid="portal-closed"></div>'}
         <ul>${Object.entries(t).map(([k, v]) => `<li data-testid="tile-${k}" data-state="${v}"></li>`).join('')}</ul>`);
     }
     if (u.pathname === '/api/auth/login' && u.searchParams.get('realm') === 'members') {
@@ -405,6 +405,20 @@ test('realm dei membri: login dei membri che finisce nel realm degli operatori â
   const err = capture();
   assert.equal(await main(['vetrina', '--allow-http', '--web', inst.web, '--settle', '0'], { stdout: capture(), stderr: err, retries: 0, sleep }), 1);
   assert.match(err.text(), /login dei membri: redirect verso \/realms\/loyaltyhub\/protocol\/openid-connect\/auth, atteso l'endpoint di autorizzazione del realm loyaltyhub-members/);
+});
+
+test('vetrina con --test-users: HUB-02 mostra le schede degli utenti di test al posto del portale chiuso (ADR-051 decisione 1)', async (t) => {
+  const inst = await fakeInstance({ users: {}, testUsersHub: true });
+  t.after(inst.close);
+  const out = capture();
+  // Il seguito (login degli utenti di test) non e' simulato qui: conta solo il controllo di HUB-02.
+  await main(['vetrina', '--allow-http', '--web', inst.web, '--settle', '0', '--test-users'], { stdout: out, stderr: capture(), retries: 0, sleep });
+  assert.match(out.text(), /HUB-02: banner, schede degli utenti di test e tessere/);
+
+  // Senza --test-users le schede al posto del portale chiuso sono un errore (profilo di test non atteso).
+  const err = capture();
+  assert.equal(await main(['vetrina', '--allow-http', '--web', inst.web, '--settle', '0'], { stdout: capture(), stderr: err, retries: 0, sleep }), 1);
+  assert.match(err.text(), /manca il riquadro del portale chiuso/);
 });
 
 test('uso: errori di argomenti â†’ uscita 2 senza richieste', async () => {
