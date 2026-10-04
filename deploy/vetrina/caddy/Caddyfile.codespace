@@ -24,6 +24,15 @@
 # Web (BFF, backoffice, Demo Hub HUB-02). Dall'esterno si arriva solo in https: lo schema inoltrato è sempre https.
 :8000 {
 	import intestazioni
+	# L'inoltro delle porte di GitHub riscrive l'intestazione `Origin` che coincide con il suo dominio:
+	# `https://<codespace>-8000.<dominio>` arriva qui come `http://localhost:8000` (o `https://localhost:8000`), mentre
+	# `Host` e `Referer` restano quelli pubblici (github/community discussione 147513, «won't fix»). Il BFF confronta `Origin`
+	# con LH_WEB_URL e rifiuterebbe ogni scrittura (403 CSRF_REJECTED: registrazione, backoffice, logout). Qui si rimette
+	# l'origine pubblica, SOLO per quei due valori esatti; ogni altro `Origin` passa com'è e il BFF lo rifiuta. Gli altri
+	# controlli restano intatti: `Sec-Fetch-Site` (una pagina servita davvero da localhost è cross-site per il browser),
+	# token X-LH-CSRF legato alla sessione e cookie `SameSite=Lax`.
+	@origine_riscritta header_regexp Origin ^https?://localhost:8000$
+	request_header @origine_riscritta Origin "https://{$LH_VETRINA_WEB_HOST}"
 	reverse_proxy web:3000 {
 		header_up X-Forwarded-Proto https
 	}

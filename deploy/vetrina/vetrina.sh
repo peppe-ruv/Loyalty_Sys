@@ -673,6 +673,15 @@ cmd_idp_reset() {
     -c 'REVOKE ALL ON DATABASE idp FROM PUBLIC' > /dev/null
 }
 
+# Codice HTTP di un URL pubblico, senza seguire reindirizzamenti ("000" se non risponde).
+http_code() { curl -sS -o /dev/null -w '%{http_code}' --max-redirs 0 --max-time 15 "$1" 2>/dev/null || true; }
+
+# Porte pubbliche davvero raggiungibili: Keycloak (discovery del realm dei membri, 200) e web (login dei membri, 303 del BFF).
+public_ports_ready() {
+  [ "$(http_code "https://$LH_VETRINA_IDP_HOST/realms/loyaltyhub-members/.well-known/openid-configuration")" = 200 ] \
+    && [ "$(http_code "https://$LH_VETRINA_WEB_HOST/api/auth/login?realm=members")" = 303 ]
+}
+
 # Membri di test dal portale (Q-673, scripts/vetrina-membri.mjs): Anna, Marco e Giulia registrati con i dati del seed,
 # Laura riportata alla registrazione da zero. Solo nel codespace. Con --if-reachable salta (senza errore) se l'indirizzo
 # pubblico di Keycloak non risponde ancora, cioe' se le porte 8000 e 8001 non sono ancora pubbliche.
@@ -690,8 +699,10 @@ cmd_membri() {
     fi
     die "serve node (Node.js 22) per registrare i membri di test"
   fi
-  if [ "$soft" = 1 ] && ! curl -fsS -o /dev/null --max-time 15 "https://$LH_VETRINA_IDP_HOST/realms/loyaltyhub-members/.well-known/openid-configuration"; then
-    info "membri di test: l'indirizzo pubblico di Keycloak non risponde ancora (porte 8000 e 8001 non pubbliche?): li registra avvio.sh dopo averle pubblicate"
+  # Una porta privata risponde 302 verso il login di GitHub, e `curl -f` considera riuscito un 302: si confronta il codice
+  # esatto, senza seguire reindirizzamenti, su entrambe le porte (discovery di Keycloak 200, login dei membri del web 303).
+  if [ "$soft" = 1 ] && ! public_ports_ready; then
+    info "membri di test: le porte $CODESPACE_WEB_PORT e $CODESPACE_IDP_PORT non rispondono ancora dall'indirizzo pubblico (non pubbliche?): li registra avvio.sh dopo averle pubblicate"
     return 0
   fi
   node "$REPO_ROOT/scripts/vetrina-membri.mjs" --web "https://$LH_VETRINA_WEB_HOST"

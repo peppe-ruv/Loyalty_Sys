@@ -91,7 +91,9 @@ fi
 
 idp="https://$CODESPACE_NAME-8001.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN"
 web="https://$CODESPACE_NAME-8000.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN"
-if curl -fsS -o /dev/null --max-time 20 "$idp/realms/loyaltyhub/.well-known/openid-configuration"; then
+# Codice esatto, senza seguire reindirizzamenti: una porta privata risponde 302 verso il login di GitHub e `curl -f` lo
+# considererebbe riuscito.
+if [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-redirs 0 --max-time 20 "$idp/realms/loyaltyhub/.well-known/openid-configuration" 2>/dev/null || true)" = 200 ]; then
   echo "discovery OIDC raggiungibile dall'URL pubblico"
 else
   echo "Avviso: $idp non risponde dall'esterno: controlla che la porta 8001 sia pubblica." >&2
