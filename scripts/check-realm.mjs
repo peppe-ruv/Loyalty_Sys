@@ -952,7 +952,7 @@ test('apply-overlay.sh di vetrina: ruoli operatore e MFA_REQUIRED_ROLE coerenti 
 // Con `staleTokenOnFrontendUrl` simula Keycloak 26 (hostname v2): cambiato il frontendUrl di un realm, i token emessi prima
 // non valgono piu' (l'emittente atteso cambia); `refuseFrontendUrl` risponde 400 al PUT che lo contiene e
 // `ignoreFrontendUrl` lo scarta in silenzio (Q-670: lo script deve fallire in entrambi i casi).
-function mockKeycloak({ operators, dropOtp = false, renumberIds = false, staleTokenOnFrontendUrl = true, refuseFrontendUrl = false, ignoreFrontendUrl = false }) {
+function mockKeycloak({ operators, bootstrapping = 0, wrongPassword = false, dropOtp = false, renumberIds = false, staleTokenOnFrontendUrl = true, refuseFrontendUrl = false, ignoreFrontendUrl = false }) {
   const base = (name, extra = {}) => ({ realm: name, registrationAllowed: true, browserFlow: 'browser', bruteForceProtected: true, sslRequired: 'external',
     adminEventsEnabled: true, adminEventsDetailsEnabled: false, ...extra });
   const state = {
@@ -976,7 +976,14 @@ function mockKeycloak({ operators, dropOtp = false, renumberIds = false, staleTo
       const url = new URL(req.url, 'http://x');
       const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(obj === undefined ? '' : JSON.stringify(obj)); };
       const p = url.pathname;
-      if (p === '/realms/master/protocol/openid-connect/token') { state.loginBody = body; state.logins++; return json(200, { access_token: `mock-token-${++state.issued}` }); }
+      if (p === '/realms/master/protocol/openid-connect/token') {
+        state.loginBody = body; state.logins++;
+        // Keycloak 26 a fine avvio: /health/ready gia' verde, ma le richieste ricevono 503 in testo finche' il bootstrap
+        // (import dei realm, amministratore temporaneo) non termina.
+        if (state.logins <= bootstrapping) { res.writeHead(503, { 'Content-Type': 'text/plain' }); return res.end('Request received during bootstrapping'); }
+        if (wrongPassword) return json(401, { error: 'invalid_grant' });
+        return json(200, { access_token: `mock-token-${++state.issued}` });
+      }
       const tokenNo = Number((req.headers.authorization ?? '').match(/^Bearer mock-token-(\d+)$/)?.[1]);
       if (!(tokenNo >= state.minValid)) return json(401, {});
       const m = p.match(/^\/admin\/realms\/([a-z-]+)(?:\/(.*))?$/);
@@ -1140,6 +1147,33 @@ test('apply-overlay.sh di vetrina contro un Keycloak simulato: applica i tre rea
       assert.ok(!/mario\.rossi|service-account-x/.test(r.err), 'elenca solo gli account senza MFA');
     }
   } finally { bad.server.close(); }
+});
+
+// Collaudo M8.14 (2026-10-04): avvio.sh si e' fermato perche' il token di amministrazione e' stato chiesto un secondo prima
+// della fine del bootstrap di Keycloak (503 non JSON). Lo script deve riprovare il 503 e non il 401.
+test('apply-overlay.sh di vetrina: riprova il token mentre Keycloak finisce l\'avvio (503), si ferma subito su credenziali sbagliate (401) e dopo il tetto', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
+  const fast = { KC_TOKEN_RETRY_S: '0' };
+  let kc = await mockKeycloak({ operators: [], bootstrapping: 3 });
+  try {
+    const r = await runApply(kc.url, [], 'admin', fast);
+    assert.equal(r.code, 0, `apply-overlay.sh è fallito: ${r.err}${r.out}`);
+    assert.match(r.out, /Keycloak non e' ancora pronto \(HTTP 503\)/);
+    assert.ok(kc.state.issued >= 1, 'token ottenuto dopo il bootstrap');
+  } finally { kc.server.close(); }
+  kc = await mockKeycloak({ operators: [], wrongPassword: true });
+  try {
+    const r = await runApply(kc.url, [], 'admin', fast);
+    assert.notEqual(r.code, 0);
+    assert.match(r.err, /impossibile ottenere il token di amministrazione .*\(HTTP 401 dopo 0 s\)/);
+    assert.equal(kc.state.logins, 1, 'nessun nuovo tentativo con credenziali sbagliate');
+  } finally { kc.server.close(); }
+  kc = await mockKeycloak({ operators: [], bootstrapping: 1000 });
+  try {
+    const r = await runApply(kc.url, [], 'admin', { ...fast, KC_TOKEN_WAIT_S: '4' });
+    assert.notEqual(r.code, 0);
+    assert.match(r.err, /HTTP 503 dopo \d+ s/);
+    assert.ok(kc.state.logins <= 6, `tetto rispettato (${kc.state.logins} tentativi)`);
+  } finally { kc.server.close(); }
 });
 
 test('apply-overlay.sh di vetrina: fallisce se l\'OTP degli operatori non viene importato o se Keycloak non rispetta gli id fissi (nessun login di test funzionerebbe)', { skip: !haveTools && 'servono bash, curl e python3' }, async () => {
