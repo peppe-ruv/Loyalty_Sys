@@ -287,6 +287,19 @@ export function totp(secret, timeMs, { digits = 6, period = 30, algorithm = 'sha
   return String(bin % 10 ** digits).padStart(digits, '0');
 }
 
+/** Motivo per cui la scheda «Realm master» di HUB-02 mostrerebbe una credenziale; `null` se assente o pulita (ADR-055, Q-727). */
+function masterCardLeak(html) {
+  const start = html.indexOf('data-testid="console-master"');
+  if (start < 0) return null;
+  const rest = html.slice(start);
+  const end = rest.indexOf('</section>');
+  const card = end < 0 ? rest : rest.slice(0, end);
+  if (/LH_VETRINA_MASTER_ADMIN_PASSWORD=/.test(card)) return 'assegnazione del segreto del codespace';
+  if (/<button(?![^>]*\bdisabled\b)/.test(card)) return 'pulsante di copia';
+  if (/(?:value|data-value)="[^"]*proprietario/i.test(card)) return 'proprietario come valore';
+  return null;
+}
+
 /** Tessere di HUB-02 (`data-testid="tile-<chiave>"` e `data-state`), anche dalla parte trasmessa in streaming. */
 export function hubTiles(html) {
   const out = {};
@@ -395,6 +408,10 @@ export async function checkPublic(ctx, opts) {
     if (opts.testUsers) {
       expect(res.text.includes('data-testid="test-users"'), 'HUB-02: mancano le schede degli utenti di test (ADR-051)');
       expect(!res.text.includes('data-testid="portal-closed"'), 'HUB-02: riquadro del portale chiuso insieme alle schede degli utenti di test');
+      // Scheda «Realm master» (ADR-055, Q-727): non e' obbligatoria (senza codespace il marcatore dello stato non c'e'),
+      // ma se compare mostra solo lo stato e il collegamento, mai credenziali.
+      const master = masterCardLeak(res.text);
+      expect(master === null, `HUB-02: la scheda del realm master mostra una credenziale (${master})`);
     } else {
       expect(res.text.includes('data-testid="portal-closed"'), 'HUB-02: manca il riquadro del portale chiuso (Q-619)');
     }

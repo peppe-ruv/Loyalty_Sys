@@ -33,6 +33,8 @@ fi
 # riuscita, in fondo a questo script). HUB-01 aspetta quel marcatore prima di mostrare «Apri la vetrina»: un marcatore
 # rimasto dall'avvio precedente (i container possono ripartire da soli con il codespace) lo farebbe comparire troppo presto.
 sudo rm -f "$DIR/stato/membri-di-test"
+# ADR-055, Q-727: anche lo stato della console master (HUB-02) si riscrive a ogni avvio da `vetrina.sh` (`master_console`).
+sudo rm -f "$DIR/stato/console-master"
 
 # La vetrina segue main (M8.14, Q-726), con o senza il segreto LH_IMAGE: il clone si porta a origin/main (solo
 # fast-forward, ramo main pulito, sempre come utente del codespace, mai come root) perche' gli script che girano sono

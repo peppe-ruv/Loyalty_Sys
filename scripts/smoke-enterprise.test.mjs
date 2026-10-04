@@ -155,7 +155,7 @@ const page = {
  * Istanza finta: BFF (web), Keycloak (idp) e hub. `users` = { nome: { password, roles, mfa, updatePassword } }.
  * `audit` raccoglie le voci; `actorOverride` sostituisce l'attore delle voci (per provare il rifiuto).
  */
-async function fakeInstance({ users, registration = false, actorOverride = null, tiles = {}, memberLogin = 'ok', testUsersHub = false } = {}) {
+async function fakeInstance({ users, registration = false, actorOverride = null, tiles = {}, memberLogin = 'ok', testUsersHub = false, masterCard = '' } = {}) {
   const state = { sessions: new Map(), flows: new Map(), codes: new Map(), kcSessions: new Map(), audit: [], categories: [], seen: [] };
   const servers = {};
   servers.hub = await listen((req, res) => {
@@ -238,7 +238,7 @@ async function fakeInstance({ users, registration = false, actorOverride = null,
     if (u.pathname === '/api/demo/status') return send(res, 200, { checkedAt: new Date().toISOString(), services: [] });
     if (u.pathname === '/') {
       const t = { hub: 'UP', web: 'UP', idp: 'UP', cms: 'NOT_INSTALLED', db: 'UP', kafka: 'UP', ...tiles };
-      return send(res, 200, `<h1>Loyalty Hub</h1><p role="note" data-testid="showcase-banner">Vetrina</p>${testUsersHub ? '<section data-testid="test-users"></section>' : '<div data-testid="portal-closed"></div>'}
+      return send(res, 200, `<h1>Loyalty Hub</h1><p role="note" data-testid="showcase-banner">Vetrina</p>${testUsersHub ? `<section data-testid="test-users">${masterCard}</section>` : '<div data-testid="portal-closed"></div>'}
         <ul>${Object.entries(t).map(([k, v]) => `<li data-testid="tile-${k}" data-state="${v}"></li>`).join('')}</ul>`);
     }
     if (u.pathname === '/api/auth/login' && u.searchParams.get('realm') === 'members') {
@@ -419,6 +419,29 @@ test('vetrina con --test-users: HUB-02 mostra le schede degli utenti di test al 
   const err = capture();
   assert.equal(await main(['vetrina', '--allow-http', '--web', inst.web, '--settle', '0'], { stdout: capture(), stderr: err, retries: 0, sleep }), 1);
   assert.match(err.text(), /manca il riquadro del portale chiuso/);
+});
+
+test('vetrina con --test-users: la scheda del realm master e\' facoltativa ma non mostra mai credenziali (ADR-055, Q-727)', async (t) => {
+  const run = async (masterCard) => {
+    const inst = await fakeInstance({ users: {}, testUsersHub: true, masterCard });
+    t.after(inst.close);
+    const out = capture();
+    const err = capture();
+    await main(['vetrina', '--allow-http', '--web', inst.web, '--settle', '0', '--test-users'], { stdout: out, stderr: err, retries: 0, sleep });
+    return { out: out.text(), err: err.text() };
+  };
+  // Assente: va bene. Aperta o chiusa senza credenziali: va bene.
+  assert.match((await run('')).out, /HUB-02: banner, schede degli utenti di test e tessere/);
+  const aperta = '<div data-testid="console-master" data-state="open"><p>Credenziali del proprietario dell\'ambiente, non mostrate qui.</p><a href="https://idp.example.org/admin/master/console/">Apri la console</a></div>';
+  assert.match((await run(aperta)).out, /HUB-02: banner, schede degli utenti di test e tessere/);
+  const chiusa = '<div data-testid="console-master" data-state="closed"><p>manca il segreto LH_VETRINA_MASTER_ADMIN_PASSWORD o non e valido</p><button type="button" disabled>Apri la console</button></div>';
+  assert.match((await run(chiusa)).out, /HUB-02: banner, schede degli utenti di test e tessere/);
+  // Credenziali nella scheda: errore. Il valore sospetto si compone a runtime (nessun segreto letterale nel sorgente).
+  const nome = ['LH_VETRINA', 'MASTER_ADMIN', 'PASSWORD'].join('_');
+  for (const leak of [`<code>${nome}=abc</code>`, '<button type="button">Copia</button>', '<span data-value="proprietario">x</span>']) {
+    const r = await run(`<div data-testid="console-master" data-state="open">${leak}</div>`);
+    assert.match(r.err, /la scheda del realm master mostra una credenziale/, leak);
+  }
 });
 
 test('uso: errori di argomenti → uscita 2 senza richieste', async () => {

@@ -17,6 +17,7 @@ import {
 } from "@/lib/hub/enterpriseStatus";
 import { REPO_URL } from "@/lib/hub/links";
 import type { TestMode } from "@/lib/hub/testMode";
+import type { MasterConsole } from "@/lib/hub/vetrinaMarkers";
 import { it } from "@/lib/i18n/it";
 import { AutoRetryNote, RefreshStatusButton } from "./RefreshStatus";
 import { TestEnvironmentBanner, TestUsers } from "./TestUsers";
@@ -272,6 +273,7 @@ export function EnterpriseHub({
   memberUser = null,
   load,
   testMode = null,
+  masterConsole = null,
 }: {
   demoUrl: string | null;
   user: Pick<SessionUser, "username" | "name"> | null;
@@ -279,6 +281,8 @@ export function EnterpriseHub({
   memberUser?: Pick<SessionUser, "username" | "name"> | null;
   load?: () => Promise<EnterpriseStatus>;
   testMode?: TestMode | null;
+  /** Stato e indirizzo della console del realm master (ADR-055), solo nell'ambiente di test; `null` = nessuna scheda. */
+  masterConsole?: MasterConsole | null;
 }) {
   return (
     <div className="mx-auto min-h-dvh max-w-5xl px-4 pb-16 pt-10">
@@ -290,7 +294,7 @@ export function EnterpriseHub({
           <EnterpriseStatusPanel load={load} />
         </Suspense>
       </div>
-      {testMode ? <TestUsers mode={testMode} user={user} memberUser={memberUser} /> : <EnterpriseEntrances user={user} />}
+      {testMode ? <TestUsers mode={testMode} user={user} memberUser={memberUser} masterConsole={masterConsole} /> : <EnterpriseEntrances user={user} />}
     </div>
   );
 }

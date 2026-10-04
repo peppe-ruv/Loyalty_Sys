@@ -234,8 +234,16 @@ export const it = {
     consoleExternal: "(si apre in una nuova scheda)",
     adminPassword: "la password dell'amministratore",
     adminUser: "il nome utente dell'amministratore",
+    consoleMaster: "Realm master",
+    consoleMasterOpen: "Aperta",
+    consoleMasterClosed: "Chiusa",
+    consoleMasterText: "Amministrazione completa di Keycloak: tutti i realm, i client e le impostazioni del server.",
+    consoleMasterInfoOpen:
+      "Credenziali del proprietario dell'ambiente, non mostrate qui. Dopo troppi tentativi sbagliati l'accesso si blocca per qualche minuto.",
+    consoleMasterInfoClosed:
+      "Chiusa perché manca il segreto del codespace `LH_VETRINA_MASTER_ADMIN_PASSWORD` o non è valido (almeno 12 caratteri). Il proprietario lo imposta su GitHub, poi fa Stop e riavvio del codespace.",
     consolesNote:
-      "Le modifiche fatte nelle console finiscono negli eventi di Keycloak, non ancora nell'audit del backoffice (M8.12, Q-677). La console master non è pubblica.",
+      "Le modifiche fatte nelle console finiscono negli eventi di Keycloak, non ancora nell'audit del backoffice (M8.12, Q-677).",
   },
   // BO-01 (V10) — «Carica il programma di esempio» (F2-DIST-09, ADR-051, Q-617, Q-722, Q-723): riquadro della Dashboard.
   sampleProgram: {
