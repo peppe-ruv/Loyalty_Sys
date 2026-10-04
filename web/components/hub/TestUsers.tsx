@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import type { SessionUser } from "@/lib/auth/sessionStore";
 import { cn } from "@/lib/cn";
 import type { TestMode } from "@/lib/hub/testMode";
+import type { MasterConsole } from "@/lib/hub/vetrinaMarkers";
 import {
   KEYCLOAK_ADMIN_PASSWORD,
   KEYCLOAK_ADMINS,
@@ -227,17 +228,48 @@ function ConsoleCard({
   );
 }
 
+/** Realm master (ADR-055, Q-727): solo lo stato e il collegamento, MAI utente, password o valori copiabili. */
+function MasterConsoleCard({ master }: { master: MasterConsole }) {
+  const open = master.state === "open";
+  return (
+    <Card className="flex flex-col gap-2 p-4" data-testid="console-master" data-state={master.state}>
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="font-semibold">{t.consoleMaster}</h4>
+        <Pill tone={open ? "ok" : "warn"}>{open ? t.consoleMasterOpen : t.consoleMasterClosed}</Pill>
+      </div>
+      <p className="flex-1 text-sm text-[var(--color-bo-ink-2)]">{t.consoleMasterText}</p>
+      <p role="note" className="flex items-start gap-2 text-xs text-[var(--color-bo-ink-2)]">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span>{open ? t.consoleMasterInfoOpen : t.consoleMasterInfoClosed}</span>
+      </p>
+      {open ? (
+        <a href={master.url} target="_blank" rel="noopener noreferrer" className={ghostBtn}>
+          {t.consoleOpen} <ExternalLink className="h-4 w-4" aria-hidden />
+          <span className="sr-only">{t.consoleExternal}</span>
+        </a>
+      ) : (
+        <button type="button" disabled className={cn(ghostBtn, "cursor-not-allowed opacity-50 hover:bg-transparent")}>
+          {t.consoleOpen}
+        </button>
+      )}
+    </Card>
+  );
+}
+
 /** I tre gruppi di schede di HUB-02 nell'ambiente di test: operatori, membri, console di Keycloak. */
 export function TestUsers({
   mode,
   user,
   memberUser = null,
+  masterConsole = null,
 }: {
   mode: TestMode;
   /** Sessione dell'operatore (realm operatori), se c'è. */
   user: Pick<SessionUser, "username" | "name"> | null;
   /** Sessione del membro (realm membri), se c'è: indipendente da quella dell'operatore. */
   memberUser?: Pick<SessionUser, "username" | "name"> | null;
+  /** Console del realm master: la scheda compare solo se c'è (ADR-055, Q-727). */
+  masterConsole?: MasterConsole | null;
 }) {
   const seedHint = `${OPERATORS_TOTP_SEED.slice(0, 8)}…${OPERATORS_TOTP_SEED.slice(-8)}`;
   return (
@@ -268,7 +300,7 @@ export function TestUsers({
         <h3 id="tu-consoles" className="text-lg font-semibold">
           {t.consoles}
         </h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {mode.operators !== null ? (
             <ConsoleCard
               title={t.consoleOperators}
@@ -287,6 +319,7 @@ export function TestUsers({
               href={mode.members.url}
             />
           ) : null}
+          {masterConsole !== null ? <MasterConsoleCard master={masterConsole} /> : null}
         </div>
         <p className="mt-2 text-xs text-[var(--color-bo-ink-2)]">{t.consolesNote}</p>
       </section>

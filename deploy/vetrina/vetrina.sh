@@ -198,6 +198,9 @@ write_atomic() {
 # personale. La cartella e' 0755 e il file 0644 perche' i container girano come uid 1000; il resto di $LH_VETRINA_DIR
 # resta 0700 (un bind mount di una sottocartella non espone il padre).
 MARKER_MEMBRI=membri-di-test
+# Marcatore «stato della console master» (ADR-055, Q-727, HUB-02): `$LH_VETRINA_DIR/stato/console-master` con `aperta` o
+# `chiusa` (mai altro, nessun segreto), scritto da `master_console` e letto da HUB-02 solo per mostrare lo stato.
+MARKER_MASTER=console-master
 marker_dir() { echo "$LH_VETRINA_DIR/stato"; }
 marker_prepare() {
   local d
@@ -347,13 +350,20 @@ master_console() {
   [ -L "$dir" ] && die "$dir è un collegamento simbolico"
   mkdir -p "$dir"
   chmod 755 "$dir"
-  if [ -f "$dest" ] && cmp -s "$src" "$dest"; then return 0; fi
-  write_atomic "$dest" < "$src"
-  chmod 644 "$dest"
-  if compose ps --status running --services 2>/dev/null | grep -qx proxy; then
-    compose restart proxy >/dev/null
-    info "proxy riavviato: console del realm master $state"
+  if ! { [ -f "$dest" ] && cmp -s "$src" "$dest"; }; then
+    write_atomic "$dest" < "$src"
+    chmod 644 "$dest"
+    if compose ps --status running --services 2>/dev/null | grep -qx proxy; then
+      compose restart proxy >/dev/null
+      info "proxy riavviato: console del realm master $state"
+    fi
   fi
+  # Lo stato per HUB-02 si scrive sempre, anche se il permesso del proxy non cambia, e solo DOPO che il proxy lo applica:
+  # se il riavvio fallisce lo script si ferma prima e HUB-02 non mostra uno stato che il proxy non ha (avvio.sh lo
+  # toglie a inizio avvio).
+  marker_prepare
+  printf '%s\n' "$state" | write_atomic "$(marker_dir)/$MARKER_MASTER"
+  chmod 644 "$(marker_dir)/$MARKER_MASTER"
 }
 
 master_console_is_open() {

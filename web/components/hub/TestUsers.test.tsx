@@ -191,7 +191,7 @@ describe("TestUsers", () => {
       "href",
       "https://idp2.lh.test/admin/loyaltyhub-members/console/",
     );
-    expect(screen.getByText(/La console master non è pubblica/)).toBeInTheDocument();
+    expect(screen.queryByText(/La console master non è pubblica/)).toBeNull();
     expect(screen.getByText(/M8\.12, Q-677/)).toBeInTheDocument();
   });
 
@@ -314,5 +314,59 @@ describe("OtpCard", () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
     expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  // ADR-055, Q-727: scheda «Realm master», solo lo stato e il collegamento.
+  const MASTER_URL = "https://idp.lh.test/admin/master/console/";
+
+  it("realm master aperto: pill «Aperta», link attivo alla console master in nuova scheda", async () => {
+    render(<TestUsers mode={MODE} user={null} masterConsole={{ state: "open", url: MASTER_URL }} />);
+    await screen.findByTestId("otp-code");
+    const card = screen.getByTestId("console-master");
+    expect(card).toHaveAttribute("data-state", "open");
+    expect(within(card).getByRole("heading", { name: tu.consoleMaster })).toBeInTheDocument();
+    expect(within(card).getByText(tu.consoleMasterOpen)).toBeInTheDocument();
+    expect(within(card).getByText(tu.consoleMasterText)).toBeInTheDocument();
+    expect(within(card).getByText(tu.consoleMasterInfoOpen)).toBeInTheDocument();
+    const link = within(card).getByRole("link", { name: new RegExp(tu.consoleOpen) });
+    expect(link).toHaveAttribute("href", MASTER_URL);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+    expect(within(card).queryByRole("button")).toBeNull();
+  });
+
+  it("realm master chiuso: pill «Chiusa», pulsante disabilitato e testo col nome del segreto", async () => {
+    render(<TestUsers mode={MODE} user={null} masterConsole={{ state: "closed", url: MASTER_URL }} />);
+    await screen.findByTestId("otp-code");
+    const card = screen.getByTestId("console-master");
+    expect(card).toHaveAttribute("data-state", "closed");
+    expect(within(card).getByText(tu.consoleMasterClosed)).toBeInTheDocument();
+    expect(within(card).getByText(tu.consoleMasterInfoClosed)).toBeInTheDocument();
+    expect(card.textContent).toContain("LH_VETRINA_MASTER_ADMIN_PASSWORD");
+    expect(within(card).getByRole("button", { name: new RegExp(tu.consoleOpen) })).toBeDisabled();
+    expect(within(card).queryByRole("link")).toBeNull();
+  });
+
+  it("senza stato (file assente) la scheda master non c'è", async () => {
+    render(<TestUsers mode={MODE} user={null} masterConsole={null} />);
+    await screen.findByTestId("otp-code");
+    expect(screen.queryByTestId("console-master")).toBeNull();
+    expect(screen.getByTestId("console-loyaltyhub")).toBeInTheDocument();
+  });
+
+  it("il markup della scheda master non contiene mai credenziali", async () => {
+    for (const state of ["open", "closed"] as const) {
+      const { unmount } = render(<TestUsers mode={MODE} user={null} masterConsole={{ state, url: MASTER_URL }} />);
+      await screen.findByTestId("otp-code");
+      const html = screen.getByTestId("console-master").outerHTML;
+      expect(html).not.toContain("KEYCLOAK_ADMIN_PASSWORD");
+      expect(html).not.toContain(KEYCLOAK_ADMIN_PASSWORD);
+      expect(html).not.toContain(OPERATORS_PASSWORD);
+      expect(html).not.toContain(MEMBERS_PASSWORD);
+      // «Password» come parola (il nome del segreto del codespace è tutto maiuscolo e compare solo nel testo di «Chiusa»).
+      expect(html).not.toMatch(/Password/);
+      expect(html).not.toContain(tu.copy);
+      unmount();
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { testMode } from "@/lib/hub/testMode";
+import { masterConsoleUrl, testMode } from "@/lib/hub/testMode";
 
 // HUB-01 — marcatore «membri di test registrati» della vetrina (Q-728, F2-DIST-09, ADR-051). SOLO LATO SERVER.
 // `vetrina.sh membri` scrive il file `membri-di-test` (contenuto `ready`) in una cartella dell'host che il compose del
@@ -11,6 +11,7 @@ import { testMode } from "@/lib/hub/testMode";
 
 export const DEFAULT_STATE_DIR = "/run/lh-vetrina";
 export const MEMBERS_MARKER = "membri-di-test";
+export const MASTER_CONSOLE_MARKER = "console-master";
 
 export type TestMembersState = "ready" | "pending";
 
@@ -38,4 +39,36 @@ export async function readVetrinaFlags(env: Env = process.env): Promise<VetrinaF
   } catch {
     return { testMembers: "pending" };
   }
+}
+
+export type MasterConsoleState = "open" | "closed";
+
+/**
+ * HUB-02, ADR-055, Q-727 — stato della console del realm master, scritto da `vetrina.sh` (`master_console`) nel file
+ * `console-master` con `aperta` o `chiusa`. `null` se il file manca (vetrina fuori dal codespace o avvio in corso);
+ * contenuto diverso da `aperta` ⇒ `closed` (prudente). Dal file non esce altro che lo stato: mai credenziali.
+ */
+export async function readMasterConsoleState(env: Env = process.env): Promise<MasterConsoleState | null> {
+  let text: string;
+  try {
+    text = await readFile(join(stateDir(env), MASTER_CONSOLE_MARKER), { encoding: "utf8" });
+  } catch {
+    return null;
+  }
+  return text.length <= 16 && text.trim() === "aperta" ? "open" : "closed";
+}
+
+export interface MasterConsole {
+  state: MasterConsoleState;
+  url: string;
+}
+
+/** Scheda «Realm master» di HUB-02: solo nell'ambiente di test, con lo stato scritto e l'indirizzo derivabile; altrimenti `null`. */
+export async function readMasterConsole(env: Env = process.env): Promise<MasterConsole | null> {
+  const mode = testMode(env);
+  if (mode === null) return null;
+  const url = masterConsoleUrl(mode);
+  if (url === null) return null;
+  const state = await readMasterConsoleState(env);
+  return state === null ? null : { state, url };
 }

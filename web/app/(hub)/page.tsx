@@ -7,6 +7,7 @@ import { StatusPanel } from "@/components/hub/StatusPanel";
 import { isEnterprise } from "@/lib/auth/config";
 import { getViewer } from "@/lib/auth/viewer";
 import { testMode } from "@/lib/hub/testMode";
+import { readMasterConsole } from "@/lib/hub/vetrinaMarkers";
 import { demoHubUrl, REPO_URL, RECOMMENDED_PATH } from "@/lib/hub/links";
 import { it } from "@/lib/i18n/it";
 
@@ -30,7 +31,7 @@ async function EnterpriseHubPage() {
   } catch {
     memberUser = null;
   }
-  return <EnterpriseHub demoUrl={demoHubUrl(process.env)} user={user} memberUser={memberUser} testMode={testMode()} />;
+  return <EnterpriseHub demoUrl={demoHubUrl(process.env)} user={user} memberUser={memberUser} testMode={testMode()} masterConsole={await readMasterConsole()} />;
 }
 
 export default function DemoHubPage() {

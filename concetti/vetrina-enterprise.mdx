@@ -136,7 +136,7 @@ ADR-051 vuole che tutto si faccia dal browser, senza terminale. Dopo la configur
 ```mermaid
 flowchart TD
   accTitle: Percorso dal browser verso la vetrina enterprise
-  accDescr: Il visitatore parte dalla demo pubblica, accende la modalità Enterprise con il pulsante nel riquadro, attende l'avvio del codespace e arriva a HUB-02 della vetrina. Lì sceglie la scheda di un utente di test: l'operatore entra nel realm loyaltyhub con password e codice OTP del momento e arriva al backoffice, il membro entra nel realm loyaltyhub-members e arriva al portale, gli amministratori di test aprono la console del proprio realm. La console del realm master si apre dallo stesso indirizzo di Keycloak solo con il segreto del proprietario.
+  accDescr: Il visitatore parte dalla demo pubblica, accende la modalità Enterprise con il pulsante nel riquadro, attende l'avvio del codespace e arriva a HUB-02 della vetrina. Lì sceglie la scheda di un utente di test: l'operatore entra nel realm loyaltyhub con password e codice OTP del momento e arriva al backoffice, il membro entra nel realm loyaltyhub-members e arriva al portale, gli amministratori di test aprono la console del proprio realm. La console del realm master si apre dallo stesso indirizzo di Keycloak solo con il segreto del proprietario. HUB-02 legge dal marcatore console-master, scritto dallo script della vetrina, solo lo stato aperta o chiusa.
   A[Demo pubblica HUB-01<br/>riquadro Modalità Enterprise] -->|Accendi| B[GitHub avvia il codespace<br/>4–6 minuti, poi tutte le risorse pronte]
   B --> C[HUB-02 della vetrina<br/>schede degli utenti di test]
   C --> D{Scheda scelta}
@@ -147,6 +147,7 @@ flowchart TD
   F --> I[Portale dei membri<br/>il membro viene dal token]
   G --> J[Utenti, ruoli, sessioni, eventi]
   P[Console del realm master<br/>aperta solo con il segreto<br/>del proprietario] -.->|utente proprietario,<br/>solo password| K[Configurazione di Keycloak]
+  S[Marcatore console-master<br/>aperta o chiusa, scritto da vetrina.sh] -.->|solo lo stato| C
 ```
 
 1. **Accendi.** Sulla demo, il riquadro **Modalità Enterprise** mostra lo stato della vetrina: *spenta*, *in accensione*, *pronta*, *non pronta*. Il pulsante **Accendi la modalità Enterprise** chiede a GitHub di avviare il codespace: l'avvio richiede di solito 4–6 minuti. Il riquadro mostra uno spinner e l'elenco delle nove risorse (codespace acceso, porte pubbliche 8000 e 8001, web, servizi, Postgres, Kafka, accesso dei due realm, membri di test registrati) e **Apri la vetrina** compare solo quando sono tutte pronte, membri di test compresi (Q-728). Se dopo 15 minuti ne manca qualcuna, il riquadro dice quale e offre **Controlla di nuovo**: rilegge lo stato, non riaccende niente. Il codespace si spegne dopo circa 30 minuti senza uso del terminale: lo riaccendi dallo stesso pulsante. Il pulsante usa le ore gratuite di Codespaces del proprietario, controlla l'origine della richiesta, ammette al più un avvio ogni 60 secondi e legge lo stato da GitHub al più ogni 5 secondi.
@@ -202,6 +203,8 @@ Le console dei due realm sono pubbliche sull'indirizzo di Keycloak della vetrina
 | Realm `master` | `https://<codespace>-8001.app.github.dev/admin/master/console/` | solo il proprietario: utente `proprietario` e la password del segreto `LH_VETRINA_MASTER_ADMIN_PASSWORD`; chiusa (`404`) senza segreto |
 
 Il proxy lascia passare solo i percorsi che la console dei due realm usa: login e token del realm, file statici, la pagina `/admin/<realm>/console`, le API `/admin/realms/<realm>` e `/admin/serverinfo`. Gli amministratori di test hanno i soli ruoli di gestione utenti (Q-671). Tutto ciò che riguarda `master` risponde `404`, anche con maiuscole, codifiche o `..` nel percorso, finché la console è chiusa. I percorsi con `\`, `;` o `%` restano `404` anche a console aperta (ADR-055).
+
+HUB-02 mostra una terza scheda, **Realm master**, con lo stato **Aperta** o **Chiusa** e il pulsante **Apri la console**, disabilitato quando la console è chiusa. La scheda non mostra mai utente né password. Se manca il marcatore di stato (avvio in corso), la scheda non compare.
 
 **Per il proprietario: aprire la console del realm `master`.** Il segreto lo conosci solo tu: non compare nei log, in HUB-02 o nel repository.
 

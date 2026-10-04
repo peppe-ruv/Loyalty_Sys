@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_STATE_DIR, MEMBERS_MARKER, readVetrinaFlags, stateDir } from "./vetrinaMarkers";
+import { DEFAULT_STATE_DIR, MASTER_CONSOLE_MARKER, MEMBERS_MARKER, readMasterConsole, readMasterConsoleState, readVetrinaFlags, stateDir } from "./vetrinaMarkers";
 
 // HUB-01, Q-728: marcatore dei membri di test registrati, letto da /api/demo/status solo nell'ambiente di test.
 
@@ -71,5 +71,50 @@ describe("readVetrinaFlags", () => {
     writeFileSync(join(dir, MEMBERS_MARKER), "ready\n");
     const flags = await readVetrinaFlags({ ...TEST, LH_VETRINA_STATE_DIR: dir });
     expect(Object.keys(flags ?? {})).toEqual(["testMembers"]);
+  });
+});
+
+describe("readMasterConsoleState (ADR-055, Q-727)", () => {
+  it("file assente o cartella assente ⇒ null", async () => {
+    expect(await readMasterConsoleState({ LH_VETRINA_STATE_DIR: dir })).toBeNull();
+    expect(await readMasterConsoleState({ LH_VETRINA_STATE_DIR: join(dir, "non-esiste") })).toBeNull();
+  });
+
+  it("`aperta` ⇒ open, `chiusa` ⇒ closed", async () => {
+    writeFileSync(join(dir, MASTER_CONSOLE_MARKER), "aperta\n");
+    expect(await readMasterConsoleState({ LH_VETRINA_STATE_DIR: dir })).toBe("open");
+    writeFileSync(join(dir, MASTER_CONSOLE_MARKER), "chiusa\n");
+    expect(await readMasterConsoleState({ LH_VETRINA_STATE_DIR: dir })).toBe("closed");
+  });
+
+  it("contenuto diverso, vuoto o troppo lungo ⇒ closed (prudente)", async () => {
+    for (const content of ["", "open", "APERTA", "aperta ma anche altro testo oltre il limite"]) {
+      writeFileSync(join(dir, MASTER_CONSOLE_MARKER), content);
+      expect(await readMasterConsoleState({ LH_VETRINA_STATE_DIR: dir }), content).toBe("closed");
+    }
+  });
+
+  it("un marcatore che è una cartella ⇒ null, senza eccezioni", async () => {
+    mkdirSync(join(dir, MASTER_CONSOLE_MARKER));
+    expect(await readMasterConsoleState({ LH_VETRINA_STATE_DIR: dir })).toBeNull();
+  });
+});
+
+describe("readMasterConsole", () => {
+  it("fuori dall'ambiente di test ⇒ null anche con il marcatore", async () => {
+    writeFileSync(join(dir, MASTER_CONSOLE_MARKER), "aperta\n");
+    expect(await readMasterConsole({ LH_VETRINA_STATE_DIR: dir, ...BASE })).toBeNull();
+  });
+
+  it("nell'ambiente di test: stato + indirizzo della console master sull'origine dell'IdP degli operatori", async () => {
+    writeFileSync(join(dir, MASTER_CONSOLE_MARKER), "chiusa\n");
+    expect(await readMasterConsole({ ...TEST, LH_VETRINA_STATE_DIR: dir })).toEqual({
+      state: "closed",
+      url: "https://idp.lh.test/admin/master/console/",
+    });
+  });
+
+  it("senza marcatore ⇒ null (nessuna scheda)", async () => {
+    expect(await readMasterConsole({ ...TEST, LH_VETRINA_STATE_DIR: dir })).toBeNull();
   });
 });

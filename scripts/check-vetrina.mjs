@@ -1011,6 +1011,37 @@ test('marcatore dei membri di test: cartella montata in sola lettura nel web, to
   assert.doesNotMatch(sh.split('MARKER_MEMBRI=')[1]?.split('\nset_owner() {')[0] ?? '', /printf '(?!ready)/, 'solo `ready`, nessun dato personale');
 });
 
+test('marcatore della console master per HUB-02: solo aperta o chiusa, cartella 0755 e file 0644, tolto da avvio.sh (ADR-055, Q-727)', () => {
+  const sh = read(VETRINA_SH);
+  const fn = (name) => { const body = sh.split(`\n${name}() {`)[1]; return body ? `${name}() {${body.split('\n}\n')[0]}\n}\n` : ''; };
+  const lib = ['info() { echo "vetrina: $*"; }', 'die() { echo "Errore: $*" >&2; exit 1; }', 'compose() { return 1; }',
+    fn('write_atomic'), markerBlock(sh), fn('master_console')].join('\n');
+  const d = tmp();
+  const host = path.join(d, 'host');
+  fs.mkdirSync(host, { recursive: true });
+  const run = (state) => spawnSync('bash', ['-c', `set -euo pipefail\numask 077\n${lib}\nmaster_console ${state}`], {
+    encoding: 'utf8',
+    env: { PATH: process.env.PATH, SCRIPT_DIR: DIR, LH_VETRINA_DIR: host },
+  });
+  const marker = path.join(host, 'stato', 'console-master');
+  assert.ok(!fs.existsSync(marker));
+  for (const [state, content] of [['chiusa', 'chiusa\n'], ['aperta', 'aperta\n'], ['aperta', 'aperta\n'], ['chiusa', 'chiusa\n']]) {
+    const r = run(state);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(read(marker), content, `${state}: contenuto fisso, nient'altro`);
+    assert.equal((fs.statSync(marker).mode & 0o777).toString(8), '644');
+    assert.equal((fs.statSync(path.dirname(marker)).mode & 0o777).toString(8), '755');
+  }
+  // Uno stato non valido non scrive niente di nuovo.
+  assert.notEqual(run('altro').status, 0);
+  assert.equal(read(marker), 'chiusa\n');
+  // Nella funzione l'unico contenuto scritto nel marcatore e' lo stato validato (aperta|chiusa).
+  const body = fn('master_console');
+  assert.match(body, /printf '%s\\n' "\$state" \| write_atomic "\$\(marker_dir\)\/\$MARKER_MASTER"/);
+  assert.match(sh, /^MARKER_MASTER=console-master$/m);
+  assert.match(read(AVVIO), /^sudo rm -f "\$DIR\/stato\/console-master"$/m, 'avvio.sh toglie il marcatore a inizio avvio');
+});
+
 test('vetrina.sh: gli utenti di test negli overlay solo con CODESPACES=true, altrimenti --no-test-users (ADR-051 decisione 1, Q-676)', () => {
   const sh = read(VETRINA_SH);
   assert.match(sh, /^test_users_allowed\(\) \{ \[ "\$\{CODESPACES:-\}" = true \]; \}$/m);
@@ -1082,7 +1113,7 @@ test('vetrina.sh: la console master si apre SOLO con il segreto e dopo aver crea
   const sh = read(VETRINA_SH);
   const fn = (name) => { const body = sh.split(`\n${name}() {`)[1]; return body ? `${name}() {${body.split('\n}\n')[0]}\n}\n` : ''; };
   const lib = ['info() { echo "vetrina: $*"; }', 'die() { echo "Errore: $*" >&2; exit 1; }', 'test_users_allowed() { true; }', 'compose() { return 1; }',
-    fn('write_atomic'), fn('master_console'), fn('master_console_is_open'), fn('apply_realm_overlay')].join('\n');
+    fn('write_atomic'), markerBlock(sh), fn('master_console'), fn('master_console_is_open'), fn('apply_realm_overlay')].join('\n');
   assert.ok(lib.includes('master_console() {') && lib.includes('apply_realm_overlay() {') && lib.includes('write_atomic() {'));
   const SEGRETO = 'segreto-del-proprietario-xyz789';
   const run = ({ pw, rc, mode = '' }) => {
@@ -1102,11 +1133,12 @@ test('vetrina.sh: la console master si apre SOLO con il segreto e dopo aver crea
     const out = r.stdout + r.stderr;
     assert.ok(!out.includes(SEGRETO), `la password non compare nell'output: ${out}`);
     assert.ok(!read(log).includes(SEGRETO), 'la password non e\' un argomento');
-    return { status: r.status, out, state: /STATO=(\w+)/.exec(r.stdout)?.[1], overlay: read(log).trim(), file: read(path.join(host, 'caddy/master-console.caddy')) };
+    return { status: r.status, out, state: /STATO=(\w+)/.exec(r.stdout)?.[1], overlay: read(log).trim(), file: read(path.join(host, 'caddy/master-console.caddy')), marker: read(path.join(host, 'stato/console-master')) };
   };
   // Segreto presente e utente pronto (uscita 0): console aperta, il processo figlio ha ricevuto la password dall'ambiente.
   let r = run({ pw: SEGRETO, rc: 0 });
   assert.deepEqual([r.status, r.state, r.file === read(MASTER_OPEN)], [0, 'aperta', true], r.out);
+  assert.equal(r.marker, 'aperta\n', 'HUB-02: il marcatore dello stato dice aperta (ADR-055)');
   assert.match(r.overlay, /^pw=\d+ args=/);
   assert.notEqual(r.overlay.match(/pw=(\d+)/)[1], '0');
   // Segreto assente: chiusa, il figlio non riceve password.

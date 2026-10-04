@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { testMode } from "./testMode";
+import { masterConsoleUrl, testMode } from "./testMode";
 import { GET as totpGet } from "@/app/api/vetrina/totp/route";
 import { OPERATORS_TOTP_SEED } from "./testUsers";
 import { totp } from "./totp";
@@ -114,5 +114,17 @@ describe("nome del realm dall'emittente", () => {
   );
   it("emittente dei membri con un percorso diverso: nessun indirizzo", () => {
     expect(memberConsoleUrl({ ...BASE, LH_OIDC_MEMBER_ISSUER: "https://idp2.lh.test/auth/realms/x" })).toBeNull();
+  });
+});
+
+describe("masterConsoleUrl (ADR-055, Q-727)", () => {
+  it("stessa origine della console degli operatori, percorso /admin/master/console/", () => {
+    const mode = testMode(TEST);
+    expect(mode).not.toBeNull();
+    expect(masterConsoleUrl(mode!)).toBe("https://idp.lh.test/admin/master/console/");
+  });
+
+  it("origine non derivabile (emittente senza /realms/<nome>) ⇒ null", () => {
+    expect(masterConsoleUrl({ operators: null, members: null })).toBeNull();
   });
 });
