@@ -22,6 +22,40 @@ function gh(state: string, extra: Record<string, unknown> = {}) {
   return Response.json({ state, web_url: `https://${NAME}.github.dev`, owner: { login: "x" }, secret_field: "NON-DEVE-USCIRE", ...extra });
 }
 
+const HOST_WEB = `${NAME}-8000.app.github.dev`;
+const HOST_IDP = `${NAME}-8001.app.github.dev`;
+
+/** fetch finto: GitHub risponde `state`, le due porte inoltrate della vetrina rispondono con `probe(host, path)`. */
+function world(state: string, probe: (host: string, path: string) => Response = (host, path) => vetrinaReady(host, path)) {
+  return vi.fn(async (url: string) => {
+    const u = new URL(url);
+    if (u.hostname === "api.github.com") return gh(state);
+    return probe(u.hostname, u.pathname);
+  });
+}
+
+function vetrinaReady(host: string, path: string): Response {
+  if (host === HOST_WEB && path === "/api/demo/status") {
+    return Response.json({
+      services: [{ code: "ingestion", state: "UP" }],
+      kafka: { state: "UP" },
+      db: { state: "UP" },
+      checkedAt: "2026-10-04T10:00:00Z",
+      vetrina: { testMembers: "ready" },
+    });
+  }
+  if (host === HOST_IDP && path === "/realms/loyaltyhub/.well-known/openid-configuration") {
+    return Response.json({ issuer: `https://${HOST_IDP}/realms/loyaltyhub` });
+  }
+  if (host === HOST_IDP && path === "/realms/loyaltyhub-members/.well-known/openid-configuration") {
+    return Response.json({ issuer: `https://${HOST_IDP}/realms/loyaltyhub-members` });
+  }
+  return new Response("non previsto", { status: 404 });
+}
+
+const hostsCalled = (f: { mock: { calls: unknown[][] } }) => f.mock.calls.map((c) => new URL(c[0] as string).hostname);
+const ghCalls = (f: { mock: { calls: unknown[][] } }) => hostsCalled(f).filter((h) => h === "api.github.com").length;
+
 const get = () => new NextRequest(`${ORIGIN}/api/vetrina/codespace`);
 const post = (origin: string | null = ORIGIN) =>
   new NextRequest(`${ORIGIN}/api/vetrina/codespace`, { method: "POST", headers: origin === null ? {} : { origin } });
@@ -78,11 +112,13 @@ describe("GET /api/vetrina/codespace", () => {
   });
 
   it("chiama solo api.github.com con intestazioni, timeout e no-store; risponde {state, url}", async () => {
-    const f = vi.fn(async () => gh("Available"));
+    const f = world("Available");
     const res = await handleCodespaceGet(get(), { env: ENV, fetchImpl: f as unknown as typeof fetch });
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(await res.json()).toEqual({ state: "available", url: `https://${NAME}.github.dev` });
+    const body = await res.json();
+    expect(body).toMatchObject({ state: "available", url: `https://${NAME}.github.dev` });
+    expect(Object.keys(body).sort()).toEqual(["checks", "state", "url"]);
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`https://api.github.com/user/codespaces/${NAME}`);
     expect(init.method).toBe("GET");
@@ -112,7 +148,7 @@ describe("GET /api/vetrina/codespace", () => {
   });
 
   it("mai il token né il corpo di GitHub nella risposta, in successo e in errore", async () => {
-    const ok = await handleCodespaceGet(get(), { env: ENV, fetchImpl: (async () => gh("Available")) as unknown as typeof fetch });
+    const ok = await handleCodespaceGet(get(), { env: ENV, fetchImpl: world("Available") as unknown as typeof fetch });
     const okText = await ok.text();
     expect(okText).not.toContain(TOKEN);
     expect(okText).not.toContain("NON-DEVE-USCIRE");
@@ -227,24 +263,30 @@ describe("POST /api/vetrina/codespace", () => {
 describe("cache dello stato (5 s)", () => {
   it("GET ripetuti dentro 5 s chiamano GitHub una volta sola; scaduta la cache si rilegge", async () => {
     let t = 3_000_000;
-    const f = vi.fn(async () => gh("Available"));
+    const f = world("Available");
     const deps = { env: ENV, fetchImpl: f as unknown as typeof fetch, now: () => t };
     await handleCodespaceGet(get(), deps);
     t += CACHE_MS - 1;
     const second = await handleCodespaceGet(get(), deps);
-    expect(f).toHaveBeenCalledTimes(1);
-    expect(await second.json()).toEqual({ state: "available", url: `https://${NAME}.github.dev` });
+    expect(ghCalls(f)).toBe(1);
+    expect(f).toHaveBeenCalledTimes(4); // GitHub + tre sonde, una volta sola
+    expect(await second.json()).toMatchObject({ state: "available", url: `https://${NAME}.github.dev` });
     t += 1;
     await handleCodespaceGet(get(), deps);
-    expect(f).toHaveBeenCalledTimes(2);
+    expect(ghCalls(f)).toBe(2);
+    expect(f).toHaveBeenCalledTimes(8);
   });
 
   it("la lettura iniziale del POST usa la cache; un avvio riuscito la svuota", async () => {
     let t = 4_000_000;
     let state = "Shutdown";
-    const f = vi.fn(async (_url: string, init?: RequestInit) => (init?.method === "POST" ? new Response(null, { status: 200 }) : gh(state)));
+    const f = vi.fn(async (url: string, init?: RequestInit) => {
+      const u = new URL(url);
+      if (u.hostname !== "api.github.com") return vetrinaReady(u.hostname, u.pathname);
+      return init?.method === "POST" ? new Response(null, { status: 200 }) : gh(state);
+    });
     const deps = { env: ENV, fetchImpl: f as unknown as typeof fetch, now: () => t };
-    const gets = () => f.mock.calls.filter((c) => (c as unknown as [string, RequestInit])[1].method === "GET").length;
+    const gets = () => f.mock.calls.filter((c) => new URL(c[0] as string).hostname === "api.github.com" && (c[1] as RequestInit).method === "GET").length;
     await handleCodespaceGet(get(), deps);
     await handleCodespacePost(post(), deps);
     expect(gets()).toBe(1);
@@ -273,5 +315,76 @@ describe("POST /api/vetrina/codespace, errori", () => {
     const text = await res.text();
     expect(text).not.toContain(TOKEN);
     expect(text).not.toContain("forbidden");
+  });
+});
+
+describe("GET con la prontezza della vetrina (Q-728)", () => {
+  it("a codespace acceso aggiunge `checks`; verso l'esterno solo api.github.com e i due host inoltrati del codespace", async () => {
+    const f = world("Available");
+    const res = await handleCodespaceGet(get(), { env: ENV, fetchImpl: f as unknown as typeof fetch });
+    const body = await res.json();
+    expect(Object.values(body.checks)).toEqual(Array(9).fill("ok"));
+    expect([...new Set(hostsCalled(f))].sort()).toEqual(["api.github.com", HOST_IDP, HOST_WEB].sort());
+    // Il token va solo a GitHub, mai alle sonde.
+    for (const c of f.mock.calls as unknown as [string, RequestInit][]) {
+      const auth = (c[1].headers as Record<string, string>).Authorization;
+      expect(auth === undefined || new URL(c[0]).hostname === "api.github.com").toBe(true);
+    }
+    expect(JSON.stringify(body)).not.toContain(TOKEN);
+  });
+
+  it("codespace spento o in accensione: nessuna sonda, nessun `checks`", async () => {
+    for (const raw of ["Shutdown", "Starting"]) {
+      resetStartWindow();
+      const f = world(raw);
+      const body = await (await handleCodespaceGet(get(), { env: ENV, fetchImpl: f as unknown as typeof fetch })).json();
+      expect(body.checks).toBeUndefined();
+      expect(hostsCalled(f)).toEqual(["api.github.com"]);
+    }
+  });
+
+  it("porte private (302 al login di GitHub): le risorse restano in attesa e il reindirizzamento non si segue", async () => {
+    const f = world("Available", () => new Response(null, { status: 302, headers: { location: "https://github.com/login" } }));
+    const body = await (await handleCodespaceGet(get(), { env: ENV, fetchImpl: f as unknown as typeof fetch })).json();
+    expect(body.state).toBe("available");
+    expect(body.checks).toMatchObject({ codespace: "ok", ports: "pending", web: "pending", idpOperators: "pending", testMembers: "pending" });
+    expect(hostsCalled(f)).not.toContain("github.com");
+    for (const c of f.mock.calls as unknown as [string, RequestInit][]) {
+      if (new URL(c[0]).hostname !== "api.github.com") expect(c[1].redirect).toBe("manual");
+    }
+  });
+
+  it("dominio di inoltro non valido in LH_VETRINA_FORWARD_DOMAIN: nessuna sonda, risorse in attesa", async () => {
+    const f = world("Available");
+    const env = { ...ENV, LH_VETRINA_FORWARD_DOMAIN: "evil.example.org" };
+    const body = await (await handleCodespaceGet(get(), { env, fetchImpl: f as unknown as typeof fetch })).json();
+    expect(hostsCalled(f)).toEqual(["api.github.com"]);
+    expect(body.checks.codespace).toBe("ok");
+    expect(body.checks.ports).toBe("pending");
+  });
+
+  it("dominio valido da LH_VETRINA_FORWARD_DOMAIN: gli host cambiano di conseguenza", async () => {
+    const f = world("Available", () => new Response("x", { status: 404 }));
+    await handleCodespaceGet(get(), { env: { ...ENV, LH_VETRINA_FORWARD_DOMAIN: "eu.github.dev" }, fetchImpl: f as unknown as typeof fetch });
+    expect([...new Set(hostsCalled(f))].sort()).toEqual(["api.github.com", `${NAME}-8000.eu.github.dev`, `${NAME}-8001.eu.github.dev`].sort());
+  });
+
+  it("le sonde sono in cache per 5 s, poi si ripetono", async () => {
+    let t = 7_000_000;
+    const f = world("Available");
+    const deps = { env: ENV, fetchImpl: f as unknown as typeof fetch, now: () => t };
+    await handleCodespaceGet(get(), deps);
+    await handleCodespaceGet(get(), deps);
+    expect(f).toHaveBeenCalledTimes(4);
+    t += CACHE_MS;
+    await handleCodespaceGet(get(), deps);
+    expect(f).toHaveBeenCalledTimes(8);
+  });
+
+  it("una risposta con un 502 dall'inoltro non rompe il GET: il codespace è acceso, le risorse in attesa", async () => {
+    const f = world("Available", () => new Response("bad gateway", { status: 502 }));
+    const res = await handleCodespaceGet(get(), { env: ENV, fetchImpl: f as unknown as typeof fetch });
+    expect(res.status).toBe(200);
+    expect((await res.json()).checks.ports).toBe("pending");
   });
 });

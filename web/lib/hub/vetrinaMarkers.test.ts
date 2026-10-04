@@ -1,0 +1,75 @@
+// @vitest-environment node
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_STATE_DIR, MEMBERS_MARKER, readVetrinaFlags, stateDir } from "./vetrinaMarkers";
+
+// HUB-01, Q-728: marcatore dei membri di test registrati, letto da /api/demo/status solo nell'ambiente di test.
+
+const BASE = {
+  LH_PROFILE: "enterprise",
+  LH_OIDC_ISSUER: "https://idp.lh.test/realms/loyaltyhub",
+  LH_WEB_CLIENT_SECRET: "s3cr3t-generato-dall-idp-0123456789",
+  LH_WEB_URL: "https://loyalty.lh.test",
+  LH_WEB_SESSION_KEY: Buffer.from(Array.from({ length: 32 }, (_, i) => i + 11)).toString("base64"),
+  LH_OIDC_MEMBER_ISSUER: "https://idp2.lh.test/realms/loyaltyhub-members",
+  LH_WEB_MEMBER_CLIENT_SECRET: "s3cr3t-del-portale-0123456789",
+};
+const TEST = { ...BASE, LH_TEST_USERS_ALLOWED: "true", LH_ENVIRONMENT: "test" };
+
+let dir: string;
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "lh-marker-"));
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+});
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+  vi.restoreAllMocks();
+});
+
+describe("stateDir", () => {
+  it("default /run/lh-vetrina; solo percorsi assoluti", () => {
+    expect(stateDir({})).toBe(DEFAULT_STATE_DIR);
+    expect(stateDir({ LH_VETRINA_STATE_DIR: "relativo/x" })).toBe(DEFAULT_STATE_DIR);
+    expect(stateDir({ LH_VETRINA_STATE_DIR: "/tmp/x" })).toBe("/tmp/x");
+  });
+});
+
+describe("readVetrinaFlags", () => {
+  it("fuori dall'ambiente di test il campo non esiste (demo, enterprise senza le due variabili, solo una delle due)", async () => {
+    writeFileSync(join(dir, MEMBERS_MARKER), "ready\n");
+    const at = { LH_VETRINA_STATE_DIR: dir };
+    expect(await readVetrinaFlags({ ...at })).toBeNull();
+    expect(await readVetrinaFlags({ ...at, ...BASE })).toBeNull();
+    expect(await readVetrinaFlags({ ...at, ...BASE, LH_TEST_USERS_ALLOWED: "true" })).toBeNull();
+    expect(await readVetrinaFlags({ ...at, ...BASE, LH_ENVIRONMENT: "test" })).toBeNull();
+    expect(await readVetrinaFlags({ ...at, LH_TEST_USERS_ALLOWED: "true", LH_ENVIRONMENT: "test" })).toBeNull();
+  });
+
+  it("marcatore con `ready` ⇒ ready", async () => {
+    writeFileSync(join(dir, MEMBERS_MARKER), "ready\n");
+    expect(await readVetrinaFlags({ ...TEST, LH_VETRINA_STATE_DIR: dir })).toEqual({ testMembers: "ready" });
+  });
+
+  it("marcatore assente, cartella assente o contenuto diverso ⇒ pending", async () => {
+    const env = { ...TEST, LH_VETRINA_STATE_DIR: dir };
+    expect(await readVetrinaFlags(env)).toEqual({ testMembers: "pending" });
+    expect(await readVetrinaFlags({ ...env, LH_VETRINA_STATE_DIR: join(dir, "non-esiste") })).toEqual({ testMembers: "pending" });
+    for (const content of ["", "pending", "READY", "ready ma anche altro testo oltre il limite"]) {
+      writeFileSync(join(dir, MEMBERS_MARKER), content);
+      expect(await readVetrinaFlags(env)).toEqual({ testMembers: "pending" });
+    }
+  });
+
+  it("un marcatore che è una cartella o non leggibile ⇒ pending, senza eccezioni", async () => {
+    mkdirSync(join(dir, MEMBERS_MARKER));
+    expect(await readVetrinaFlags({ ...TEST, LH_VETRINA_STATE_DIR: dir })).toEqual({ testMembers: "pending" });
+  });
+
+  it("il campo porta solo `ready` o `pending`: nessun altro dato", async () => {
+    writeFileSync(join(dir, MEMBERS_MARKER), "ready\n");
+    const flags = await readVetrinaFlags({ ...TEST, LH_VETRINA_STATE_DIR: dir });
+    expect(Object.keys(flags ?? {})).toEqual(["testMembers"]);
+  });
+});

@@ -35,9 +35,18 @@ services:
       LH_ENVIRONMENT: "${LH_ENVIRONMENT:-}"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8080/actuator/health').then(r=>r.text()).then(t=>process.exit(t.includes('\"status\":\"UP\"')?0:1),()=>process.exit(1))"]
+  # Marcatore dei membri di test registrati (Q-728, HUB-01): `vetrina.sh membri` scrive `stato/membri-di-test` sull'host, qui
+  # la CARTELLA e' montata in SOLA LETTURA e `GET /api/demo/status` ne riporta `vetrina.testMembers` (solo con le due
+  # variabili di test sopra). Il web non scrive nulla e il marcatore non contiene dati personali (solo `ready`).
   web:
     environment:
       LH_TEST_USERS_ALLOWED: "${LH_TEST_USERS_ALLOWED:-}"
       LH_ENVIRONMENT: "${LH_ENVIRONMENT:-}"
+      LH_VETRINA_STATE_DIR: /run/lh-vetrina
+    volumes:
+      - type: bind
+        source: "${LH_VETRINA_DIR:?LH_VETRINA_DIR obbligatoria}/stato"
+        target: /run/lh-vetrina
+        read_only: true
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/demo/status').then(r=>r.text()).then(t=>process.exit(t.includes('checkedAt')?0:1),()=>process.exit(1))"]

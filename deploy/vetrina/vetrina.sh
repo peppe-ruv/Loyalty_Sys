@@ -24,7 +24,8 @@
 #                                   reimporta i realm e gli overlay si riapplicano (ADR-051 decisione 10, Q-672);
 #                                   lo fa da solo `codespace` a ogni avvio
 #   vetrina.sh membri               membri di test dal portale (Anna, Marco, Giulia registrati; Laura da zero, Q-673):
-#                                   solo nel codespace, con hub e web su e le porte pubbliche
+#                                   solo nel codespace, con hub e web su e le porte pubbliche; a registrazione riuscita
+#                                   scrive il marcatore stato/membri-di-test che HUB-01 aspetta (Q-728)
 #   vetrina.sh immagine             rifiuta (uscita 2) un'immagine LH_IMAGE più vecchia degli script del repository
 #                                   (etichetta OCI di revisione o tag vX.Y.Z); lo lancia avvio.sh dopo il pull;
 #                                   `--scegli` e `--risolvi` scelgono e scaricano build-<commit> di main (vedi sotto)
@@ -190,6 +191,28 @@ write_atomic() {
   mv -f "$tmp" "$dest"
 }
 
+# Marcatore «membri di test registrati» (Q-728, HUB-01): file `$LH_VETRINA_DIR/stato/membri-di-test` con `ready`, scritto
+# da `cmd_membri` dopo una registrazione riuscita e tolto a ogni avvio (avvio.sh, cmd_codespace) e a ogni azzeramento.
+# Il compose del codespace monta la CARTELLA (non il file: un rename atomico cambierebbe l'inode) in sola lettura nel
+# ruolo `web` su /run/lh-vetrina; /api/demo/status lo riporta solo nell'ambiente di test. Contenuto fisso: nessun dato
+# personale. La cartella e' 0755 e il file 0644 perche' i container girano come uid 1000; il resto di $LH_VETRINA_DIR
+# resta 0700 (un bind mount di una sottocartella non espone il padre).
+MARKER_MEMBRI=membri-di-test
+marker_dir() { echo "$LH_VETRINA_DIR/stato"; }
+marker_prepare() {
+  local d
+  d="$(marker_dir)"
+  [ -L "$d" ] && die "$d è un collegamento simbolico"
+  mkdir -p "$d"
+  chmod 755 "$d"
+}
+marker_clear() { marker_prepare; rm -f "$(marker_dir)/$MARKER_MEMBRI"; }
+marker_set() {
+  marker_prepare
+  printf 'ready\n' | write_atomic "$(marker_dir)/$MARKER_MEMBRI"
+  chmod 644 "$(marker_dir)/$MARKER_MEMBRI"
+}
+
 set_owner() {
   local uid="$1" mode="$2"; shift 2
   chmod "$mode" "$@"
@@ -244,6 +267,8 @@ cmd_provision() {
     mkdir -p "$d"
     chmod 700 "$d"
   done
+  # Cartella del marcatore dei membri di test (Q-728): esiste prima di `compose up`, che la monta in sola lettura.
+  marker_prepare
 
   # 1. Segreti: generati una volta sola, mai riscritti (subject-key è immutabile: docs/11 §16).
   local entry name kind
@@ -500,6 +525,8 @@ cmd_codespace() {
   unset LH_IMAGE LH_HUB_DEMO_URL LH_VETRINA_DIR
   load_config
   cmd_provision
+  # Ogni avvio riparte senza membri di test registrati: HUB-01 non deve vederli «pronti» finche' non lo sono (Q-728).
+  marker_clear
   if [ -n "$operators" ]; then
     printf '%s\n' "$operators" | tr ';' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' \
       | write_atomic "$LH_VETRINA_DIR/operators.list"
@@ -754,6 +781,8 @@ cmd_membri() {
   fi
   local soft=0
   [ "${1:-}" = "--if-reachable" ] && soft=1
+  # Da qui in poi i membri non sono (piu') garantiti: il marcatore si toglie e lo riscrive solo una registrazione riuscita.
+  marker_clear
   if ! command -v node >/dev/null 2>&1; then
     if [ "$soft" = 1 ]; then
       info "membri di test: manca node nel PATH, li registra avvio.sh"
@@ -767,7 +796,10 @@ cmd_membri() {
     info "membri di test: le porte $CODESPACE_WEB_PORT e $CODESPACE_IDP_PORT non rispondono ancora dall'indirizzo pubblico (non pubbliche?): li registra avvio.sh dopo averle pubblicate"
     return 0
   fi
-  node "$REPO_ROOT/scripts/vetrina-membri.mjs" --web "https://$LH_VETRINA_WEB_HOST"
+  node "$REPO_ROOT/scripts/vetrina-membri.mjs" --web "https://$LH_VETRINA_WEB_HOST" || return 1
+  # Marcatore per HUB-01 (Q-728): solo dopo una registrazione riuscita (`|| return 1` sopra: dentro `a || b` set -e e' spento).
+  marker_set
+  info "membri di test registrati: marcatore $MARKER_MEMBRI scritto"
 }
 
 cmd_operators() {
@@ -790,6 +822,7 @@ cmd_reset() {
   if command -v flock >/dev/null 2>&1; then flock -n 9 || die "un azzeramento è già in corso"; fi
   info "azzeramento iniziato $(date -u +%Y-%m-%dT%H:%M:%SZ) (Q-624: nessun backup)"
   cmd_provision
+  marker_clear # il database dell'hub riparte vuoto: i membri di test non sono piu' registrati (Q-728)
   cmd_preflight "$@"
   compose down --remove-orphans
   local v
