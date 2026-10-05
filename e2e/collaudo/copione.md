@@ -13,10 +13,12 @@ Come si avvia: `AVVIO.md`. Come si compila il rapporto: `rapporto-modello.md`. I
 **Accesso come operatore** (vale per ogni passo con un operatore):
 1. Apri HUB-02 su `<VETRINA>`, scheda dell'operatore, «Entra come <Nome>»: il login del realm `loyaltyhub` arriva con il nome utente già scritto.
 2. Scrivi la password del runbook.
-3. Scrivi il codice OTP: lo mostra la scheda dell'operatore in HUB-02 (codice del momento), oppure lo calcoli dal seme del runbook (TOTP SHA-1, 6 cifre, 30 secondi). Se Keycloak rifiuta un codice appena usato, aspetta il successivo.
+3. Scrivi il codice OTP: lo mostra il riquadro «Codice OTP del momento» in HUB-02, sopra le schede degli operatori, oppure lo calcoli dal seme del runbook (TOTP SHA-1, 6 cifre, 30 secondi). Se Keycloak rifiuta un codice appena usato, aspetta il successivo.
 4. Atterri sul backoffice con il ruolo dell'operatore.
 
 **Accesso come membro**: come sopra dalla scheda del membro, sul realm `loyaltyhub-members`, senza OTP; atterri sul portale.
+
+**Login scaduto dalla rete cloud (#239).** Se Keycloak risponde «Your login attempt timed out», chiudi il contesto e rifai l'accesso da HUB-02 in un contesto nuovo, fino a 3 tentativi in tutto. Annota nel rapporto quanti tentativi sono serviti. Dopo 3 fallimenti il passo è `BLOCCATO` per «#239», non `KO`. È un limite dell'inoltro di GitHub visto dalle reti condivise, non un difetto della vetrina: dal browser del proprietario il login entra al primo colpo (runbook, «Limiti noti»).
 
 **Una sessione per utente.** Keycloak non autentica un altro utente sopra una sessione SSO aperta: usa un contesto del browser nuovo per ogni utente (o esci prima con «Esci per entrare come…»).
 
@@ -341,7 +343,7 @@ Il membro viene solo dal token: in nessuna richiesta di rete verso `/api/lh/` co
 
 ### CL-PT-001 — Anna: accesso e Home di una iscritta di ieri
 
-- **Utente di test**: `anna.rossi` (membro Anna Rossi, `MBR-000001`).
+- **Utente di test**: `anna.rossi` (membro Anna Rossi; l'ID `MBR-` lo assegna il servizio alla registrazione, per esempio Anna è `MBR-001000`, Q-673).
 - **Precondizioni**: CL-BO-012.
 - **Azioni**:
   1. Esegui «Accesso come membro» in un contesto nuovo.
@@ -353,7 +355,7 @@ Il membro viene solo dal token: in nessuna richiesta di rete verso `/api/lh/` co
 
 ### CL-PT-002 — Marco: saldo, livello Silver e movimenti
 
-- **Utente di test**: `marco.bianchi` (membro Marco Bianchi, `MBR-000002`).
+- **Utente di test**: `marco.bianchi` (membro Marco Bianchi; l'ID `MBR-` lo assegna il servizio alla registrazione, per esempio Anna è `MBR-001000`, Q-673).
 - **Precondizioni**: CL-BO-012.
 - **Azioni**:
   1. Esegui «Accesso come membro» in un contesto nuovo.
@@ -365,7 +367,7 @@ Il membro viene solo dal token: in nessuna richiesta di rete verso `/api/lh/` co
 
 ### CL-PT-003 — Giulia: a 120 punti status dal livello Gold
 
-- **Utente di test**: `giulia.ferri` (membro Giulia Ferri, `MBR-000003`).
+- **Utente di test**: `giulia.ferri` (membro Giulia Ferri; l'ID `MBR-` lo assegna il servizio alla registrazione, per esempio Anna è `MBR-001000`, Q-673).
 - **Precondizioni**: CL-BO-012. Esegui questo passo **prima** di CL-BO-014 oppure usa i valori di CL-BO-014: dopo l'acquisto da 130 € il livello atteso è GOLD.
 - **Azioni**:
   1. Esegui «Accesso come membro» in un contesto nuovo.
