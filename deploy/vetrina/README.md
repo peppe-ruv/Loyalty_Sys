@@ -283,6 +283,7 @@ I certificati interni durano 397 giorni e l'azzeramento li rinnova quando ne man
 
 - **Codespace acceso solo su richiesta** (ADR-050, TOBE-012): fuori dalle demo la vetrina è spenta e il pulsante di HUB-01 porta a una pagina di GitHub. L'uso si blocca a fine quota gratuita (Q-660).
 - **Segreti leggibili dall'utente del codespace.** Nel codespace l'uid 1000 dei container coincide con l'utente `vscode`: chi apre il terminale del codespace, cioè solo il proprietario, può leggere i file di `secrets/`.
+- **Login che scade dalle reti condivise** (#239). Dalle reti in uscita condivise, come quella delle sessioni cloud di Claude, l'inoltro di GitHub a volte aggiunge alla richiesta un cookie di sessione di Keycloak che non è del browser: Keycloak scrive `cookie_not_found` nel registro e mostra «Your login attempt timed out». Dal browser del proprietario 5 accessi su 5 sono entrati al primo colpo (2026-10-05); Keycloak e la vetrina non c'entrano. Basta rifare l'accesso; il copione di collaudo lo ripete fino a 3 volte.
 - **Pagina di avviso di GitHub.** Al primo accesso da un browser a una porta pubblica GitHub può mostrare una pagina di conferma prima della vetrina.
 - **Non è HA.** Un codespace, un broker, un Postgres e una replica del web; gli obiettivi di ADR-036 non valgono.
 - **Azzeramento non del tutto automatico** (Q-630): il programma si riapplica a mano, con il pulsante del backoffice (V10) o, come ripiego, con `vetrina.sh programma` (che non crea campagne né storie).

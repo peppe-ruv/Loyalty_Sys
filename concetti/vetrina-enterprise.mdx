@@ -242,6 +242,7 @@ Le modifiche fatte nelle console non arrivano ancora nell'audit del backoffice: 
 - **Scenari che accreditano punti**: in `enterprise` l'ingresso degli eventi accetta solo il ruolo `SOURCE` (un client `private_key_jwt` per fonte) o un `ADMIN`; le fonti di prova non hanno chiavi pubblicate e gli scenari demo (`/v1/demo/**`) non esistono in questa istanza.
 - **Tempo reale in BO-24**: la schermata resta in stato *degraded* finché non c'è un proxy per gli eventi in tempo reale (Q-622).
 - **Assistente e CMS**: spenti o non installati in questa istanza.
+- **Login sempre al primo colpo dalle reti condivise**: da una rete in uscita condivisa, come quella delle sessioni cloud di Claude, l'inoltro di GitHub a volte aggiunge un cookie di Keycloak estraneo e il login risponde «Your login attempt timed out». Basta rifare l'accesso. Da un browser di casa o d'ufficio non è successo (#239).
 - **Disponibilità continua**: la vetrina è accesa solo su richiesta, per le demo. La quota gratuita di Codespaces copre decine di ore al mese, non un servizio sempre acceso (TOBE-012).
 
 ## Azzeramento

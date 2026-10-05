@@ -210,7 +210,7 @@ export const it = {
     otpLoading: "Calcolo il codice…",
     otpError: "Codice non disponibile.",
     otpRetry: "Riprova",
-    otpNote: (seed: string) => `Vuoi provarlo dal telefono? Seme ${seed} e QR nella guida.`,
+    otpNote: (seed: string) => `Vuoi provarlo dal telefono? Seme ${seed} nella guida, alla voce «Utenti di test».`,
     enterAs: (name: string) => `Entra come ${name}`,
     registerAs: (name: string) => `Registrati come ${name}`,
     signedInAs: (name: string) => `Sei dentro come ${name}`,
