@@ -18,7 +18,7 @@ Come si avvia: `AVVIO.md`. Come si compila il rapporto: `rapporto-modello.md`. I
 
 **Accesso come membro**: come sopra dalla scheda del membro, sul realm `loyaltyhub-members`, senza OTP; atterri sul portale.
 
-**Login scaduto dalla rete cloud (#239).** Se Keycloak risponde «Your login attempt timed out», chiudi il contesto e rifai l'accesso da HUB-02 in un contesto nuovo, fino a 3 tentativi in tutto. Annota nel rapporto quanti tentativi sono serviti. Dopo 3 fallimenti il passo è `BLOCCATO` per «#239», non `KO`. È un limite dell'inoltro di GitHub visto dalle reti condivise, non un difetto della vetrina: dal browser del proprietario il login entra al primo colpo (runbook, «Limiti noti»).
+**Login scaduto dalla rete cloud (#239).** Se Keycloak risponde «Your login attempt timed out», chiudi il contesto e rifai l'accesso da HUB-02 in un contesto nuovo, fino a 3 tentativi in tutto. Annota nel rapporto quanti tentativi sono serviti. Dopo 3 fallimenti il passo è `BLOCCATO` per «#239», non `KO`. A fine collaudo i passi bloccati per #239 si rifanno con Claude in Chrome nel browser del proprietario (`AVVIO.md`). È un limite dell'inoltro di GitHub visto dalle reti condivise, non un difetto della vetrina: dal browser del proprietario il login entra al primo colpo (runbook, «Limiti noti»).
 
 **Una sessione per utente.** Keycloak non autentica un altro utente sopra una sessione SSO aperta: usa un contesto del browser nuovo per ogni utente (o esci prima con «Esci per entrare come…»).
 
