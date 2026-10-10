@@ -120,7 +120,7 @@ services:
   # Gli URL JWKS hanno un default locale segnaposto: finché non puntano al JWKS reale della fonte,
   # l'autenticazione private_key_jwt di quel client fallisce (fail-closed).
   idp:
-    image: quay.io/keycloak/keycloak:26.7.4
+    image: quay.io/keycloak/keycloak:26.8.0-1
     container_name: lh-idp
     profiles: ["idp"]
     entrypoint: *lh-require-env
@@ -161,7 +161,7 @@ services:
 
   # Solo prova (F2-IAM-04): IdP OIDC secondario per il broker. Mai in produzione.
   idp-test:
-    image: quay.io/keycloak/keycloak:26.7.4
+    image: quay.io/keycloak/keycloak:26.8.0-1
     container_name: lh-idp-test
     profiles: ["idp-test"]
     entrypoint: *lh-require-env
