@@ -33,10 +33,10 @@
     <!-- Token OIDC (Q-410): spring-security-oauth2-jose la porta in lh-common e lh-test-support la usa per i token RS256
          di prova. Non è nel BOM di Spring Boot: una sola versione, gestita qui, perché un aggiornamento di Spring Security
          o di Dependabot non allinei uno dei due moduli e non l'altro. È la versione che Boot 4.1.1 risolve oggi. -->
-    <nimbus-jose-jwt.version>10.9.1</nimbus-jose-jwt.version>
+    <nimbus-jose-jwt.version>10.10</nimbus-jose-jwt.version>
     <!-- Proprietà generative (ADR-053, Q-690, docs/06 §9): libreria di test, mai nei jar di produzione. Registra il proprio
          motore sulla JUnit Platform accanto a Jupiter; non è nel BOM di Spring Boot, quindi la versione è fissata qui. -->
-    <jqwik.version>1.10.1</jqwik.version>
+    <jqwik.version>1.10.2</jqwik.version>
 
     <!--
       Dipendenze con advisory noti (M8.0, ADR-044). Spring Boot 4.1.1 è l'ultima 4.1.x: le versioni corrette
@@ -53,7 +53,7 @@
         (anche kafka-clients 4.3.1 dichiara 1.10.2). GHSA-xx22-p4ch-683r (CVE-2026-59949, moderata: XXHash JNI
         senza controllo dei limiti), corretta da 1.11.1; API usata da kafka-clients invariata.
     -->
-    <lh.tomcat.version>11.0.26</lh.tomcat.version>
+    <lh.tomcat.version>11.0.27</lh.tomcat.version>
     <lh.jackson3.version>3.1.7</lh.jackson3.version>
     <lh.jackson2.version>2.21.7</lh.jackson2.version>
     <lh.lz4-java.version>1.11.4</lh.lz4-java.version>
@@ -224,7 +224,7 @@
         <plugin>
           <groupId>org.pitest</groupId>
           <artifactId>pitest-maven</artifactId>
-          <version>1.30.0</version>
+          <version>1.30.1</version>
           <dependencies>
             <!-- Motore JUnit Platform: esegue JUnit 5 e jqwik (le classi *Properties). -->
             <dependency>
