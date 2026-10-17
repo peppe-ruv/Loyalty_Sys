@@ -57,11 +57,11 @@ class HubInProcessEndToEndIT {
         long before = walletPts("MBR-000002");
         assertThat(before).as("il wallet è seminato dal profilo demo").isGreaterThan(0);
 
-        // Istante feriale fisso: risultato deterministico, niente moltiplicatore weekend.
+        // Martedì recente (dentro la finestra di 30 giorni dell'ingestion): feriale, niente moltiplicatore weekend.
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", "hub-inproc-01", "source", "urn:loyaltyhub:source:ecommerce",
                 "type", "purchase.completed", "subject", "member:MBR-000002",
-                "time", "2026-09-15T10:00:00Z",
+                "time", RecentInstants.weekdayMorning(),
                 "data", Map.of("orderId", "ORD-INPROC-1", "amount", 130, "currency", "EUR", "channel", "ONLINE"));
         JsonNode accepted = client().post().uri("/v1/events")
                 .contentType(MediaType.APPLICATION_JSON).header("X-LH-Actor", SourceActors.forBody(event)).body(event).retrieve().body(JsonNode.class);

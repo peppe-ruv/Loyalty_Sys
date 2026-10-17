@@ -433,8 +433,8 @@ class TestbookPltApiIT extends TestbookPltSupportIT {
             for (int i = 0; i < n; i++) {
                 String event = """
                         {"specversion":"1.0","id":"tb-plt-rl-%s","source":"urn:loyaltyhub:source:app","type":"app.login.daily",
-                         "subject":"member:MBR-999%s","time":"2026-09-24T08:00:00Z","data":{"platform":"WEB"}}
-                        """.formatted(uniqueTag(), i % 10);
+                         "subject":"member:MBR-999%s","time":"%s","data":{"platform":"WEB"}}
+                        """.formatted(uniqueTag(), i % 10, RecentInstants.recent());
                 Raw r = raw("POST", "/v1/events", headers("Content-Type", "application/json", "X-Forwarded-For", ip,
                         "X-LH-Actor", SourceActors.forBody(event)), event);
                 statuses.add(r.status());

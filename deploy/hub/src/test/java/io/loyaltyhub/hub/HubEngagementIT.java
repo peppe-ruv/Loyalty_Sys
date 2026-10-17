@@ -68,7 +68,7 @@ class HubEngagementIT {
         assertThat(unread("MBR-000002")).as("inbox seminata: 3 non letti").isEqualTo(3);
         Map<String, Object> event = Map.of(
                 "specversion", "1.0", "id", "hub-engagement-01", "source", "urn:loyaltyhub:source:ecommerce",
-                "type", "purchase.completed", "subject", "member:MBR-000002", "time", "2026-09-15T10:00:00Z",
+                "type", "purchase.completed", "subject", "member:MBR-000002", "time", RecentInstants.weekdayMorning(),
                 "data", Map.of("orderId", "ORD-ENG-1", "amount", 130, "currency", "EUR", "channel", "ONLINE"));
         client().post().uri("/v1/events").contentType(MediaType.APPLICATION_JSON)
                 .header("X-LH-Actor", SourceActors.forBody(event)).body(event).retrieve().body(JsonNode.class);
