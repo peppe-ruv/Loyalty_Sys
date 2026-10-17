@@ -755,6 +755,16 @@ test('dev container della vetrina: macchina di Q-660, avvio automatico, configur
   assert.doesNotMatch(avvio, /ports visibility [^\n]*(8080|8180|3000)/, 'solo web e Keycloak pubblici');
   assert.match(avvio, /--password-stdin/, 'il token del codespace solo da stdin');
   assert.match(avvio, /bash deploy\/vetrina\/vetrina\.sh codespace/);
+  // Q-729: registro di avvio in una issue; non blocca mai l'avvio e l'errore di `ports visibility` finisce nel registro.
+  assert.doesNotMatch(avvio, /ports visibility [^\n]*>\/dev\/null/, 'l\'errore delle porte resta nel registro');
+  assert.match(avvio, /trap 'pubblica_registro \$\?' EXIT/);
+  assert.match(avvio, /gh issue list [^\n]*--label "\$etichetta"/);
+  assert.match(avvio, /gh issue comment "\$n" [^\n]*--body-file -/);
+  assert.match(avvio, /scripts\/vetrina-registro\.mjs/);
+  for (const passo of ['allineamento del clone', "scelta e scaricamento dell'immagine", 'vetrina.sh codespace', 'porte pubbliche', 'discovery OIDC', 'membri di test', 'fine']) {
+    assert.ok(avvio.includes(`PASSO="${passo}"`), `passo ${passo}`);
+  }
+  assert.deepEqual(dc.customizations.codespaces.repositories['peppe-ruv/Loyalty_Sys'].permissions, { contents: 'write', issues: 'write' });
 });
 
 test('compose unito nel codespace: proxy HTTP su 127.0.0.1:8000 e 8001, nessun alias, stesso emittente pubblico', { skip: !haveCompose && 'docker compose assente' }, () => {

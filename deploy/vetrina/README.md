@@ -124,6 +124,29 @@ Le nove risorse e come si rilevano (il server sonda solo i due indirizzi inoltra
 
 `vetrina.testMembers` esiste solo nell'ambiente di test. Lo legge dal file `stato/membri-di-test`, che `vetrina.sh membri` scrive a registrazione riuscita (contiene solo `ready`, nessun dato personale) e che `avvio.sh` toglie a ogni avvio; il compose lo monta in sola lettura nel web. Una vetrina con un'immagine più vecchia di questa modifica non ha il campo e il riquadro resta fermo su «Membri di test registrati»: riavvia il codespace per prendere l'immagine di `main` (Q-726).
 
+### Registro di avvio su GitHub
+
+Quando l'avvio fallisce le porte restano private e il registro sta solo nel terminale del codespace. Per questo, alla fine di **ogni** avvio, riuscito o no, `avvio.sh` pubblica l'esito su GitHub (Q-729).
+
+```mermaid
+flowchart LR
+  accTitle: Pubblicazione del registro di avvio
+  accDescr: A fine avvio, con qualunque esito, il trap di avvio.sh legge avvio.log, lo passa a vetrina-registro.mjs che tiene l'ultima esecuzione, toglie i log dei container e filtra i segreti, e lo pubblica come commento nella issue aperta con l'etichetta vetrina-avvio, creata se manca.
+  A["Fine dell'avvio (trap EXIT)"] --> B["Legge avvio.log"]
+  B --> C["vetrina-registro.mjs: estratto e filtro dei segreti"]
+  C --> D{"Issue aperta con etichetta vetrina-avvio?"}
+  D -->|no| E["Crea etichetta e issue"]
+  D -->|sì| F["Commento"]
+  E --> F
+```
+
+- **Cosa si pubblica.** Un commento per avvio nella issue «Vetrina: registro di avvio» (etichetta `vetrina-avvio`): titolo «Avvio riuscito» o «Avvio fallito», una tabella con passo, codice d'uscita, codespace, commit, immagine e orari, e le ultime 200 righe dell'ultima esecuzione.
+- **Cosa non si pubblica.** I log dei container (al loro posto resta una riga `[log del container <nome> omesso]`) e i segreti: valori di `password=`, `token=`, `secret=`, `key=`, intestazioni `Authorization` e `Cookie`, token GitHub, JWT, blocchi PEM, stringhe base64 o esadecimali lunghe e i valori delle variabili segrete del codespace diventano `[omesso]`.
+- **Dove.** In una issue del repository. Il repository è pubblico, quindi la issue lo è: chiunque la legge.
+- **Permessi.** Il token del codespace scrive la issue grazie a `issues: write` in `.devcontainer/vetrina/devcontainer.json`. GitHub ti chiede di accettare i permessi quando crei il codespace. Senza `gh` o senza il permesso la pubblicazione si salta in silenzio e l'avvio non ne risente.
+
+> **Nota:** Il filtro è una rete di sicurezza, non una garanzia: `avvio.sh` non stampa segreti, e il filtro toglie quello che potrebbe sfuggire.
+
 ### Console di Keycloak
 
 | Console | Indirizzo | Chi entra | Visibilità |
@@ -279,11 +302,28 @@ I certificati interni durano 397 giorni e l'azzeramento li rinnova quando ne man
 
 > **Nota:** l'elenco dei segreti è lo stesso in `vetrina.sh` (`SECRETS`) e in `compose.vetrina.yml` (`secrets:`); `scripts/check-vetrina.mjs` verifica che coincidano.
 
+## Tempo di inattività
+
+Un codespace si spegne da solo dopo un periodo senza attività. Il valore predefinito è 30 minuti, troppo poco per una vetrina che resta accesa durante una demo. Per portarlo a 4 ore fai una volta sola questi passi:
+
+1. Apri github.com/settings/codespaces e imposta **Default idle timeout** a 240 minuti.
+2. Elimina il vecchio codespace della vetrina e creane uno nuovo dal repository con la configurazione **Vetrina enterprise**, accettando i permessi richiesti (servono al registro di avvio).
+3. Scrivi il nome del nuovo codespace in `LH_VETRINA_CODESPACE` del progetto Vercel della demo e, se li usi, anche in `LH_VETRINA_URL` e `LH_HUB_ENTERPRISE_URL`.
+
+Cosa devi sapere:
+
+- Il traffico sulle porte inoltrate non conta come attività: solo terminale, editor e comandi la contano. Una demo sul solo browser può comunque spegnersi allo scadere del tempo.
+- Il valore predefinito vale solo per i codespace creati dopo la modifica: per questo il passo 2 è obbligatorio.
+- 240 minuti è il massimo consentito da GitHub.
+- Resta il limite di 12 ore di funzionamento continuo per sessione.
+
 ## Limiti noti
 
 - **Codespace acceso solo su richiesta** (ADR-050, TOBE-012): fuori dalle demo la vetrina è spenta e il pulsante di HUB-01 porta a una pagina di GitHub. L'uso si blocca a fine quota gratuita (Q-660).
 - **Segreti leggibili dall'utente del codespace.** Nel codespace l'uid 1000 dei container coincide con l'utente `vscode`: chi apre il terminale del codespace, cioè solo il proprietario, può leggere i file di `secrets/`.
 - **Login che scade dalle reti condivise** (#239). Dalle reti in uscita condivise, come quella delle sessioni cloud di Claude, l'inoltro di GitHub a volte aggiunge alla richiesta un cookie di sessione di Keycloak che non è del browser: Keycloak scrive `cookie_not_found` nel registro e mostra «Your login attempt timed out». Dal browser del proprietario 5 accessi su 5 sono entrati al primo colpo (2026-10-05); Keycloak e la vetrina non c'entrano. Basta rifare l'accesso; il copione di collaudo lo ripete fino a 3 volte.
+- **Spegnimento dopo 4 ore di inattività.** Anche con il tempo massimo (240 minuti, sezione «Tempo di inattività») il codespace si spegne se nessuno usa terminale o editor, perché il traffico sulle porte non conta. Resta il limite di 12 ore.
+- **Un codespace nuovo riparte con dati vuoti.** Fermare e riaccendere conserva dati e account, ma il codespace nuovo (necessario per cambiare il tempo di inattività) ricrea database, segreti e membri di test da zero e ti chiede di ricaricare il programma di esempio.
 - **Pagina di avviso di GitHub.** Al primo accesso da un browser a una porta pubblica GitHub può mostrare una pagina di conferma prima della vetrina.
 - **Non è HA.** Un codespace, un broker, un Postgres e una replica del web; gli obiettivi di ADR-036 non valgono.
 - **Azzeramento non del tutto automatico** (Q-630): il programma si riapplica a mano, con il pulsante del backoffice (V10) o, come ripiego, con `vetrina.sh programma` (che non crea campagne né storie).

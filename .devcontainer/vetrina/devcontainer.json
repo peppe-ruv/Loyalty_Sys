@@ -57,5 +57,21 @@
   },
   "otherPortsAttributes": {
     "onAutoForward": "ignore"
+  },
+  // Q-729: avvio.sh pubblica l'esito di ogni avvio in una issue del repository (etichetta `vetrina-avvio`) con il token del
+  // codespace, che per questo ha bisogno di `issues: write` (e `contents: write` per leggere il repository dal clone).
+  // GitHub chiede di accettare questi permessi quando si crea il codespace. Chi non li accetta ottiene lo stesso una
+  // vetrina funzionante: il registro resta solo nel terminale del codespace.
+  "customizations": {
+    "codespaces": {
+      "repositories": {
+        "peppe-ruv/Loyalty_Sys": {
+          "permissions": {
+            "contents": "write",
+            "issues": "write"
+          }
+        }
+      }
+    }
   }
 }

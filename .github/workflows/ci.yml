@@ -473,6 +473,8 @@ jobs:
       - run: node scripts/check-seed.mjs
       # Configurazione di programma della vetrina enterprise da seed/ via API (F2-DIST-09, ADR-049, Q-617): hub finto, senza rete.
       - run: node --test scripts/vetrina-programma.test.mjs
+      # Registro di avvio della vetrina per la issue `vetrina-avvio`: estratto, redazione dei segreti e corpo (Q-729).
+      - run: node --test scripts/vetrina-registro.test.mjs
       # Overlay di vetrina del compose di riferimento (F2-DIST-03, F2-DIST-09, ADR-049, M8.14c): segreti solo da file,
       # TLS verso bus e database, porte, vetrina.sh (provisioning in una cartella temporanea) e operatori.py contro un
       # Keycloak simulato. Il compose unito si prova con il docker compose del runner.

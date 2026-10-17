@@ -13,6 +13,8 @@
 # 4. rende pubbliche le porte 8000 e 8001 (Q-661) e verifica che la discovery OIDC risponda dall'URL pubblico;
 # 5. registra i membri di test dal portale (`vetrina.sh membri`, Q-673): serve l'indirizzo pubblico, quindi dopo il passo 4.
 #    A registrazione riuscita scrive il marcatore `stato/membri-di-test` che HUB-01 aspetta (Q-728); a inizio avvio lo toglie.
+# 6. a fine avvio, riuscito o no, pubblica l'esito e un estratto filtrato del registro in una issue del repository con
+#    l'etichetta `vetrina-avvio` (Q-729, `pubblica_registro`): così lo si legge da GitHub anche con le porte ancora private.
 # Non stampa segreti: vetrina.sh mostra solo nomi e percorsi, il token del codespace passa solo da stdin.
 set -euo pipefail
 
@@ -28,6 +30,44 @@ else
   exec > >(sudo tee -a "$LOG") 2>&1
   echo "== avvio della vetrina $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 fi
+# Inizio dell'avvio, conservato nel rilancio (LH_AVVIO_ALLINEATO=1) per l'orario del registro pubblicato.
+LH_AVVIO_INIZIO="${LH_AVVIO_INIZIO:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+export LH_AVVIO_INIZIO
+
+# Q-729: l'esito di ogni avvio si pubblica in una issue (etichetta `vetrina-avvio`). PASSO dice a che punto era l'avvio.
+# Non deve mai far fallire né bloccare l'avvio: ogni comando ha `|| true` e `timeout 30`; senza `gh` o GITHUB_REPOSITORY
+# esce subito. Il trap sta qui, prima di ogni fase che può fallire; nel rilancio con `exec` il trap del primo processo
+# sparisce con il processo stesso, quindi la pubblicazione avviene una sola volta, dal processo che finisce l'avvio.
+PASSO="allineamento del clone"
+MEMBRI_OK=0
+pubblica_registro() {
+  local codice="${1:-0}" esito=fallito etichetta=vetrina-avvio n url tmp repo="${GITHUB_REPOSITORY:-}"
+  set +e +u
+  trap - EXIT
+  command -v gh >/dev/null 2>&1 || return 0
+  [ -n "$repo" ] || return 0
+  if [ "$codice" = 0 ] && [ "$MEMBRI_OK" = 1 ]; then esito=ok; fi
+  sleep 1 # lascia a `tee` il tempo di scrivere le ultime righe del registro
+  tmp="$(mktemp 2>/dev/null)" || return 0
+  sudo cat "$LOG" >"$tmp" 2>/dev/null || true
+  n="$(timeout 30 gh issue list --repo "$repo" --label "$etichetta" --state open --limit 1 --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+  if [ -z "$n" ]; then
+    timeout 30 gh label create "$etichetta" --repo "$repo" --color 1d76db --description "Registro di avvio della vetrina enterprise" >/dev/null 2>&1 || true
+    url="$(timeout 30 gh issue create --repo "$repo" --label "$etichetta" --title "Vetrina: registro di avvio" \
+      --body "Questa issue raccoglie, in un commento per avvio, l'esito dell'avvio della vetrina enterprise nel codespace e un estratto filtrato del suo registro (senza i log dei container e senza segreti). La scrive da solo lo script \`.devcontainer/vetrina/avvio.sh\`. Il runbook è in https://github.com/$repo/blob/main/deploy/vetrina/README.md, sezione «Registro di avvio su GitHub»." 2>/dev/null || true)"
+    n="${url##*/}"
+    case "$n" in ''|*[!0-9]*) n="" ;; esac
+  fi
+  if [ -n "$n" ]; then
+    timeout 30 node scripts/vetrina-registro.mjs --log "$tmp" --esito "$esito" --passo "$PASSO" --codice "$codice" \
+      --codespace "${CODESPACE_NAME:-}" --head "$(git rev-parse --short HEAD 2>/dev/null)" --immagine "${LH_IMAGE:-}" \
+      --inizio "${LH_AVVIO_INIZIO:-}" 2>/dev/null \
+      | timeout 30 gh issue comment "$n" --repo "$repo" --body-file - >/dev/null 2>&1 || true
+  fi
+  rm -f "$tmp" 2>/dev/null || true
+  return 0
+}
+trap 'pubblica_registro $?' EXIT
 
 # Q-728: ogni avvio riparte senza il marcatore dei membri di test registrati (lo scrive `vetrina.sh membri` a registrazione
 # riuscita, in fondo a questo script). HUB-01 aspetta quel marcatore prima di mostrare «Apri la vetrina»: un marcatore
@@ -60,6 +100,7 @@ else
   fi
 fi
 
+PASSO="scelta e scaricamento dell'immagine"
 for _ in $(seq 1 60); do
   sudo docker info >/dev/null 2>&1 && break
   sleep 2
@@ -102,6 +143,7 @@ diagnosi() {
   echo "== fine della diagnosi"
 }
 
+PASSO="vetrina.sh codespace"
 # PATH esplicito: Node.js (membri di test) non e' nel secure_path di sudo.
 if ! sudo --preserve-env=CODESPACES,CODESPACE_NAME,GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN,LH_VETRINA_CONFIG,LH_IMAGE,LH_HUB_DEMO_URL,LH_VETRINA_OPERATORS,LH_VETRINA_MASTER_ADMIN_PASSWORD \
   env "PATH=$PATH" bash deploy/vetrina/vetrina.sh codespace; then
@@ -110,12 +152,15 @@ if ! sudo --preserve-env=CODESPACES,CODESPACE_NAME,GITHUB_CODESPACES_PORT_FORWAR
 fi
 
 # Q-661: porte pubbliche senza clic. Il token del codespace può non avere il permesso: allora lo dice e indica il clic.
-if gh codespace ports visibility 8000:public 8001:public -c "$CODESPACE_NAME" >/dev/null 2>&1; then
+# L'errore di `gh` non si butta: finisce nel registro.
+PASSO="porte pubbliche"
+if gh codespace ports visibility 8000:public 8001:public -c "$CODESPACE_NAME"; then
   echo "porte 8000 e 8001 pubbliche"
 else
   echo "Avviso: non riesco a rendere pubbliche le porte. Nel pannello Porte del codespace: tasto destro su 8000 e 8001, Visibilità della porta, Pubblica." >&2
 fi
 
+PASSO="discovery OIDC"
 idp="https://$CODESPACE_NAME-8001.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN"
 web="https://$CODESPACE_NAME-8000.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN"
 # Codice esatto, senza seguire reindirizzamenti: una porta privata risponde 302 verso il login di GitHub e `curl -f` lo
@@ -128,9 +173,11 @@ fi
 
 # Membri di test (Q-673): Anna, Marco e Giulia registrati dal portale, Laura da zero. Idempotente: se `vetrina.sh codespace`
 # l'ha gia' fatto con le porte pubbliche, qui non cambia nulla. Un errore non lascia la vetrina a meta' in silenzio.
+PASSO="membri di test"
 membri_ok=1
 sudo --preserve-env=CODESPACES,LH_VETRINA_CONFIG env "PATH=$PATH" bash deploy/vetrina/vetrina.sh membri || membri_ok=0
 echo "vetrina pronta: $web"
+if [ "$membri_ok" = 1 ]; then MEMBRI_OK=1; PASSO="fine"; fi
 if [ "$membri_ok" = 0 ]; then
   echo "Errore: i membri di test non sono stati registrati (messaggio sopra). Riprova: sudo --preserve-env=CODESPACES,LH_VETRINA_CONFIG env \"PATH=\$PATH\" bash deploy/vetrina/vetrina.sh membri" >&2
   exit 1
