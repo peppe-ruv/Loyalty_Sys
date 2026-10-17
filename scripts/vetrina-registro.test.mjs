@@ -93,6 +93,12 @@ test('corpo: titolo, tabella e blocco text', () => {
   assert.match(ko, /^## ❌ Avvio fallito\n/);
 });
 
+test('corpo: barre rovesciate e barre verticali nelle celle non rompono la tabella', () => {
+  const bs = String.fromCharCode(92);
+  const md = corpo({ esito: 'fallito', passo: `a${bs}|b`, codice: 1, log: '' });
+  assert.ok(md.includes(`| Passo | a${bs}${bs}${bs}|b |`), md);
+});
+
 test('corpo: il log passa da redigi', () => {
   const c = corpo({ esito: 'fallito', log: 'password=abc123 ok' });
   assert.match(c, /password=\[omesso\] ok/);

@@ -55,7 +55,7 @@ export function redigi(testo, env = process.env) {
     .replace(/[A-Za-z0-9+/_-]{32,}={0,2}/g, OMESSO);
 }
 
-const cella = (v) => String(v ?? '').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').trim() || '-';
+const cella = (v) => String(v ?? '').replace(/[\r\n]+/g, ' ').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').trim() || '-';
 
 // Markdown del commento di issue per un avvio.
 export function corpo({ esito, passo, codice, codespace, head, immagine, inizio, fine, log } = {}) {
