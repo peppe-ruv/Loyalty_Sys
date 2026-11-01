@@ -215,7 +215,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # gitleaks legge tutta la storia
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Semgrep
@@ -620,7 +620,7 @@ jobs:
           sbom: false
           tags: lh-image:ci
       - name: Cluster kind
-        uses: helm/kind-action@v1.15.0
+        uses: helm/kind-action@v1.15.1
         with:
           version: ${{ env.KIND_VERSION }}
           kubectl_version: ${{ env.KUBECTL_VERSION }}
